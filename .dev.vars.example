@@ -1,0 +1,21 @@
+# Workers runtime secrets for local dev (`npm run dev` / `npm run preview`).
+# Copy to .dev.vars and fill in. In production, set these with
+# `wrangler secret put <NAME>` — never commit real values.
+
+# Load .env.development* files when running `wrangler dev`
+NEXTJS_ENV=development
+
+# Neon Postgres connection string (pooled HTTP endpoint)
+DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/stooge_log?sslmode=require
+
+# Better Auth — generate a secret with `npx @better-auth/cli secret`
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:3000
+
+# Google OAuth credentials (https://console.cloud.google.com/apis/credentials)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Comma-separated emails that become approved admins on first sign-in
+# (first-admin bootstrap — everyone else lands in the approval queue)
+ADMIN_EMAILS=
