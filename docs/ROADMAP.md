@@ -47,13 +47,17 @@ theme system (dark/light), route + server-action stubs, docs.
 - Votes auto-cleared when a game leaves `backlog` (frees budget — done in
   Phase 2's `transitionGameStatus`)
 
-## Phase 4 — Dashboard & burn rate
+## Phase 4 — Dashboard & burn rate ✅ (done)
 
-- Completion: points completed / total backlog points
-- Burn-rate chart (Recharts): cumulative completed points per week from
-  `game_status_history`
-- Projected completion date (linear regression over recent weeks)
-- "Currently playing" spotlight card
+- Stat cards: completion % (+ progress bar), games finished, backlog count
+  (with needs-scoring hint), points/week burn rate
+- Burn-rate chart (Recharts): cumulative completed points per Monday-start
+  week from `game_status_history`, with the backlog total as a reference
+  line and a dashed projection segment
+- Projected completion date: least-squares slope over the last 12 weeks
+  (`src/lib/burn-rate.ts`, pure + unit-tested by hand); hidden when flat or
+  >3 years out
+- "Now playing" spotlight cards with art and started-ago
 
 ## Phase 5 — Events
 

@@ -185,11 +185,3 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 
 	revalidatePath("/backlog");
 }
-
-// TODO(Phase 4): burn-rate series — cumulative completed points per week
-// from game_status_history, plus a linear projection of completion date.
-export async function getBurnRate(): Promise<
-	{ weekStart: string; cumulativePoints: number }[]
-> {
-	throw new Error("getBurnRate not implemented (Phase 4)");
-}
