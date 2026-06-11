@@ -73,6 +73,9 @@ export const gameMetadata = pgTable("game_metadata", {
 	hltbCompletionist: numeric("hltb_completionist", { precision: 6, scale: 1 }),
 	raw: jsonb("raw"),
 	fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+	// Stamped on every cron refresh attempt (success or not) so a permanently
+	// failing provider can't keep one game at the head of the stale queue.
+	lastRefreshAttemptAt: timestamp("last_refresh_attempt_at", { withTimezone: true }),
 });
 
 // Append-only audit of status transitions. Powers burn-rate (transitions to

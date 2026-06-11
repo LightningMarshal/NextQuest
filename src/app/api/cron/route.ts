@@ -1,5 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { refreshStaleMetadata } from "@/server/cron/metadata-refresh";
+
 // Cron task dispatcher. The worker's `scheduled` handler (custom-worker.ts)
 // self-fetches this route so cron work runs inside a normal request context
 // where getDb(), getAppSettings(), and notifyDiscord() all work unchanged —
@@ -10,8 +12,10 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const dynamic = "force-dynamic";
 
-// Tasks return a JSON-serializable summary. Registered by feature commits.
-const TASKS: Record<string, () => Promise<Record<string, number>>> = {};
+// Tasks return a JSON-serializable summary.
+const TASKS: Record<string, () => Promise<Record<string, number>>> = {
+	"refresh-metadata": refreshStaleMetadata,
+};
 
 export async function GET(request: Request): Promise<Response> {
 	const { env } = getCloudflareContext();
