@@ -1,0 +1,1 @@
+ALTER TABLE "app_settings" ADD COLUMN "vote_milestones" jsonb DEFAULT '[5,10,15]'::jsonb NOT NULL;

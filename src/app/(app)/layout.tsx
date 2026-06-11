@@ -1,5 +1,6 @@
 import { SiteNav } from "@/components/site-nav";
 import { requireApprovedUser } from "@/server/session";
+import { getAppSettings } from "@/server/settings";
 
 // Everything in this group is members-only: signed out → /sign-in,
 // signed in but not approved → /pending-approval. Session + DB access make
@@ -12,6 +13,7 @@ export default async function AppLayout({
 	children: React.ReactNode;
 }>) {
 	const user = await requireApprovedUser();
+	const settings = await getAppSettings();
 
 	return (
 		<>
@@ -22,6 +24,7 @@ export default async function AppLayout({
 					image: user.image ?? null,
 					isAdmin: user.role === "admin",
 				}}
+				groupName={settings.groupName}
 			/>
 			<main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
 		</>

@@ -16,6 +16,9 @@ export const appSettings = pgTable(
 			.$type<DifficultyMultipliers>()
 			.notNull()
 			.default(DEFAULT_DIFFICULTY_MULTIPLIERS),
+		// Vote totals (ascending) at which a backlog game earns a Discord ping,
+		// once each ever. Empty array disables milestone notifications.
+		voteMilestones: jsonb("vote_milestones").$type<number[]>().notNull().default([5, 10, 15]),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [check("app_settings_single_row", sql`${table.id} = 1`)]

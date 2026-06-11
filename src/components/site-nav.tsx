@@ -86,7 +86,7 @@ function UserMenu({ user }: { user: NavUser }) {
 	);
 }
 
-export function SiteNav({ user }: { user: NavUser }) {
+export function SiteNav({ user, groupName }: { user: NavUser; groupName: string }) {
 	const pathname = usePathname();
 
 	return (
@@ -94,7 +94,7 @@ export function SiteNav({ user }: { user: NavUser }) {
 			<div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4">
 				<Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
 					<Gamepad2Icon className="size-5 text-primary" />
-					stooge-log
+					{groupName}
 				</Link>
 				<nav className="flex items-center gap-1 text-sm">
 					{links.map((link) => (
