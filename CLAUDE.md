@@ -10,6 +10,7 @@ one group; members sign in with Google and are approved by an admin.
 - Feature roadmap and current phase: `docs/ROADMAP.md`
 - Data model, data flow, and future GAC module design: `docs/ARCHITECTURE.md`
 - Why the points formula / voting mechanics work the way they do: `docs/DECISIONS.md`
+- End-to-end deploy walkthrough for non-developers: `docs/deployment/`
 
 ## Stack
 
