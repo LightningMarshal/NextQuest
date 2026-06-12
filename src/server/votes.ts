@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { notifyDiscord } from "@/lib/discord";
 import { requireApprovedUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
@@ -54,10 +55,55 @@ export async function setVote(gameId: string, weight: number): Promise<void> {
 				target: [schema.votes.gameId, schema.votes.userId],
 				set: { weight, updatedAt: new Date() },
 			});
+
+		// Milestone bookkeeping must never fail a vote.
+		try {
+			await maybeNotifyVoteMilestones(db, gameId, settings.voteMilestones);
+		} catch (error) {
+			console.warn("vote milestone check failed:", error);
+		}
 	}
 
 	revalidatePath("/vote");
 	revalidatePath("/backlog");
+}
+
+/**
+ * Discord ping the first time a game's aggregate tally reaches each
+ * configured milestone. The game_vote_milestones PK + onConflictDoNothing
+ * gives fire-once-ever semantics; if an admin lowers thresholds later,
+ * already-qualifying games fire on their next vote (acceptable backfill).
+ * ANONYMITY: the message carries the game and aggregate total only.
+ */
+async function maybeNotifyVoteMilestones(
+	db: ReturnType<typeof getDb>,
+	gameId: string,
+	milestones: number[]
+): Promise<void> {
+	if (milestones.length === 0) return;
+
+	const [{ total }] = await db
+		.select({ total: sql<number>`coalesce(sum(${schema.votes.weight}), 0)::int` })
+		.from(schema.votes)
+		.where(eq(schema.votes.gameId, gameId));
+
+	const reached = milestones.filter((milestone) => total >= milestone);
+	if (reached.length === 0) return;
+
+	const claimed = await db
+		.insert(schema.gameVoteMilestones)
+		.values(reached.map((milestone) => ({ gameId, milestone })))
+		.onConflictDoNothing()
+		.returning({ milestone: schema.gameVoteMilestones.milestone });
+	if (claimed.length === 0) return;
+
+	const [game] = await db
+		.select({ title: schema.games.title })
+		.from(schema.games)
+		.where(eq(schema.games.id, gameId));
+	// One message even when a single vote jumps multiple thresholds.
+	const top = Math.max(...claimed.map((row) => row.milestone));
+	notifyDiscord(`📈 **${game?.title ?? "A game"}** just hit ${top} group votes!`);
 }
 
 /** The calling member's own ballot + remaining budget. */

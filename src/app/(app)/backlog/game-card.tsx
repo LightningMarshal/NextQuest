@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ClockIcon, GaugeIcon, StarIcon, VoteIcon } from "lucide-react";
+import { ClockIcon, GaugeIcon, StarIcon, TagIcon, VoteIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { schema } from "@/db";
 import { transitionGameStatus, updateGameScoring } from "@/server/games";
+import { addTagToGame, removeTagFromGame } from "@/server/tags";
 
 type Game = typeof schema.games.$inferSelect;
 type Metadata = typeof schema.gameMetadata.$inferSelect;
@@ -34,11 +35,13 @@ export function GameCard({
 	game,
 	metadata,
 	proposerName,
+	tags,
 	voteTotal,
 }: {
 	game: Game;
 	metadata: Metadata | null;
 	proposerName: string | null;
+	tags: { id: string; name: string }[];
 	/** Aggregate group votes — only passed for backlog-status games. */
 	voteTotal?: number;
 }) {
@@ -113,6 +116,26 @@ export function GameCard({
 						</div>
 					)}
 
+					{tags.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1">
+							<TagIcon className="text-muted-foreground size-3" />
+							{tags.map((tag) => (
+								<Badge key={tag.id} variant="secondary" className="gap-0.5 pr-1 text-[10px]">
+									{tag.name}
+									<form action={removeTagFromGame.bind(null, game.id, tag.id)} className="flex">
+										<button
+											type="submit"
+											aria-label={`Remove tag ${tag.name}`}
+											className="hover:text-destructive cursor-pointer"
+										>
+											<XIcon className="size-3" />
+										</button>
+									</form>
+								</Badge>
+							))}
+						</div>
+					)}
+
 					{game.pitch && <p className="text-sm italic">&ldquo;{game.pitch}&rdquo;</p>}
 					{!game.pitch && metadata?.description && (
 						<p className="text-muted-foreground line-clamp-2 text-sm">{metadata.description}</p>
@@ -129,6 +152,22 @@ export function GameCard({
 								</Button>
 							</form>
 						))}
+						<form
+							action={addTagToGame.bind(null, game.id)}
+							className="ml-auto flex items-center gap-1"
+						>
+							<Input
+								name="tag"
+								required
+								maxLength={30}
+								placeholder="add tag"
+								aria-label={`Add tag to ${game.title}`}
+								className="h-8 w-28 text-xs"
+							/>
+							<Button size="sm" variant="ghost" aria-label="Add tag">
+								<TagIcon className="size-3.5" />
+							</Button>
+						</form>
 					</div>
 
 					<details className="group">

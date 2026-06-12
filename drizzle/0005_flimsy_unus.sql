@@ -1,0 +1,1 @@
+ALTER TABLE "game_metadata" ADD COLUMN "last_refresh_attempt_at" timestamp with time zone;

@@ -11,12 +11,17 @@ burn-rate tracking, and session scheduling with attendance.
 - Tailwind CSS v4 + shadcn/ui-style components, Recharts
 
 **Docs**
+- [Deployment guide](docs/deployment/README.md) — zero-to-deployed walkthrough, no experience assumed
 - [Roadmap](docs/ROADMAP.md) — what's built and what's next, phase by phase
 - [Architecture](docs/ARCHITECTURE.md) — data model, metadata pipeline, deployment shape
 - [Decisions](docs/DECISIONS.md) — points formula, voting mechanics, and other ADRs
 - [CLAUDE.md](CLAUDE.md) — conventions and invariants for AI-assisted development
 
 ## Quickstart
+
+> New to deploying? The Quickstart below assumes you already have Node,
+> accounts, and credentials — if not, follow the
+> **[step-by-step deployment guide](docs/deployment/README.md)**.
 
 ```bash
 npm install

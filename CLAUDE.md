@@ -10,6 +10,7 @@ one group; members sign in with Google and are approved by an admin.
 - Feature roadmap and current phase: `docs/ROADMAP.md`
 - Data model, data flow, and future GAC module design: `docs/ARCHITECTURE.md`
 - Why the points formula / voting mechanics work the way they do: `docs/DECISIONS.md`
+- End-to-end deploy walkthrough for non-developers: `docs/deployment/`
 
 ## Stack
 
@@ -45,7 +46,8 @@ Two files, two runtimes — keep `DATABASE_URL` in sync between them:
   `dev`/`preview`: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` (first-admin
   bootstrap: comma-separated emails that arrive approved + admin),
-  `DISCORD_WEBHOOK_URL` (optional — notifications no-op without it)
+  `DISCORD_WEBHOOK_URL` (optional — notifications no-op without it),
+  `CRON_SECRET` (optional — gates `/api/cron`; scheduled tasks no-op without it)
 - **`.env`** (from `.env.example`) — Node-side tooling only (drizzle-kit):
   `DATABASE_URL`
 
@@ -82,6 +84,13 @@ src/
 the `(app)` layout gates pages, and every server action re-checks via
 `requireApprovedUser()`/`requireAdmin()` (`src/server/session.ts`). New
 protected routes go inside `(app)`; new actions must call a gate first.
+
+**Cron:** the worker entry is `custom-worker.ts` (NOT `.open-next/worker.js`
+directly) — it adds a `scheduled` handler that self-fetches
+`/api/cron?task=<name>` with the `CRON_SECRET` header via the
+`WORKER_SELF_REFERENCE` binding, so task code runs in a normal request
+context. New scheduled tasks: register in `src/app/api/cron/route.ts` and map
+a cron expression in `custom-worker.ts` + `wrangler.jsonc` `triggers.crons`.
 
 ## Conventions & invariants
 

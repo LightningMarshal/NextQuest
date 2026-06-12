@@ -6,6 +6,7 @@ export type AppSettings = {
 	voteBudget: number;
 	voteMaxPerGame: number;
 	difficultyMultipliers: DifficultyMultipliers;
+	voteMilestones: number[];
 };
 
 const DEFAULTS: AppSettings = {
@@ -13,10 +14,12 @@ const DEFAULTS: AppSettings = {
 	voteBudget: 10,
 	voteMaxPerGame: 4,
 	difficultyMultipliers: DEFAULT_DIFFICULTY_MULTIPLIERS,
+	voteMilestones: [5, 10, 15],
 };
 
-// The single settings row is created lazily by an admin edit (Phase 7 UI);
-// until then everything runs on defaults.
+// The single settings row is created lazily by the first admin edit
+// (updateAppSettings in settings-actions.ts); until then everything runs on
+// defaults.
 export async function getAppSettings(): Promise<AppSettings> {
 	const db = getDb();
 	const rows = await db.select().from(schema.appSettings).limit(1);
@@ -27,5 +30,6 @@ export async function getAppSettings(): Promise<AppSettings> {
 		voteBudget: row.voteBudget,
 		voteMaxPerGame: row.voteMaxPerGame,
 		difficultyMultipliers: row.difficultyMultipliers,
+		voteMilestones: row.voteMilestones,
 	};
 }

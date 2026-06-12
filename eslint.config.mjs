@@ -13,7 +13,14 @@ const eslintConfig = defineConfig([
 			],
 		},
 	},
-	globalIgnores([".open-next/**", ".wrangler/**", "cloudflare-env.d.ts", "drizzle/**"]),
+	globalIgnores([
+		".open-next/**",
+		".wrangler/**",
+		"cloudflare-env.d.ts",
+		"drizzle/**",
+		// Imports .open-next build output that may not exist (see file header).
+		"custom-worker.ts",
+	]),
 ]);
 
 export default eslintConfig;

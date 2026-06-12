@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getDb, schema } from "@/db";
 import { approveMember, rejectMember, setMemberRole } from "@/server/members";
 import { requireAdmin } from "@/server/session";
+import { getAppSettings } from "@/server/settings";
+
+import { SettingsForm } from "./settings-form";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -40,6 +43,7 @@ export default async function AdminPage() {
 	const admin = await requireAdmin();
 	const db = getDb();
 	const members = await db.select().from(schema.user).orderBy(asc(schema.user.createdAt));
+	const settings = await getAppSettings();
 
 	const pending = members.filter((m) => m.status === "pending");
 	const approved = members.filter((m) => m.status === "approved");
@@ -111,6 +115,18 @@ export default async function AdminPage() {
 							)}
 						</MemberRow>
 					))}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Group settings</CardTitle>
+					<CardDescription>
+						Group name, voting limits, and the points formula&rsquo;s difficulty multipliers.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<SettingsForm settings={settings} />
 				</CardContent>
 			</Card>
 

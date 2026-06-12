@@ -31,6 +31,11 @@ export const events = pgTable("events", {
 	location: text("location"),
 	notes: text("notes"),
 	status: eventStatus("status").notNull().default("scheduled"),
+	// Sent-markers for the cron reminders (src/server/cron/event-reminders.ts):
+	// stamped via single-statement claim updates so the hourly tick can never
+	// double-send without transactions.
+	reminder24hSentAt: timestamp("reminder_24h_sent_at", { withTimezone: true }),
+	reminder1hSentAt: timestamp("reminder_1h_sent_at", { withTimezone: true }),
 	createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

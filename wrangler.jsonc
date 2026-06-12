@@ -9,7 +9,14 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "stooge-log",
-	"main": ".open-next/worker.js",
+	// Custom entry wrapping .open-next/worker.js to add the cron `scheduled`
+	// handler — see custom-worker.ts.
+	"main": "custom-worker.ts",
+	"triggers": {
+		// Hourly → event reminders; daily 06:00 UTC → metadata refresh.
+		// Dispatch on event.cron in custom-worker.ts.
+		"crons": ["0 * * * *", "0 6 * * *"]
+	},
 	"compatibility_date": "2026-06-10",
 	"compatibility_flags": [
 		"nodejs_compat",
