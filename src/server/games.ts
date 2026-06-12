@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { notifyDiscord } from "@/lib/discord";
 import { fetchGameMetadata } from "@/lib/metadata";
 import { computePoints, type Difficulty } from "@/lib/points";
-import { requireApprovedUser } from "@/server/session";
+import { requireAdmin, requireApprovedUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
 type GameStatus = (typeof schema.gameStatus.enumValues)[number];
@@ -172,8 +172,11 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 		.select({
 			lengthHours: schema.games.lengthHours,
 			difficulty: schema.games.difficulty,
+			steamReviewScore: schema.gameMetadata.steamReviewScore,
+			metacriticScore: schema.gameMetadata.metacriticScore,
 		})
 		.from(schema.games)
+		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
 		.where(eq(schema.games.id, gameId));
 	if (!game) throw new Error("Game not found.");
 
@@ -183,7 +186,13 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 	let points: number | undefined;
 	if (lengthHours && difficulty) {
 		const settings = await getAppSettings();
-		points = computePoints(lengthHours, difficulty, settings.difficultyMultipliers);
+		points = computePoints(lengthHours, difficulty, settings.difficultyMultipliers, {
+			weight: settings.qualityWeight,
+			signals: {
+				steamReviewScore: game.steamReviewScore,
+				metacriticScore: game.metacriticScore,
+			},
+		});
 	}
 
 	await db
@@ -198,4 +207,53 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 		.where(eq(schema.games.id, gameId));
 
 	revalidatePath("/backlog");
+}
+
+/**
+ * Admin-only bulk refresh after tuning the formula settings: re-runs
+ * computePoints for proposed and backlog games only. Playing, completed,
+ * abandoned, and rejected games are never touched (CLAUDE.md #2 — burn-rate
+ * history stays stable), and pointsOverride is left alone (it wins over
+ * points everywhere it's read).
+ */
+export async function recomputeUnplayedPoints(): Promise<void> {
+	await requireAdmin();
+	const settings = await getAppSettings();
+	const db = getDb();
+
+	const rows = await db
+		.select({
+			gameId: schema.games.id,
+			lengthHours: schema.games.lengthHours,
+			difficulty: schema.games.difficulty,
+			steamReviewScore: schema.gameMetadata.steamReviewScore,
+			metacriticScore: schema.gameMetadata.metacriticScore,
+		})
+		.from(schema.games)
+		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+		.where(inArray(schema.games.status, ["proposed", "backlog"]));
+
+	for (const row of rows) {
+		if (!row.lengthHours || !row.difficulty) continue;
+		const points = computePoints(
+			Number(row.lengthHours),
+			row.difficulty as Difficulty,
+			settings.difficultyMultipliers,
+			{
+				weight: settings.qualityWeight,
+				signals: {
+					steamReviewScore: row.steamReviewScore,
+					metacriticScore: row.metacriticScore,
+				},
+			}
+		);
+		await db
+			.update(schema.games)
+			.set({ points, updatedAt: new Date() })
+			.where(eq(schema.games.id, row.gameId));
+	}
+
+	revalidatePath("/backlog");
+	revalidatePath("/vote");
+	revalidatePath("/");
 }

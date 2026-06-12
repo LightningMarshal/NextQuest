@@ -37,6 +37,8 @@ Fibonacci buckets dampen HLTB estimate noise. Points are **stored** and only
 recomputed on explicit edit, so completed games keep their historical value
 when the formula is tuned — burn-rate charts never rewrite history.
 
+*Amended by the 2026-06-12 "Points formula v2" entry below.*
+
 ## 2026-06-10 — Voting: anonymous budget allocation
 
 Each approved member gets `vote_budget` (10) points to spread across
@@ -68,3 +70,32 @@ was unreachable from the scaffold environment; `components.json` is set up
 so `npx shadcn add` works when it isn't). Theme: dark default with a cyan
 accent, light mode via `next-themes` class switching, tokens in
 `globals.css`.
+
+## 2026-06-12 — Points formula v2: quality multiplier
+
+`points = max(1, round(lengthPoints(hours) × difficultyMultiplier × qualityMultiplier))`
+
+The group wanted acclaim to count: finishing a great game should be worth
+more than finishing a mediocre one of the same length. The new factor:
+
+- `q` = mean of the available review signals (Steam % positive, Metacritic
+  metascore, both 0–100); missing signals are skipped; both missing → the
+  factor is neutral (×1.0).
+- `qualityMultiplier = 1 + weight × (q − 70) / 100`, clamped to 0.5–1.5.
+  Baseline 70 ≈ "a decent game" is neutral; at the default weight 0.5 a
+  90-rated game earns ×1.10 and a 50-rated one ×0.90.
+- `weight` lives in `app_settings.quality_weight` (0–1, admin-tunable);
+  **weight 0 reproduces v1 exactly**.
+- The `max(1, …)` floor is new and deliberate: a short, easy, poorly-rated
+  game must still be worth at least 1 point when completed.
+
+Updated example: Elden Ring (~100h, diff 5, q≈94) → 13 × 2.0 × 1.12 →
+**29 pts** (was 26).
+
+Stored-points rules survive unchanged, with one addition: besides explicit
+scoring edits, an **admin-only recompute action** re-runs the formula — but
+only for `proposed` and `backlog` games. Playing/completed/abandoned games
+are never touched (burn-rate history stays stable), and `pointsOverride` is
+left alone (it wins over `points` at every read site). Note the interplay
+with the metadata-refresh cron: refreshed review scores do NOT trigger any
+recompute; they only matter at the next scoring edit or admin recompute.

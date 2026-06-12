@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb, schema } from "@/db";
+import { recomputeUnplayedPoints } from "@/server/games";
 import { approveMember, rejectMember, setMemberRole } from "@/server/members";
 import { requireAdmin } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
@@ -122,11 +123,22 @@ export default async function AdminPage() {
 				<CardHeader>
 					<CardTitle>Group settings</CardTitle>
 					<CardDescription>
-						Group name, voting limits, and the points formula&rsquo;s difficulty multipliers.
+						Group name, voting limits, and the points formula&rsquo;s difficulty multipliers and
+						review-score weight.
 					</CardDescription>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="flex flex-col gap-6">
 					<SettingsForm settings={settings} />
+					<div className="flex flex-col gap-1.5 border-t pt-4">
+						<form action={recomputeUnplayedPoints}>
+							<Button variant="outline">Recompute proposed + backlog points</Button>
+						</form>
+						<p className="text-muted-foreground text-xs">
+							Re-runs the formula with current settings for proposed and backlog games only.
+							Playing, completed, and abandoned games are never touched, and manual point
+							overrides stay in effect.
+						</p>
+					</div>
 				</CardContent>
 			</Card>
 

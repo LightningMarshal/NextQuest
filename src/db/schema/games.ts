@@ -41,7 +41,8 @@ export const games = pgTable(
 		// Group-assigned difficulty, 1 (breezy) to 5 (brutal).
 		difficulty: smallint("difficulty"),
 		// Stored output of the points formula (src/lib/points.ts). Recomputed
-		// only on explicit edit so historical burn-rate stays stable.
+		// only on explicit edit or the admin recompute action (pre-play games
+		// only) so historical burn-rate stays stable.
 		points: smallint("points"),
 		pointsOverride: smallint("points_override"),
 		startedAt: timestamp("started_at", { withTimezone: true }),

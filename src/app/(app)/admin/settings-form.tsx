@@ -87,6 +87,26 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
 			</div>
 
 			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="settings-quality-weight">Review-score weight</Label>
+				<Input
+					id="settings-quality-weight"
+					name="qualityWeight"
+					type="number"
+					required
+					step="0.05"
+					min={0}
+					max={1}
+					defaultValue={settings.qualityWeight}
+					className="w-28"
+				/>
+				<p className="text-muted-foreground text-xs">
+					How strongly Steam/Metacritic scores scale points (0 disables; 0.5 means a 90-rated game
+					earns ×1.10). Changing this does not recompute existing points — use the recompute
+					button below or future scoring edits.
+				</p>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="settings-milestones">Vote milestones</Label>
 				<Input
 					id="settings-milestones"

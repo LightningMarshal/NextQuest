@@ -1,8 +1,11 @@
-// Points formula: points = lengthPoints(hours) × difficultyMultiplier.
-// Pure functions only — used by server actions and tests. Points are STORED
-// on the game row and recomputed only on explicit edit, so completed games
-// keep their historical value even if the formula is tuned later.
-// Rationale: docs/DECISIONS.md.
+// Points formula (v2):
+//   points = max(1, round(lengthPoints(hours) × difficultyMultiplier × qualityMultiplier))
+// where the quality multiplier rewards finishing acclaimed games, derived
+// from Steam review % and Metacritic when available. Pure functions only —
+// used by server actions and tests. Points are STORED on the game row and
+// recomputed only on explicit edit (or the admin recompute action for
+// pre-play games), so completed games keep their historical value even if
+// the formula is tuned later. Rationale: docs/DECISIONS.md.
 
 export type Difficulty = 1 | 2 | 3 | 4 | 5;
 
@@ -34,14 +37,53 @@ export function lengthPoints(hours: number): number {
 	return LENGTH_BUCKETS.find((bucket) => hours < bucket.maxHours)?.points ?? 13;
 }
 
+// Quality factor: a game rated at the baseline (a "decent game") is neutral;
+// better-reviewed games earn a bonus, worse ones a discount. The admin-tuned
+// weight (0–1, app_settings.quality_weight) scales the effect; 0 disables it
+// and reproduces the v1 formula exactly.
+export const QUALITY_BASELINE = 70;
+export const DEFAULT_QUALITY_WEIGHT = 0.5;
+const QUALITY_MULTIPLIER_MIN = 0.5;
+const QUALITY_MULTIPLIER_MAX = 1.5;
+
+export type QualitySignals = {
+	/** Steam "% positive", 0–100. */
+	steamReviewScore?: number | null;
+	/** Metacritic metascore, 0–100. */
+	metacriticScore?: number | null;
+};
+
+/** Mean of the available signals clamped to 0–100; null when both missing. */
+export function qualityScore(signals: QualitySignals): number | null {
+	const values = [signals.steamReviewScore, signals.metacriticScore].filter(
+		(value): value is number => typeof value === "number" && Number.isFinite(value)
+	);
+	if (values.length === 0) return null;
+	const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+	return Math.min(100, Math.max(0, mean));
+}
+
+/** 1 + weight × (q − baseline)/100, clamped — q null (no data) is neutral. */
+export function qualityMultiplier(q: number | null, weight: number): number {
+	if (q === null) return 1;
+	const clampedWeight = Math.min(1, Math.max(0, weight));
+	const multiplier = 1 + clampedWeight * ((q - QUALITY_BASELINE) / 100);
+	return Math.min(QUALITY_MULTIPLIER_MAX, Math.max(QUALITY_MULTIPLIER_MIN, multiplier));
+}
+
 export function computePoints(
 	hours: number,
 	difficulty: Difficulty,
-	multipliers: DifficultyMultipliers = DEFAULT_DIFFICULTY_MULTIPLIERS
+	multipliers: DifficultyMultipliers = DEFAULT_DIFFICULTY_MULTIPLIERS,
+	quality?: { weight: number; signals: QualitySignals }
 ): number {
 	const multiplier = multipliers[difficulty];
 	if (multiplier === undefined) {
 		throw new RangeError(`no multiplier configured for difficulty ${difficulty}`);
 	}
-	return Math.round(lengthPoints(hours) * multiplier);
+	const qualityFactor = quality
+		? qualityMultiplier(qualityScore(quality.signals), quality.weight)
+		: 1;
+	// Floor of 1: a finished game is never worth zero points.
+	return Math.max(1, Math.round(lengthPoints(hours) * multiplier * qualityFactor));
 }

@@ -1,11 +1,16 @@
 import { getDb, schema } from "@/db";
-import { DEFAULT_DIFFICULTY_MULTIPLIERS, type DifficultyMultipliers } from "@/lib/points";
+import {
+	DEFAULT_DIFFICULTY_MULTIPLIERS,
+	DEFAULT_QUALITY_WEIGHT,
+	type DifficultyMultipliers,
+} from "@/lib/points";
 
 export type AppSettings = {
 	groupName: string;
 	voteBudget: number;
 	voteMaxPerGame: number;
 	difficultyMultipliers: DifficultyMultipliers;
+	qualityWeight: number;
 	voteMilestones: number[];
 };
 
@@ -14,6 +19,7 @@ const DEFAULTS: AppSettings = {
 	voteBudget: 10,
 	voteMaxPerGame: 4,
 	difficultyMultipliers: DEFAULT_DIFFICULTY_MULTIPLIERS,
+	qualityWeight: DEFAULT_QUALITY_WEIGHT,
 	voteMilestones: [5, 10, 15],
 };
 
@@ -30,6 +36,7 @@ export async function getAppSettings(): Promise<AppSettings> {
 		voteBudget: row.voteBudget,
 		voteMaxPerGame: row.voteMaxPerGame,
 		difficultyMultipliers: row.difficultyMultipliers,
+		qualityWeight: row.qualityWeight,
 		voteMilestones: row.voteMilestones,
 	};
 }

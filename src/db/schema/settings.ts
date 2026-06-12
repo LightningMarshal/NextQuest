@@ -1,7 +1,11 @@
 import { sql } from "drizzle-orm";
-import { check, jsonb, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import { check, jsonb, pgTable, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
 
-import { DEFAULT_DIFFICULTY_MULTIPLIERS, type DifficultyMultipliers } from "@/lib/points";
+import {
+	DEFAULT_DIFFICULTY_MULTIPLIERS,
+	DEFAULT_QUALITY_WEIGHT,
+	type DifficultyMultipliers,
+} from "@/lib/points";
 
 // Single-tenant config: exactly one row (id = 1). Lets the group tune the
 // vote budget and points formula without a deploy.
@@ -16,6 +20,9 @@ export const appSettings = pgTable(
 			.$type<DifficultyMultipliers>()
 			.notNull()
 			.default(DEFAULT_DIFFICULTY_MULTIPLIERS),
+		// 0–1 strength of the review-score factor in the points formula
+		// (src/lib/points.ts qualityMultiplier); 0 disables it.
+		qualityWeight: real("quality_weight").notNull().default(DEFAULT_QUALITY_WEIGHT),
 		// Vote totals (ascending) at which a backlog game earns a Discord ping,
 		// once each ever. Empty array disables milestone notifications.
 		voteMilestones: jsonb("vote_milestones").$type<number[]>().notNull().default([5, 10, 15]),

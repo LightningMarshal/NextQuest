@@ -23,6 +23,7 @@ const settingsSchema = z
 		multiplier3: multiplierSchema,
 		multiplier4: multiplierSchema,
 		multiplier5: multiplierSchema,
+		qualityWeight: z.coerce.number().min(0).max(1),
 		voteMilestones: z.string().trim().max(200),
 	})
 	.refine((value) => value.voteMaxPerGame <= value.voteBudget, {
@@ -50,6 +51,7 @@ export async function updateAppSettings(formData: FormData): Promise<void> {
 		multiplier3: formData.get("multiplier3"),
 		multiplier4: formData.get("multiplier4"),
 		multiplier5: formData.get("multiplier5"),
+		qualityWeight: formData.get("qualityWeight"),
 		voteMilestones: formData.get("voteMilestones") ?? "",
 	});
 
@@ -65,6 +67,7 @@ export async function updateAppSettings(formData: FormData): Promise<void> {
 		voteBudget: input.voteBudget,
 		voteMaxPerGame: input.voteMaxPerGame,
 		difficultyMultipliers,
+		qualityWeight: input.qualityWeight,
 		voteMilestones: parseMilestones(input.voteMilestones),
 		updatedAt: new Date(),
 	};
