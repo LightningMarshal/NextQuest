@@ -26,10 +26,15 @@ for the whole account.
 1. In the dashboard's left sidebar, find **Workers & Pages** (if you don't
    see it, use the search box at the top and search for "Workers").
 2. The first time you visit, Cloudflare prompts you to **register a
-   workers.dev subdomain** — a short name like `mike-pond` or
-   `quest-squad`. If you're not prompted, look for **"Your subdomain"**
+   workers.dev subdomain** — a short name like `knights-of-awesome` or
+   `danger-squad`. If you're not prompted, look for **"Your subdomain"**
    on the Workers & Pages overview page (usually in a panel on the right),
    where you can set or see it.
+
+> [!NOTE]
+> Cloudfare may automatically select your subdomain for you based on the email you used to sign up.
+> This information will be located in the Workers & Pages page under the Account Details setting.
+> You can select an alternate subdomain by clicking on the pencil icon next to the listed subdomain.
 
 > [!WARNING]
 > Choose carefully: the subdomain is visible in your app's address and
