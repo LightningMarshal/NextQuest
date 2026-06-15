@@ -73,7 +73,7 @@ browser is logged in). Generate one:
 npx @better-auth/cli secret
 ```
 
-It prints a long random string — paste it after the `=`. Also copy it into
+It prints a long random string — paste it after the `=`. This may take a moment to generate, so don't panic if it seems like nothing is happening. Also copy it into
 your scratch note (you'll reuse or regenerate it in chapter 08).
 
 ### `BETTER_AUTH_URL=http://localhost:3000`
