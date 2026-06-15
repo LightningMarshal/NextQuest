@@ -74,7 +74,8 @@ a two-minute fix if it ever differs).
 
 **wrangler** is Cloudflare's command-line tool (it ships with the
 project's dependencies — nothing extra to install). Connect it to your new
-account:
+account by inputing the following commands in the same terminal window that
+you used before or by opening a new one where the project files are located:
 
 **All platforms**
 
