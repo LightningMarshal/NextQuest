@@ -52,10 +52,10 @@ address **will be**:
 https://next-quest.<your-subdomain>.workers.dev
 ```
 
-For example, with the subdomain `mike-pond`:
+For example, with the subdomain `knights-of-awesome`:
 
 ```
-https://next-quest.mike-pond.workers.dev
+https://next-quest.knights-of-awesome.workers.dev
 ```
 
 You'll register this address with Google in chapter 05 and store it as a
