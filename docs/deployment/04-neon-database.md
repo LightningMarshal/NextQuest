@@ -44,7 +44,7 @@ string** — the single most important secret in this whole setup.
    postgresql://next_quest_owner:AbC123xyz@ep-cool-darkness-123456-pooler.us-east-2.aws.neon.tech/next_quest?sslmode=require
    ```
 
-4. Confirm it ends with `?sslmode=require`. If yours doesn't, add it to
+4. Confirm it ends with `?sslmode=require` or `?sslmode=require&channel_binding=require`. If yours doesn't, add it to
    the end exactly as written.
 
 > [!NOTE]
