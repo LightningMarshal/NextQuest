@@ -219,18 +219,22 @@ export default async function EventsPage() {
 				{upcoming.length === 0 ? (
 					<p className="text-muted-foreground text-sm">Nothing on the calendar.</p>
 				) : (
-					upcoming.map((event) => (
-						<EventCard key={event.id} event={event} currentUserId={user.id} members={members} />
-					))
+					<div className="grid items-stretch gap-4 sm:grid-cols-2">
+						{upcoming.map((event) => (
+							<EventCard key={event.id} event={event} currentUserId={user.id} members={members} />
+						))}
+					</div>
 				)}
 			</section>
 
 			{past.length > 0 && (
 				<section className="flex flex-col gap-3">
 					<h2 className="text-sm font-medium tracking-wide uppercase">Past</h2>
-					{past.map((event) => (
-						<EventCard key={event.id} event={event} currentUserId={user.id} members={members} />
-					))}
+					<div className="grid items-stretch gap-4 sm:grid-cols-2">
+						{past.map((event) => (
+							<EventCard key={event.id} event={event} currentUserId={user.id} members={members} />
+						))}
+					</div>
 				</section>
 			)}
 		</div>

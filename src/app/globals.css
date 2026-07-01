@@ -101,10 +101,17 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
-	/* Nova fonts — wire these variables in layout.tsx (next/font) */
-	--font-sans: var(--font-sans-nq);     /* Hanken Grotesk */
-	--font-mono: var(--font-mono-nq);     /* JetBrains Mono */
-	--font-display: var(--font-display);  /* Space Grotesk — headings, titles, wordmark */
+	/* Nova fonts — the *-nq variables come from next/font in layout.tsx and
+	   MUST be declared on <html>, not <body>: these aliases are emitted at
+	   :root and resolve against the element they're declared on. */
+	--font-sans: var(--font-sans-nq);        /* Hanken Grotesk */
+	--font-mono: var(--font-mono-nq);        /* JetBrains Mono */
+	--font-display: var(--font-display-nq);  /* Space Grotesk — headings, titles, wordmark */
+}
+
+/* Nova: glow is used sparingly — ONLY primary CTA buttons get this. */
+@utility glow-primary {
+	box-shadow: 0 0 20px -4px color-mix(in oklab, var(--primary) 55%, transparent);
 }
 
 @layer base {

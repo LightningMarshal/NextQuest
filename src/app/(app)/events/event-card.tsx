@@ -4,7 +4,10 @@ import { LocalTime } from "@/components/local-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { cancelEvent, recordAttendance, setRsvp } from "@/server/events";
+
+import { DateChip } from "./date-chip";
 
 export type EventAttendee = {
 	userId: string;
@@ -55,34 +58,39 @@ export function EventCard({
 	const attendees = event.attendance.filter((a) => a.attended === true).map((a) => a.name);
 
 	return (
-		<Card>
-			<CardContent className="flex flex-col gap-3">
-				<div className="flex flex-wrap items-center gap-2">
-					<h3 className="font-display text-base font-semibold">{event.title}</h3>
-					{event.status === "cancelled" && <Badge variant="destructive">cancelled</Badge>}
-					{event.status === "completed" && <Badge variant="secondary">completed</Badge>}
-					{needsWrapUp && <Badge variant="outline">needs wrap-up</Badge>}
-				</div>
-
-				<div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-					<span className="flex items-center gap-1">
-						<ClockIcon className="size-3" />
-						<LocalTime date={event.scheduledAt} withWeekday />
-						{event.durationMinutes && ` · ${event.durationMinutes} min`}
-					</span>
-					{event.gameTitle && (
-						<span className="flex items-center gap-1">
-							<Gamepad2Icon className="size-3" />
-							{event.gameTitle}
-						</span>
-					)}
-					{event.location && (
-						<span className="flex items-center gap-1">
-							<MapPinIcon className="size-3" />
-							{event.location}
-						</span>
-					)}
-					{event.creatorName && <span>by {event.creatorName}</span>}
+		<Card className="h-full">
+			<CardContent className="flex h-full flex-col gap-3">
+				{/* Nova: date chip + title block. */}
+				<div className="flex items-start gap-3">
+					<DateChip date={event.scheduledAt} />
+					<div className="flex min-w-0 flex-col gap-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<h3 className="font-display text-base font-semibold">{event.title}</h3>
+							{event.status === "cancelled" && <Badge variant="destructive">cancelled</Badge>}
+							{event.status === "completed" && <Badge variant="secondary">completed</Badge>}
+							{needsWrapUp && <Badge variant="outline">needs wrap-up</Badge>}
+						</div>
+						<div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+							<span className="stat flex items-center gap-1">
+								<ClockIcon className="size-3" />
+								<LocalTime date={event.scheduledAt} withWeekday />
+								{event.durationMinutes && ` · ${event.durationMinutes} min`}
+							</span>
+							{event.gameTitle && (
+								<span className="flex items-center gap-1">
+									<Gamepad2Icon className="size-3" />
+									{event.gameTitle}
+								</span>
+							)}
+							{event.location && (
+								<span className="flex items-center gap-1">
+									<MapPinIcon className="size-3" />
+									{event.location}
+								</span>
+							)}
+							{event.creatorName && <span>by {event.creatorName}</span>}
+						</div>
+					</div>
 				</div>
 
 				{event.notes && <p className="text-sm whitespace-pre-line">{event.notes}</p>}
@@ -112,15 +120,27 @@ export function EventCard({
 				)}
 
 				{event.status === "scheduled" && !needsWrapUp && (
-					<div className="flex flex-wrap items-center gap-2 pt-1">
-						{RSVP_OPTIONS.map((option) => (
-							<form key={option.value} action={setRsvp.bind(null, event.id, option.value)}>
-								<Button size="sm" variant={myRsvp === option.value ? "default" : "outline"}>
-									{myRsvp === option.value && <CheckIcon />}
-									{option.label}
-								</Button>
-							</form>
-						))}
+					<div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+						{/* Nova: the selected "yes" pill is success-tinted; maybe/no muted. */}
+						{RSVP_OPTIONS.map((option) => {
+							const active = myRsvp === option.value;
+							return (
+								<form key={option.value} action={setRsvp.bind(null, event.id, option.value)}>
+									<Button
+										size="sm"
+										variant={active && option.value !== "yes" ? "secondary" : "outline"}
+										className={cn(
+											active &&
+												option.value === "yes" &&
+												"border-success/40 bg-success/15 text-success hover:bg-success/25 hover:text-success"
+										)}
+									>
+										{active && <CheckIcon />}
+										{option.label}
+									</Button>
+								</form>
+							);
+						})}
 						<form action={cancelEvent.bind(null, event.id)} className="ml-auto">
 							<Button size="sm" variant="ghost">
 								Cancel event

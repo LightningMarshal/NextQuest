@@ -1,9 +1,9 @@
 import Image from "next/image";
-import { ClockIcon, GaugeIcon, StarIcon, TagIcon, VoteIcon, XIcon } from "lucide-react";
+import { TagIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { schema } from "@/db";
@@ -54,111 +54,113 @@ export function GameCard({
 	const art = metadata?.headerUrl ?? metadata?.coverUrl;
 
 	return (
-		<Card className="overflow-hidden py-0">
-			<div className="flex flex-col sm:flex-row">
-				{art && (
-					<div className="relative h-32 w-full shrink-0 sm:h-auto sm:w-56">
-						<Image
-							src={art}
-							alt={game.title}
-							fill
-							className="object-cover"
-							sizes="(max-width: 640px) 100vw, 224px"
-						/>
+		<Card className="hover:border-muted-foreground/40 flex h-full flex-col gap-0 overflow-hidden py-0 transition-colors">
+			{/* Nova: key-art header with the points badge pinned over a scrim. */}
+			<div className="relative h-[140px] w-full shrink-0">
+				{art ? (
+					<Image
+						src={art}
+						alt={game.title}
+						fill
+						className="object-cover"
+						sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 340px"
+					/>
+				) : (
+					<div className="bg-muted h-full w-full" />
+				)}
+				<span className="absolute top-2 left-2">
+					<Badge variant={badge.variant}>{badge.label}</Badge>
+				</span>
+				<span className="stat bg-background/60 absolute top-2 right-2 rounded-md px-2 py-0.5 text-xs font-semibold backdrop-blur">
+					{effectivePoints !== null
+						? `${effectivePoints} PTS${game.pointsOverride !== null ? "*" : ""}`
+						: "— PTS"}
+				</span>
+			</div>
+
+			<div className="flex flex-1 flex-col gap-2.5 p-4">
+				<h3 className="font-display text-base font-semibold">{game.title}</h3>
+
+				{/* Nova: single mono meta row. */}
+				<p className="stat text-muted-foreground text-xs">
+					{[
+						game.lengthHours ? `${Number(game.lengthHours)}h` : null,
+						game.difficulty ? `D${game.difficulty}` : null,
+					]
+						.filter(Boolean)
+						.join(" · ")}
+					{metadata?.steamReviewScore != null && (
+						<>
+							{(game.lengthHours || game.difficulty) && " · "}
+							<span className="text-success font-medium">{metadata.steamReviewScore}%</span>
+						</>
+					)}
+					{voteTotal !== undefined && (
+						<>
+							{" · "}
+							<span className="text-foreground">
+								{voteTotal} vote{voteTotal === 1 ? "" : "s"}
+							</span>
+						</>
+					)}
+				</p>
+
+				{game.pitch ? (
+					<p className="line-clamp-2 text-sm italic">&ldquo;{game.pitch}&rdquo;</p>
+				) : (
+					metadata?.description && (
+						<p className="text-muted-foreground line-clamp-2 text-sm">{metadata.description}</p>
+					)
+				)}
+
+				{(tags.length > 0 || (metadata?.genres?.length ?? 0) > 0) && (
+					<div className="flex flex-wrap items-center gap-1">
+						{metadata?.genres?.slice(0, 3).map((genre) => (
+							<Badge key={genre} variant="outline" className="text-[10px]">
+								{genre}
+							</Badge>
+						))}
+						{tags.map((tag) => (
+							<Badge key={tag.id} variant="secondary" className="gap-0.5 pr-1 text-[10px]">
+								{tag.name}
+								<form action={removeTagFromGame.bind(null, game.id, tag.id)} className="flex">
+									<button
+										type="submit"
+										aria-label={`Remove tag ${tag.name}`}
+										className="hover:text-destructive cursor-pointer"
+									>
+										<XIcon className="size-3" />
+									</button>
+								</form>
+							</Badge>
+						))}
 					</div>
 				)}
-				<CardContent className="flex flex-1 flex-col gap-3 px-5 py-4">
-					<div className="flex flex-wrap items-center gap-2">
-						<h3 className="font-display text-base font-semibold">{game.title}</h3>
-						<Badge variant={badge.variant}>{badge.label}</Badge>
-						{effectivePoints !== null ? (
-							<Badge className="gap-1">
-								<StarIcon className="size-3" />
-								<span className="stat">{effectivePoints}</span> pts
-								{game.pointsOverride !== null && " (override)"}
-							</Badge>
-						) : (
-							<Badge variant="outline">needs scoring</Badge>
-						)}
-						{voteTotal !== undefined && voteTotal > 0 && (
-							<Badge variant="secondary" className="gap-1">
-								<VoteIcon className="size-3" />
-								<span className="stat">{voteTotal}</span> group vote{voteTotal === 1 ? "" : "s"}
-							</Badge>
-						)}
-					</div>
 
-					<div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-						{game.lengthHours && (
-							<span className="flex items-center gap-1">
-								<ClockIcon className="size-3" />
-								<span className="stat">{Number(game.lengthHours)}</span> h
-							</span>
-						)}
-						{game.difficulty && (
-							<span className="flex items-center gap-1">
-								<GaugeIcon className="size-3" />
-								difficulty <span className="stat">{game.difficulty}/5</span>
-							</span>
-						)}
-						{metadata?.steamReviewScore != null && (
-							<span className="text-success font-medium">
-								<span className="stat">{metadata.steamReviewScore}%</span> positive on Steam
-							</span>
-						)}
-						{proposerName && <span>proposed by {proposerName}</span>}
-					</div>
+				{proposerName && (
+					<p className="text-muted-foreground text-xs">proposed by {proposerName}</p>
+				)}
 
-					{(metadata?.genres?.length ?? 0) > 0 && (
-						<div className="flex flex-wrap gap-1">
-							{metadata!.genres!.slice(0, 5).map((genre) => (
-								<Badge key={genre} variant="outline" className="text-[10px]">
-									{genre}
-								</Badge>
+				{/* All admin/curation controls live behind the expander so the card
+				    itself stays a Nova display card. Same server actions as before. */}
+				<details className="group mt-auto pt-1">
+					<summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
+						Manage
+					</summary>
+					<div className="mt-3 flex flex-col gap-3">
+						<div className="flex flex-wrap items-center gap-2">
+							{transitions.map(([toStatus, label]) => (
+								<form key={toStatus} action={transitionGameStatus.bind(null, game.id, toStatus)}>
+									<Button
+										size="sm"
+										variant={toStatus === "rejected" || toStatus === "abandoned" ? "ghost" : "outline"}
+									>
+										{label}
+									</Button>
+								</form>
 							))}
 						</div>
-					)}
-
-					{tags.length > 0 && (
-						<div className="flex flex-wrap items-center gap-1">
-							<TagIcon className="text-muted-foreground size-3" />
-							{tags.map((tag) => (
-								<Badge key={tag.id} variant="secondary" className="gap-0.5 pr-1 text-[10px]">
-									{tag.name}
-									<form action={removeTagFromGame.bind(null, game.id, tag.id)} className="flex">
-										<button
-											type="submit"
-											aria-label={`Remove tag ${tag.name}`}
-											className="hover:text-destructive cursor-pointer"
-										>
-											<XIcon className="size-3" />
-										</button>
-									</form>
-								</Badge>
-							))}
-						</div>
-					)}
-
-					{game.pitch && <p className="text-sm italic">&ldquo;{game.pitch}&rdquo;</p>}
-					{!game.pitch && metadata?.description && (
-						<p className="text-muted-foreground line-clamp-2 text-sm">{metadata.description}</p>
-					)}
-
-					<div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-						{transitions.map(([toStatus, label]) => (
-							<form key={toStatus} action={transitionGameStatus.bind(null, game.id, toStatus)}>
-								<Button
-									size="sm"
-									variant={toStatus === "rejected" || toStatus === "abandoned" ? "ghost" : "outline"}
-								>
-									{label}
-								</Button>
-							</form>
-						))}
-						<form
-							action={addTagToGame.bind(null, game.id)}
-							className="ml-auto flex items-center gap-1"
-						>
+						<form action={addTagToGame.bind(null, game.id)} className="flex items-center gap-1">
 							<Input
 								name="tag"
 								required
@@ -171,15 +173,9 @@ export function GameCard({
 								<TagIcon className="size-3.5" />
 							</Button>
 						</form>
-					</div>
-
-					<details className="group">
-						<summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
-							Edit scoring
-						</summary>
 						<form
 							action={updateGameScoring.bind(null, game.id)}
-							className="mt-3 flex flex-wrap items-end gap-3"
+							className="flex flex-wrap items-end gap-3"
 						>
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor={`length-${game.id}`} className="text-xs">
@@ -229,8 +225,8 @@ export function GameCard({
 							</div>
 							<Button size="sm">Save</Button>
 						</form>
-					</details>
-				</CardContent>
+					</div>
+				</details>
 			</div>
 		</Card>
 	);

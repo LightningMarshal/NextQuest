@@ -13,7 +13,7 @@ import { proposeGame } from "@/server/games";
 function SubmitButton() {
 	const { pending } = useFormStatus();
 	return (
-		<Button disabled={pending}>
+		<Button className="glow-primary" disabled={pending}>
 			{pending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
 			{pending ? "Fetching metadata…" : "Propose"}
 		</Button>

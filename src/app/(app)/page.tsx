@@ -4,63 +4,56 @@ import { format, formatDistanceToNowStrict } from "date-fns";
 import {
 	ActivityIcon,
 	CalendarIcon,
-	CalendarPlusIcon,
 	CheckCircle2Icon,
-	FlagIcon,
 	LibraryIcon,
 	PlayIcon,
 	StarIcon,
 	TrendingUpIcon,
-	TrophyIcon,
 	UsersIcon,
-	XCircleIcon,
 } from "lucide-react";
 
 import { LocalTime } from "@/components/local-time";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardData, type ActivityItem } from "@/server/dashboard";
 import { cn } from "@/lib/utils";
 
 import { BurnRateChart } from "./burn-rate-chart";
 
-const STATUS_VERB: Record<string, { icon: typeof FlagIcon; before: string; after?: string }> = {
-	proposed: { icon: FlagIcon, before: "proposed" },
-	backlog: { icon: LibraryIcon, before: "moved", after: "to the backlog" },
-	playing: { icon: PlayIcon, before: "started" },
-	completed: { icon: TrophyIcon, before: "finished" },
-	abandoned: { icon: XCircleIcon, before: "abandoned" },
-	rejected: { icon: XCircleIcon, before: "rejected" },
+const STATUS_VERB: Record<string, { before: string; after?: string }> = {
+	proposed: { before: "proposed" },
+	backlog: { before: "moved", after: "to the backlog" },
+	playing: { before: "started" },
+	completed: { before: "finished" },
+	abandoned: { before: "abandoned" },
+	rejected: { before: "rejected" },
 };
 
+// Nova: activity is plain text lines — bold actor, muted verb, bold subject —
+// with a mono timestamp beneath.
 function ActivityRow({ item }: { item: ActivityItem }) {
 	if (item.kind === "event") {
 		return (
-			<li className="flex items-start gap-2.5 text-sm">
-				<CalendarPlusIcon className="text-primary mt-0.5 size-4 shrink-0" />
-				<span className="min-w-0">
-					<span className="font-medium">{item.actor ?? "Someone"}</span> scheduled{" "}
-					<span className="font-medium">{item.eventTitle}</span> for{" "}
-					<LocalTime date={item.scheduledAt} withWeekday />
-					<span className="text-muted-foreground block text-xs">
-						{formatDistanceToNowStrict(item.at, { addSuffix: true })}
-					</span>
+			<li className="text-sm">
+				<span className="font-medium">{item.actor ?? "Someone"}</span>{" "}
+				<span className="text-muted-foreground">scheduled</span>{" "}
+				<span className="font-medium">{item.eventTitle}</span>{" "}
+				<span className="text-muted-foreground">for</span>{" "}
+				<LocalTime date={item.scheduledAt} withWeekday />
+				<span className="stat text-muted-foreground/70 block text-xs">
+					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 				</span>
 			</li>
 		);
 	}
 	const verb = STATUS_VERB[item.toStatus] ?? STATUS_VERB.proposed;
-	const Icon = verb.icon;
 	return (
-		<li className="flex items-start gap-2.5 text-sm">
-			<Icon className="text-primary mt-0.5 size-4 shrink-0" />
-			<span className="min-w-0">
-				<span className="font-medium">{item.actor ?? "Someone"}</span> {verb.before}{" "}
-				<span className="font-medium">{item.gameTitle}</span>
-				{verb.after && ` ${verb.after}`}
-				<span className="text-muted-foreground block text-xs">
-					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
-				</span>
+		<li className="text-sm">
+			<span className="font-medium">{item.actor ?? "Someone"}</span>{" "}
+			<span className="text-muted-foreground">{verb.before}</span>{" "}
+			<span className="font-medium">{item.gameTitle}</span>
+			{verb.after && <span className="text-muted-foreground"> {verb.after}</span>}
+			<span className="stat text-muted-foreground/70 block text-xs">
+				{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 			</span>
 		</li>
 	);
@@ -72,6 +65,7 @@ function StatCard({
 	value,
 	detail,
 	highlight,
+	progress,
 }: {
 	icon: typeof LibraryIcon;
 	label: string;
@@ -79,6 +73,8 @@ function StatCard({
 	detail?: string;
 	/** Nova: the headline metric (Completion) renders its value in the cyan accent. */
 	highlight?: boolean;
+	/** 0–100: renders the slim cyan progress bar inside the card (Completion only). */
+	progress?: number;
 }) {
 	return (
 		<Card className="py-4">
@@ -88,6 +84,21 @@ function StatCard({
 					{label}
 				</p>
 				<p className={cn("stat text-3xl font-semibold", highlight && "text-primary")}>{value}</p>
+				{progress !== undefined && (
+					<div
+						className="bg-muted h-1.5 w-full overflow-hidden rounded-full"
+						role="progressbar"
+						aria-valuenow={progress}
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-label={label}
+					>
+						<div
+							className="bg-primary h-full rounded-full transition-all"
+							style={{ width: `${progress}%` }}
+						/>
+					</div>
+				)}
 				{detail && <p className="text-muted-foreground text-xs">{detail}</p>}
 			</CardContent>
 		</Card>
@@ -127,6 +138,7 @@ export default async function DashboardPage() {
 					value={`${totals.completionPct}%`}
 					detail={`${totals.completedPoints} of ${totals.totalPoints} points`}
 					highlight
+					progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
 				/>
 				<StatCard
 					icon={CheckCircle2Icon}
@@ -155,23 +167,6 @@ export default async function DashboardPage() {
 					}
 				/>
 			</div>
-
-			{/* Completion bar */}
-			{totals.totalPoints > 0 && (
-				<div
-					className="bg-muted h-2 w-full overflow-hidden rounded-full"
-					role="progressbar"
-					aria-valuenow={totals.completionPct}
-					aria-valuemin={0}
-					aria-valuemax={100}
-					aria-label="Backlog completion"
-				>
-					<div
-						className="bg-primary h-full rounded-full transition-all"
-						style={{ width: `${totals.completionPct}%` }}
-					/>
-				</div>
-			)}
 
 			<Card>
 				<CardHeader>
@@ -214,7 +209,7 @@ export default async function DashboardPage() {
 										</p>
 										<p className="text-muted-foreground flex items-center gap-1 text-xs">
 											{event.gameTitle && <span className="truncate">{event.gameTitle}</span>}
-											<span className="ml-auto flex shrink-0 items-center gap-1">
+											<span className="stat ml-auto flex shrink-0 items-center gap-1">
 												<UsersIcon className="size-3" />
 												{event.yesCount} in
 											</span>
@@ -227,50 +222,50 @@ export default async function DashboardPage() {
 				</section>
 			)}
 
-			{playing.length > 0 && (
-				<section className="flex flex-col gap-3">
-					<h2 className="text-sm font-medium tracking-wide uppercase">Now playing</h2>
-					<div className="grid gap-4 sm:grid-cols-2">
-						{playing.map((game) => (
-							<Card key={game.id} className="overflow-hidden py-0">
-								<div className="flex items-center gap-4 pr-5">
-									{game.art ? (
-										<div className="relative h-20 w-40 shrink-0">
-											<Image
-												src={game.art}
-												alt={game.title}
-												fill
-												className="object-cover"
-												sizes="160px"
-											/>
+			{/* Nova: Now playing + Recent activity share a 1.15fr/1fr row. */}
+			<div className="grid items-start gap-4 lg:grid-cols-[1.15fr_1fr]">
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<PlayIcon className="size-4" />
+							Now playing
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{playing.length === 0 ? (
+							<p className="text-muted-foreground text-sm">Nothing in progress.</p>
+						) : (
+							<ul className="flex flex-col gap-3">
+								{playing.map((game) => (
+									<li key={game.id} className="flex items-center gap-3">
+										{game.art ? (
+											<div className="relative h-12 w-[84px] shrink-0 overflow-hidden rounded-md">
+												<Image
+													src={game.art}
+													alt={game.title}
+													fill
+													className="object-cover"
+													sizes="84px"
+												/>
+											</div>
+										) : (
+											<div className="bg-muted h-12 w-[84px] shrink-0 rounded-md" />
+										)}
+										<div className="min-w-0 flex-1">
+											<p className="truncate text-sm font-semibold">{game.title}</p>
+											<p className="stat text-muted-foreground text-xs">
+												{game.points !== null && `${game.points} pts · `}
+												{game.startedAt &&
+													`started ${formatDistanceToNowStrict(game.startedAt, { addSuffix: true })}`}
+											</p>
 										</div>
-									) : (
-										<div className="bg-muted h-20 w-40 shrink-0" />
-									)}
-									<div className="min-w-0 py-3">
-										<p className="truncate text-sm font-semibold">{game.title}</p>
-										<div className="mt-1 flex items-center gap-2">
-											{game.points !== null && (
-												<Badge variant="secondary" className="gap-1">
-													<StarIcon className="size-3" />
-													{game.points} pts
-												</Badge>
-											)}
-											{game.startedAt && (
-												<span className="text-muted-foreground text-xs">
-													started {formatDistanceToNowStrict(game.startedAt, { addSuffix: true })}
-												</span>
-											)}
-										</div>
-									</div>
-								</div>
-							</Card>
-						))}
-					</div>
-				</section>
-			)}
+									</li>
+								))}
+							</ul>
+						)}
+					</CardContent>
+				</Card>
 
-			<div className="grid items-start gap-4 lg:grid-cols-2">
 				<Card>
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
@@ -290,37 +285,37 @@ export default async function DashboardPage() {
 						)}
 					</CardContent>
 				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle className="flex items-center gap-2">
-							<UsersIcon className="size-4" />
-							Members
-						</CardTitle>
-						<CardDescription>
-							Proposals made and sessions attended
-							{completedEventCount > 0 && ` (of ${completedEventCount} held)`}.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<ul className="divide-y">
-							{memberStats.map((member) => (
-								<li key={member.id} className="flex items-center gap-3 py-2 text-sm">
-									<span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
-									<span className="text-muted-foreground text-xs">
-										{member.proposals} proposed
-									</span>
-									<span className="text-muted-foreground text-xs">
-										{completedEventCount > 0
-											? `${member.sessionsAttended}/${completedEventCount} sessions`
-											: "no sessions yet"}
-									</span>
-								</li>
-							))}
-						</ul>
-					</CardContent>
-				</Card>
 			</div>
+
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<UsersIcon className="size-4" />
+						Members
+					</CardTitle>
+					<CardDescription>
+						Proposals made and sessions attended
+						{completedEventCount > 0 && ` (of ${completedEventCount} held)`}.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<ul className="divide-y">
+						{memberStats.map((member) => (
+							<li key={member.id} className="flex items-center gap-3 py-2 text-sm">
+								<span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
+								<span className="stat text-muted-foreground text-xs">
+									{member.proposals} proposed
+								</span>
+								<span className="stat text-muted-foreground text-xs">
+									{completedEventCount > 0
+										? `${member.sessionsAttended}/${completedEventCount} sessions`
+										: "no sessions yet"}
+								</span>
+							</li>
+						))}
+					</ul>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

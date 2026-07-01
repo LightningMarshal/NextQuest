@@ -46,8 +46,9 @@ export default async function VotePage() {
 		.sort((a, b) => b.groupTotal - a.groupTotal || a.title.localeCompare(b.title));
 
 	return (
-		<div className="flex flex-col gap-6">
-			<div>
+		// Nova: the ballot lives in a narrow centered column (~560px).
+		<div className="mx-auto flex w-full max-w-[560px] flex-col gap-6">
+			<div className="text-center">
 				<h1 className="font-display text-3xl font-semibold tracking-tight">Vote</h1>
 				<p className="text-muted-foreground mt-1 text-sm">
 					Anonymous budget voting: put your points on whatever you most want the group to

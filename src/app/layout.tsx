@@ -7,8 +7,11 @@ import "./globals.css";
 
 // Nova type system: Space Grotesk (display/headings), Hanken Grotesk (body/UI),
 // JetBrains Mono (every numeric stat). Wired to the CSS vars used in globals.css.
+// The variable classes live on <html>: the @theme aliases (--font-mono etc.) are
+// emitted at :root, and custom properties resolve where declared — on <body>
+// they'd compute to invalid at :root and the aliases would silently fail.
 const fontDisplay = Space_Grotesk({
-	variable: "--font-display",
+	variable: "--font-display-nq",
 	subsets: ["latin"],
 	weight: ["500", "600", "700"],
 });
@@ -39,13 +42,15 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html
+			lang="en"
+			suppressHydrationWarning
+			className={`${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable}`}
+		>
 			<head>
 				<link rel="icon" href="/favicon.svg" type="image/svg+xml"></link>
 			</head>
-			<body
-				className={`${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable} font-sans antialiased`}
-			>
+			<body className="font-sans antialiased">
 				<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
 					{children}
 				</ThemeProvider>

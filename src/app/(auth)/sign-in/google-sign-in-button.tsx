@@ -21,7 +21,7 @@ export function GoogleSignInButton() {
 	}
 
 	return (
-		<Button className="w-full" onClick={handleSignIn} disabled={pending}>
+		<Button variant="outline" className="w-full" onClick={handleSignIn} disabled={pending}>
 			{pending && <Loader2Icon className="animate-spin" />}
 			Continue with Google
 		</Button>
