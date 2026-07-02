@@ -1,0 +1,360 @@
+"use client";
+
+import { useOptimistic, useTransition } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { MinusIcon, PlusIcon, StarIcon, TrophyIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import type { PickComponent, PickComponentKey } from "@/lib/pick";
+import { setVote } from "@/server/votes";
+import { cn } from "@/lib/utils";
+
+export type PickListGame = {
+	id: string;
+	title: string;
+	art: string | null;
+	/** Stored points (override wins) — the burn-rate effort currency. */
+	effort: number | null;
+	lengthHours: number | null;
+	gameModes: string[] | null;
+	backlogSince: Date | null;
+	/** Group aggregate including the caller's own allocation. */
+	groupTotal: number;
+	/** The caller's own allocation. */
+	mine: number;
+	/** Composite pick score, 0–100 — computed server-side from aggregates. */
+	score: number;
+	components: PickComponent[];
+};
+
+const COMPONENT_LABELS: Record<PickComponentKey, string> = {
+	interest: "group interest",
+	quality: "acclaim",
+	timeFit: "time fit",
+	staleness: "shelf time",
+	partyFit: "party fit",
+};
+
+function componentValue(game: PickListGame, key: PickComponentKey): number | undefined {
+	return game.components.find((component) => component.key === key)?.value;
+}
+
+/** Short human line about why a game ranks where it does. */
+function explanation(game: PickListGame, hasSessionHours: boolean): string {
+	const phrases: string[] = [];
+	if ((componentValue(game, "interest") ?? 0) >= 0.8 && game.groupTotal > 0) {
+		phrases.push("group favorite");
+	}
+	if ((componentValue(game, "quality") ?? 0) >= 0.8) phrases.push("acclaimed");
+	const timeFit = componentValue(game, "timeFit") ?? 0;
+	if (timeFit >= 0.95) phrases.push(hasSessionHours ? "fits tonight's window" : "right length");
+	if ((componentValue(game, "staleness") ?? 0) >= 0.5 && game.backlogSince) {
+		const months = Math.floor(
+			(Date.now() - new Date(game.backlogSince).getTime()) / (30 * 24 * 60 * 60 * 1000)
+		);
+		if (months >= 2) phrases.push(`waiting ${months} months`);
+		else phrases.push("been waiting a while");
+	}
+	if (componentValue(game, "partyFit") === 1) phrases.push("plays together");
+	return phrases.join(" · ");
+}
+
+function ComponentBars({ game, compact }: { game: PickListGame; compact?: boolean }) {
+	return (
+		<div className={cn("flex flex-col gap-1", compact ? "max-w-56" : "max-w-72")}>
+			{game.components.map((component) => (
+				<div
+					key={component.key}
+					className="flex items-center gap-2"
+					title={`${COMPONENT_LABELS[component.key]}: ${Math.round(component.value * 100)}% × weight ${Math.round(component.weight * 100)}%`}
+				>
+					<span className="text-muted-foreground w-24 shrink-0 text-[10px] uppercase tracking-wide">
+						{COMPONENT_LABELS[component.key]}
+					</span>
+					<div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+						<div
+							className="bg-gradient-to-r from-primary to-chart-2 h-full rounded-full"
+							style={{ width: `${Math.round(component.value * 100)}%` }}
+						/>
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function VoteSteppers({
+	game,
+	mine,
+	maxPerGame,
+	remaining,
+	adjust,
+}: {
+	game: PickListGame;
+	mine: number;
+	maxPerGame: number;
+	remaining: number;
+	adjust: (gameId: string, delta: number) => void;
+}) {
+	return (
+		<div className="flex shrink-0 items-center gap-2">
+			<Button
+				size="icon"
+				variant="secondary"
+				className="size-8 rounded-md"
+				aria-label={`Remove a point from ${game.title}`}
+				disabled={mine === 0}
+				onClick={() => adjust(game.id, -1)}
+			>
+				<MinusIcon />
+			</Button>
+			<span
+				className={cn(
+					"stat w-6 text-center text-sm font-semibold",
+					mine === 0 && "text-muted-foreground"
+				)}
+			>
+				{mine}
+			</span>
+			<Button
+				size="icon"
+				className="size-8 rounded-md"
+				aria-label={`Add a point to ${game.title}`}
+				disabled={mine >= maxPerGame || remaining <= 0}
+				onClick={() => adjust(game.id, 1)}
+			>
+				<PlusIcon />
+			</Button>
+		</div>
+	);
+}
+
+export function PickList({
+	games,
+	budget,
+	maxPerGame,
+	hasSessionHours,
+}: {
+	games: PickListGame[];
+	budget: number;
+	maxPerGame: number;
+	hasSessionHours: boolean;
+}) {
+	const router = useRouter();
+	const [, startTransition] = useTransition();
+
+	const serverAllocations = Object.fromEntries(games.map((game) => [game.id, game.mine]));
+	const [allocations, applyAllocation] = useOptimistic(
+		serverAllocations,
+		(state, update: { gameId: string; weight: number }) => ({
+			...state,
+			[update.gameId]: update.weight,
+		})
+	);
+
+	const spent = Object.values(allocations).reduce((total, weight) => total + weight, 0);
+	const remaining = budget - spent;
+	const spentPct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+
+	function adjust(gameId: string, delta: number) {
+		const current = allocations[gameId] ?? 0;
+		const next = Math.max(0, Math.min(maxPerGame, current + delta));
+		if (next === current) return;
+		if (delta > 0 && remaining <= 0) return;
+
+		startTransition(async () => {
+			applyAllocation({ gameId, weight: next });
+			try {
+				// The server revalidates /pick, so the ranking reorders on the
+				// round-trip — deliberately: the list responding to interest IS the
+				// feature. Scores are never recomputed from optimistic local state.
+				await setVote(gameId, next);
+			} catch {
+				// Out of sync (e.g. budget race in another tab) — resync from server.
+				router.refresh();
+			}
+		});
+	}
+
+	const [top, ...rest] = games;
+	const topMine = allocations[top.id] ?? 0;
+	const topGroupTotal = top.groupTotal - top.mine + topMine;
+
+	return (
+		<div className="flex flex-col gap-4">
+			<Card className="bg-background/80 sticky top-16 z-10 backdrop-blur">
+				<CardContent className="flex flex-col gap-3">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Your interest budget</p>
+							<p className="text-muted-foreground text-xs">
+								Spread up to {budget} points, max {maxPerGame} per game — it feeds the
+								&ldquo;group interest&rdquo; part of the ranking. Only totals are ever shown —
+								nobody sees your picks.
+							</p>
+						</div>
+						<p className="stat text-2xl font-semibold">
+							{spent}
+							<span className="text-muted-foreground text-sm font-normal"> / {budget}</span>
+						</p>
+					</div>
+					{/* Nova: cyan → violet meter, fills as the budget is spent. */}
+					<div
+						className="bg-muted h-2 w-full overflow-hidden rounded-full"
+						role="progressbar"
+						aria-valuenow={spent}
+						aria-valuemin={0}
+						aria-valuemax={budget}
+						aria-label="Budget spent"
+					>
+						<div
+							className="h-full rounded-full bg-gradient-to-r from-primary to-chart-2 transition-[width] duration-200"
+							style={{ width: `${spentPct}%` }}
+						/>
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Tonight's pick: the #1 ranked game gets the spotlight. */}
+			<Card className="border-primary/40 overflow-hidden py-0">
+				<div className="flex flex-col sm:flex-row">
+					{top.art ? (
+						<div className="relative h-40 w-full shrink-0 sm:h-auto sm:w-64">
+							<Image
+								src={top.art}
+								alt={top.title}
+								fill
+								className="object-cover"
+								sizes="(max-width: 640px) 100vw, 256px"
+							/>
+						</div>
+					) : (
+						<div className="bg-muted h-40 w-full shrink-0 sm:h-auto sm:w-64" />
+					)}
+					<div className="flex min-w-0 flex-1 flex-col gap-3 p-5">
+						<div className="flex items-start justify-between gap-3">
+							<div className="min-w-0">
+								<Badge className="mb-2 gap-1">
+									<TrophyIcon className="size-3" />
+									Tonight&rsquo;s pick
+								</Badge>
+								<h2 className="font-display truncate text-xl font-semibold">{top.title}</h2>
+								<div className="mt-1 flex flex-wrap items-center gap-2">
+									{top.effort !== null && (
+										<Badge variant="secondary" className="gap-1">
+											<StarIcon className="size-3" />
+											{top.effort} effort
+										</Badge>
+									)}
+									{top.lengthHours !== null && (
+										<span className="stat text-muted-foreground text-xs">{top.lengthHours}h</span>
+									)}
+									<span
+										className={cn(
+											"text-xs",
+											topGroupTotal > 0 ? "text-primary" : "text-muted-foreground"
+										)}
+									>
+										<span className="stat">{topGroupTotal}</span> group vote
+										{topGroupTotal === 1 ? "" : "s"}
+									</span>
+								</div>
+								{explanation(top, hasSessionHours) && (
+									<p className="text-muted-foreground mt-2 text-sm">
+										{explanation(top, hasSessionHours)}
+									</p>
+								)}
+							</div>
+							<div className="shrink-0 text-right">
+								<p className="stat text-3xl font-semibold">{top.score}</p>
+								<p className="text-muted-foreground text-[10px] uppercase tracking-wide">score</p>
+							</div>
+						</div>
+						<ComponentBars game={top} />
+						<div className="mt-auto flex items-center justify-between gap-3 pt-1">
+							<span className="text-muted-foreground text-xs">Your interest</span>
+							<VoteSteppers
+								game={top}
+								mine={topMine}
+								maxPerGame={maxPerGame}
+								remaining={remaining}
+								adjust={adjust}
+							/>
+						</div>
+					</div>
+				</div>
+			</Card>
+
+			<div className="flex flex-col gap-3">
+				{rest.map((game, index) => {
+					const mine = allocations[game.id] ?? 0;
+					const groupTotal = game.groupTotal - game.mine + mine;
+					const why = explanation(game, hasSessionHours);
+					return (
+						<Card key={game.id} className="overflow-hidden py-0">
+							<div className="flex items-center gap-4 pr-5">
+								<span className="stat text-muted-foreground w-8 shrink-0 text-center text-sm">
+									{index + 2}
+								</span>
+								{game.art ? (
+									<div className="relative h-20 w-36 shrink-0">
+										<Image
+											src={game.art}
+											alt={game.title}
+											fill
+											className="object-cover"
+											sizes="144px"
+										/>
+									</div>
+								) : (
+									<div className="bg-muted h-20 w-36 shrink-0" />
+								)}
+								<div className="min-w-0 flex-1 py-3">
+									<div className="flex items-center gap-2">
+										<p className="truncate text-sm font-semibold">{game.title}</p>
+										<span className="stat text-primary shrink-0 text-sm font-semibold">
+											{game.score}
+										</span>
+									</div>
+									<div className="mt-1 flex flex-wrap items-center gap-2">
+										{game.effort !== null && (
+											<Badge variant="secondary" className="gap-1 text-[10px]">
+												<StarIcon className="size-3" />
+												{game.effort} effort
+											</Badge>
+										)}
+										{game.lengthHours !== null && (
+											<span className="stat text-muted-foreground text-xs">
+												{game.lengthHours}h
+											</span>
+										)}
+										<span
+											className={cn(
+												"text-xs",
+												groupTotal > 0 ? "text-primary" : "text-muted-foreground"
+											)}
+										>
+											<span className="stat">{groupTotal}</span> group vote
+											{groupTotal === 1 ? "" : "s"}
+										</span>
+									</div>
+									{why && <p className="text-muted-foreground mt-1 truncate text-xs">{why}</p>}
+								</div>
+								<VoteSteppers
+									game={game}
+									mine={mine}
+									maxPerGame={maxPerGame}
+									remaining={remaining}
+									adjust={adjust}
+								/>
+							</div>
+						</Card>
+					);
+				})}
+			</div>
+		</div>
+	);
+}

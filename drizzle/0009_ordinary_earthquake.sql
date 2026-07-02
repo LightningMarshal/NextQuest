@@ -1,0 +1,2 @@
+ALTER TABLE "game_metadata" ADD COLUMN "game_modes" jsonb;--> statement-breakpoint
+ALTER TABLE "app_settings" ADD COLUMN "pick_weights" jsonb DEFAULT '{"interest":0.35,"timeFit":0.25,"quality":0.15,"staleness":0.15,"partyFit":0.1}'::jsonb NOT NULL;

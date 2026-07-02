@@ -99,3 +99,60 @@ are never touched (burn-rate history stays stable), and `pointsOverride` is
 left alone (it wins over `points` at every read site). Note the interplay
 with the metadata-refresh cron: refreshed review scores do NOT trigger any
 recompute; they only matter at the next scoring edit or admin recompute.
+
+## 2026-07-02 — Session-aware picker over pure vote ranking
+
+The old split conflated two jobs: `points` (really an effort/size estimate)
+was displayed as if it ranked games, and the vote tally — the actual
+selection mechanism — ignored review quality, available time, and how long
+a game had been rotting. Reconsidered from scratch:
+
+- **Points survive, demoted to what they are**: the effort currency behind
+  burn-rate. UI now says "effort"; DB columns and every stability rule
+  (stored, recompute only on edit / admin action for pre-play games) are
+  unchanged.
+- **Budget voting survives as the *interest* signal.** Anonymity
+  effectively requires an aggregate-friendly preference mechanism, and
+  budget allocation is a good one — it just stops being the whole ranking.
+  All mechanics unchanged (budget 10, cap 4, aggregates only, cleared on
+  leaving backlog).
+- **New: the picker** (`/pick`, absorbing `/vote` which now redirects).
+  `score = 100 × Σ ŵᵢ·cᵢ` over components computed per backlog game:
+  - *interest* = tally / max tally (0 when no votes anywhere)
+  - *quality* = clamp((q − 40)/60, 0–1); q = the points formula's
+    `qualityScore` (Steam % + Metacritic mean); missing → 0.5. Deliberate
+    contrast with points, where missing data is neutral ×1.0: in a ranking,
+    "we know nothing" belongs between acclaimed and panned.
+  - *timeFit*: session commitment presets map to Main+Extra hour ranges
+    (snack <8, weeknight 8–25, standard 25–60, epic 60+); in range → 1,
+    outside decays by `1 − |log2(L/bound)|/1.5`; a game finishable in
+    tonight's stated hours (≤ hours × 1.25) floors at 0.95. Unscored → 0.5.
+  - *staleness* = min(1, days-in-backlog/120), from the latest
+    `to_status='backlog'` history row (re-backlogging restarts the clock).
+  - *partyFit*: from `game_metadata.game_modes` (derived from Steam
+    appdetails categories); active only when the session says "playing
+    together, N ≥ 2" — co-op/multiplayer 1, unknown 0.5, single-player 0.1.
+  - Admin weights (`app_settings.pick_weights`, defaults .35/.25/.15/.15/.1)
+    are stored raw and renormalized at read time over the active set.
+- **Scores are computed at read time and NEVER stored** — the mirror image
+  of the points invariant. Nothing to migrate when the formula is retuned,
+  and burn-rate history can't be rewritten by ranking changes.
+- **Session context lives in the URL** (`/pick?hours=3&commitment=snack&
+  together=1&players=4`): shareable, no new tables, and the force-dynamic
+  layout re-ranks on every change. A "use next session" button prefills
+  from the next scheduled event's duration + yes-RSVPs.
+- **Accepted tradeoff:** voting on /pick reorders the list on the server
+  round-trip (the ranking responding to interest is the feature). Scores
+  are never recomputed client-side from optimistic votes.
+
+Game input became **search-first**: type a title, pick from Steam +
+HowLongToBeat candidates (searched in parallel, either may fail
+independently), preview the fetched metadata with per-source status and
+retry, or drop to manual entry at any point. The proposal submits only
+candidate *ids* — the server refetches metadata itself, never trusting
+client-supplied fields. A per-game "Refresh metadata" action is the
+post-hoc recourse when a provider was down at proposal time (unlike the
+cron it also runs on manual-only rows, deliberately, since the user asked).
+HLTB caveat: their search matches names, not ids, so "fetch by id" is
+implemented as a title search filtered to the picked `game_id`, falling
+back to the title heuristic.

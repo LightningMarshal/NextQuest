@@ -1,13 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { notifyDiscord } from "@/lib/discord";
 import { fetchGameMetadata } from "@/lib/metadata";
+import { deriveGameModes } from "@/lib/metadata/steam";
+import type { GameMode } from "@/lib/pick";
 import { computePoints, type Difficulty } from "@/lib/points";
+import { buildMetadataUpdates } from "@/server/metadata-write";
 import { requireAdmin, requireApprovedUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
@@ -27,6 +30,16 @@ const proposeSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
 	steam: z.string().trim().max(300).optional(),
 	pitch: z.string().trim().max(2000).optional(),
+	// Hidden fields set when the proposer picked a search candidate. The
+	// server refetches metadata from the ids itself — client-supplied
+	// metadata is never trusted.
+	steamAppId: z.coerce.number().int().positive().optional(),
+	hltbId: z
+		.string()
+		.trim()
+		.regex(/^\d+$/)
+		.max(20)
+		.optional(),
 });
 
 /** Accepts a bare app id ("1145360") or any store URL containing /app/<id>/. */
@@ -43,13 +56,33 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		title: formData.get("title"),
 		steam: formData.get("steam") || undefined,
 		pitch: formData.get("pitch") || undefined,
+		steamAppId: formData.get("steamAppId") || undefined,
+		hltbId: formData.get("hltbId") || undefined,
 	});
-	const steamAppId = parseSteamAppId(input.steam);
-
-	// Provider failures only mean fewer prefilled fields (CLAUDE.md #5).
-	const { metadata, sources } = await fetchGameMetadata({ title: input.title, steamAppId });
+	const steamAppId = input.steamAppId ?? parseSteamAppId(input.steam);
 
 	const db = getDb();
+
+	// Friendly duplicate check — the unique constraint on steam_app_id would
+	// otherwise surface as a raw DB error, and search-first proposing makes
+	// re-picking an existing game much more likely.
+	if (steamAppId !== undefined) {
+		const [existing] = await db
+			.select({ title: schema.games.title, status: schema.games.status })
+			.from(schema.games)
+			.where(eq(schema.games.steamAppId, steamAppId));
+		if (existing) {
+			throw new Error(`Already in the list as “${existing.title}” (${existing.status}).`);
+		}
+	}
+
+	// Provider failures only mean fewer prefilled fields (CLAUDE.md #5).
+	const { metadata, sources } = await fetchGameMetadata({
+		title: input.title,
+		steamAppId,
+		hltbId: input.hltbId,
+	});
+
 	const lengthHours = metadata.hltbMainExtra ?? metadata.hltbMain;
 
 	const [game] = await db
@@ -72,6 +105,7 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		headerUrl: metadata.headerUrl,
 		description: metadata.description,
 		genres: metadata.genres,
+		gameModes: metadata.gameModes as GameMode[] | undefined,
 		releaseDate: metadata.releaseDate,
 		steamReviewScore: metadata.steamReviewScore,
 		steamReviewCount: metadata.steamReviewCount,
@@ -147,7 +181,7 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 	}
 
 	revalidatePath("/backlog");
-	revalidatePath("/vote");
+	revalidatePath("/pick");
 	revalidatePath("/");
 }
 
@@ -254,6 +288,90 @@ export async function recomputeUnplayedPoints(): Promise<void> {
 	}
 
 	revalidatePath("/backlog");
-	revalidatePath("/vote");
+	revalidatePath("/pick");
 	revalidatePath("/");
+}
+
+/**
+ * Explicit per-game re-fetch from the providers — the in-app recourse when
+ * a lookup failed at proposal time (HLTB especially). Unlike the cron, this
+ * also runs for manual-only rows because the user asked for it; fetched
+ * fields will overwrite manual entries, which the UI warns about. Never
+ * touches games.* (CLAUDE.md #2).
+ */
+export async function refreshGameMetadata(gameId: string): Promise<void> {
+	await requireApprovedUser();
+	const db = getDb();
+
+	const [row] = await db
+		.select({
+			title: schema.games.title,
+			steamAppId: schema.games.steamAppId,
+			source: schema.gameMetadata.source,
+			raw: schema.gameMetadata.raw,
+		})
+		.from(schema.games)
+		.innerJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+		.where(eq(schema.games.id, gameId));
+	if (!row) throw new Error("Game not found.");
+
+	// Claim-style stamp first (no transactions on Neon HTTP): a mid-flight
+	// failure still records the attempt for the cron's stale queue.
+	await db
+		.update(schema.gameMetadata)
+		.set({ lastRefreshAttemptAt: new Date() })
+		.where(eq(schema.gameMetadata.gameId, gameId));
+
+	const result = await fetchGameMetadata({
+		title: row.title,
+		steamAppId: row.steamAppId ?? undefined,
+	});
+	if (result.sources.length === 0) {
+		throw new Error("All metadata providers failed — try again later.");
+	}
+
+	await db
+		.update(schema.gameMetadata)
+		.set(buildMetadataUpdates(row, result))
+		.where(eq(schema.gameMetadata.gameId, gameId));
+
+	revalidatePath("/backlog");
+	revalidatePath("/pick");
+}
+
+/**
+ * Admin one-shot: derive game_modes for existing games from the Steam
+ * appdetails payloads already stored in game_metadata.raw — no network.
+ * Rows without steam raw stay null ("unknown" to the picker) until their
+ * next provider fetch. Idempotent; safe to re-run.
+ */
+export async function backfillGameModes(): Promise<void> {
+	await requireAdmin();
+	const db = getDb();
+
+	const rows = await db
+		.select({ gameId: schema.gameMetadata.gameId, raw: schema.gameMetadata.raw })
+		.from(schema.gameMetadata)
+		.where(and(isNull(schema.gameMetadata.gameModes), isNotNull(schema.gameMetadata.raw)));
+
+	for (const row of rows) {
+		// raw is untyped jsonb — narrow defensively; malformed shapes are skipped.
+		const raw = row.raw as { steam?: { appdetails?: { categories?: unknown } } } | null;
+		const categories = raw?.steam?.appdetails?.categories;
+		if (!Array.isArray(categories)) continue;
+		const modes = deriveGameModes(
+			categories.filter(
+				(entry): entry is { id: number; description: string } =>
+					typeof entry === "object" && entry !== null && typeof (entry as { id?: unknown }).id === "number"
+			)
+		);
+		if (!modes) continue;
+		await db
+			.update(schema.gameMetadata)
+			.set({ gameModes: modes })
+			.where(eq(schema.gameMetadata.gameId, row.gameId));
+	}
+
+	revalidatePath("/pick");
+	revalidatePath("/backlog");
 }

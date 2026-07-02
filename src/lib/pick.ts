@@ -1,0 +1,217 @@
+// The picker: session-aware composite ranking over the backlog.
+//   score = 100 × Σ ŵᵢ·cᵢ   (ŵ = admin weights renormalized over the
+//   components active for this session's context; each cᵢ is 0–1)
+// Unlike points (src/lib/points.ts), pick scores are computed at READ time
+// and NEVER stored — the ranking is free to change as votes move, metadata
+// refreshes, or the weights are retuned, and burn-rate history can't be
+// rewritten because nothing here persists. Pure functions only — the server
+// assembles inputs (vote tallies stay aggregate-only; anonymity invariant
+// untouched). Rationale: docs/DECISIONS.md.
+
+import { qualityScore, type QualitySignals } from "./points";
+
+/** Derived from Steam appdetails categories; null column = never derived. */
+export type GameMode =
+	| "single-player"
+	| "multi-player"
+	| "co-op"
+	| "online-co-op"
+	| "local-co-op"
+	| "pvp";
+
+/** How big a game the group wants to start — maps to Main+Extra hour ranges. */
+export type Commitment = "snack" | "weeknight" | "standard" | "epic" | "any";
+
+export type SessionContext = {
+	/** Hours available tonight — enables the "finishable tonight" boost. */
+	sessionHours?: number;
+	commitment: Commitment;
+	/** How many people are playing (only meaningful with `together`). */
+	players?: number;
+	/** Playing one game together vs. picking for the shared backlog. */
+	together: boolean;
+};
+
+export type PickWeights = {
+	interest: number;
+	quality: number;
+	timeFit: number;
+	staleness: number;
+	partyFit: number;
+};
+
+export type PickComponentKey = keyof PickWeights;
+
+export const DEFAULT_PICK_WEIGHTS: PickWeights = {
+	interest: 0.35,
+	timeFit: 0.25,
+	quality: 0.15,
+	staleness: 0.15,
+	partyFit: 0.1,
+};
+
+export const COMMITMENT_RANGES: Record<Commitment, { min: number; max: number } | null> = {
+	snack: { min: 0, max: 8 },
+	weeknight: { min: 8, max: 25 },
+	standard: { min: 25, max: 60 },
+	epic: { min: 60, max: Infinity },
+	any: null,
+};
+
+/** Everything the scorer needs about one backlog game. */
+export type PickableGame = {
+	gameId: string;
+	/** HLTB Main+Extra by convention; null = unscored. */
+	lengthHours: number | null;
+	signals: QualitySignals;
+	/** Aggregate vote weight — from getVoteTally(), never per-member. */
+	tally: number;
+	/** Latest transition into `backlog`; null falls back to "just arrived". */
+	backlogSince: Date | null;
+	gameModes: GameMode[] | null;
+};
+
+export type PickComponent = {
+	key: PickComponentKey;
+	/** Raw component value, 0–1. */
+	value: number;
+	/** Renormalized weight actually applied, 0–1 (active components sum to 1). */
+	weight: number;
+};
+
+export type RankedGame = {
+	gameId: string;
+	/** 0–100, one decimal. */
+	score: number;
+	components: PickComponent[];
+};
+
+function clamp01(value: number): number {
+	return Math.min(1, Math.max(0, value));
+}
+
+/** Relative group interest: share of the strongest tally. 0 when nobody has voted. */
+export function interestComponent(tally: number, maxTally: number): number {
+	if (maxTally <= 0) return 0;
+	return clamp01(tally / maxTally);
+}
+
+// Maps q 40→0 and q 100→1. Note the deliberate difference from the points
+// formula: there missing review data is neutral (×1.0 multiplier); here it
+// maps to 0.5 — "we know nothing" ranks between acclaimed and panned.
+export function qualityComponent(q: number | null): number {
+	if (q === null) return 0.5;
+	return clamp01((q - 40) / 60);
+}
+
+// In-range → 1; outside, decay by log2 distance from the violated bound so
+// "slightly too long" barely hurts but a 100h epic scores ~0 for a snack
+// night. A game finishable in tonight's session is always a strong fit.
+export function timeFitComponent(
+	lengthHours: number | null,
+	ctx: Pick<SessionContext, "sessionHours" | "commitment">
+): number {
+	let fit: number;
+	if (lengthHours === null || lengthHours <= 0) {
+		fit = 0.5; // unscored — neutral, never buried or boosted
+	} else {
+		const range = COMMITMENT_RANGES[ctx.commitment];
+		if (range === null) {
+			fit = 1;
+		} else if (lengthHours >= range.min && lengthHours < range.max) {
+			fit = 1;
+		} else {
+			const bound = lengthHours < range.min ? range.min : range.max;
+			fit = Math.max(0, 1 - Math.abs(Math.log2(lengthHours / bound)) / 1.5);
+		}
+	}
+	if (
+		lengthHours !== null &&
+		lengthHours > 0 &&
+		ctx.sessionHours !== undefined &&
+		ctx.sessionHours > 0 &&
+		lengthHours <= ctx.sessionHours * 1.25
+	) {
+		fit = Math.max(fit, 0.95);
+	}
+	return fit;
+}
+
+/** Ramps 0→1 over 120 days in the backlog — old proposals stop being invisible. */
+export function stalenessComponent(backlogSince: Date | null, now: Date): number {
+	if (backlogSince === null) return 0;
+	const days = (now.getTime() - backlogSince.getTime()) / (24 * 60 * 60 * 1000);
+	if (!Number.isFinite(days) || days <= 0) return 0;
+	return Math.min(1, days / 120);
+}
+
+const GROUP_MODES: ReadonlyArray<GameMode> = [
+	"multi-player",
+	"co-op",
+	"online-co-op",
+	"local-co-op",
+];
+
+// null (never derived) and [] (derived, nothing recognized) both mean
+// "unknown" — neutral rather than punished, so missing Steam data can't
+// bury a game.
+export function partyFitComponent(modes: GameMode[] | null): number {
+	if (modes === null || modes.length === 0) return 0.5;
+	if (modes.some((mode) => GROUP_MODES.includes(mode))) return 1;
+	return 0.1; // single-player/pvp only — a poor pick for playing together
+}
+
+function isPartyFitActive(ctx: SessionContext): boolean {
+	return ctx.together && (ctx.players ?? 0) >= 2;
+}
+
+/**
+ * Rank the backlog for a session context. The sort is stable, so equal
+ * scores keep the input order — pre-sort the input by title for a
+ * human-sensible tie order.
+ */
+export function scoreBacklog(
+	games: PickableGame[],
+	ctx: SessionContext,
+	weights: PickWeights = DEFAULT_PICK_WEIGHTS,
+	now: Date = new Date()
+): RankedGame[] {
+	const maxTally = games.reduce((max, game) => Math.max(max, game.tally), 0);
+	const activeKeys: PickComponentKey[] = ["interest", "quality", "timeFit", "staleness"];
+	if (isPartyFitActive(ctx)) activeKeys.push("partyFit");
+
+	const activeTotal = activeKeys.reduce((sum, key) => sum + Math.max(0, weights[key]), 0);
+	const normalized = new Map<PickComponentKey, number>(
+		activeKeys.map((key) => [
+			key,
+			// All-zero weights degrade to an even split instead of NaN.
+			activeTotal > 0 ? Math.max(0, weights[key]) / activeTotal : 1 / activeKeys.length,
+		])
+	);
+
+	return games
+		.map((game) => {
+			const values: Record<PickComponentKey, number> = {
+				interest: interestComponent(game.tally, maxTally),
+				quality: qualityComponent(qualityScore(game.signals)),
+				timeFit: timeFitComponent(game.lengthHours, ctx),
+				staleness: stalenessComponent(game.backlogSince, now),
+				partyFit: partyFitComponent(game.gameModes),
+			};
+			const components: PickComponent[] = activeKeys.map((key) => ({
+				key,
+				value: values[key],
+				weight: normalized.get(key) ?? 0,
+			}));
+			const score = components.reduce(
+				(sum, component) => sum + component.weight * component.value,
+				0
+			);
+			return {
+				gameId: game.gameId,
+				score: Math.round(score * 1000) / 10,
+				components,
+			};
+		})
+		.sort((a, b) => b.score - a.score);
+}

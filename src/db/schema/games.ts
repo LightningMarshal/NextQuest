@@ -12,6 +12,8 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
+import type { GameMode } from "@/lib/pick";
+
 import { user } from "./auth";
 
 // A proposal is just a game in `proposed` status — there is no separate
@@ -65,6 +67,10 @@ export const gameMetadata = pgTable("game_metadata", {
 	headerUrl: text("header_url"),
 	description: text("description"),
 	genres: jsonb("genres").$type<string[]>(),
+	// Derived from Steam appdetails categories (src/lib/metadata/steam.ts
+	// deriveGameModes). null = never derived; [] = derived, none recognized.
+	// Feeds the picker's party-fit component (src/lib/pick.ts).
+	gameModes: jsonb("game_modes").$type<GameMode[]>(),
 	releaseDate: date("release_date"),
 	steamReviewScore: smallint("steam_review_score"),
 	steamReviewCount: integer("steam_review_count"),

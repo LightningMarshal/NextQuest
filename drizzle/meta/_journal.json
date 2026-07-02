@@ -64,6 +64,13 @@
       "when": 1782082271390,
       "tag": "0008_woozy_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782960491537,
+      "tag": "0009_ordinary_earthquake",
+      "breakpoints": true
     }
   ]
 }

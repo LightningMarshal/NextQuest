@@ -94,9 +94,29 @@ theme system (dark/light), route + server-action stubs, docs.
   (`src/lib/discord.ts`, fire-and-forget on waitUntil): new proposal,
   started/finished a game, session scheduled (manual or from a GAC poll)
 
+## Phase 8 — The picker & search-first propose ✅ (done)
+
+- `/pick` ("What's next?") replaces `/vote` (which redirects): a
+  session-aware composite ranking over the backlog — interest (anonymous
+  vote tally), acclaim, time fit, staleness, party fit — with the ballot
+  steppers inline; math in `src/lib/pick.ts`, rationale in
+  docs/DECISIONS.md (2026-07-02). Scores computed at read time, never
+  stored
+- Session context in the URL: hours tonight, commitment presets
+  (snack/weeknight/standard/epic), playing-together + player count, and a
+  "use next session" prefill from the next scheduled event
+- Points relabeled **effort** in the UI (burn-rate currency only; columns
+  and stability rules unchanged); picker weights admin-tunable in settings
+- Search-first proposing: title typeahead across Steam + HLTB, candidate
+  pick with cover/year/source, metadata preview with per-source status and
+  retry, manual entry always reachable; server refetches from candidate ids
+- `game_metadata.game_modes` derived from Steam categories (admin backfill
+  reads stored raw payloads, no network); per-game "Refresh metadata"
+  action as the in-app recourse when a provider was down
+
 ## Future ideas (unscheduled)
 
-- Scheduled metadata refresh (Workers cron) for review scores
-- Game tags / filtering
-- Vote-milestone notifications and event reminders
-- Settings UI for `app_settings` (vote budget, formula multipliers)
+- Additional metadata/search providers (IGDB, RAWG) behind the existing
+  provider interface
+- Mood/genre filters as picker context
+- Keyboard navigation for the propose-form search dropdown

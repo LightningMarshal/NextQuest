@@ -136,7 +136,7 @@ export default async function DashboardPage() {
 					icon={TrendingUpIcon}
 					label="Completion"
 					value={`${totals.completionPct}%`}
-					detail={`${totals.completedPoints} of ${totals.totalPoints} points`}
+					detail={`${totals.completedPoints} of ${totals.totalPoints} effort`}
 					highlight
 					progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
 				/>
@@ -172,7 +172,7 @@ export default async function DashboardPage() {
 				<CardHeader>
 					<CardTitle>Burn rate</CardTitle>
 					<CardDescription>
-						Cumulative completed points per week
+						Cumulative completed effort per week
 						{projection && " — dashed line projects the current pace"}.
 					</CardDescription>
 				</CardHeader>
@@ -254,7 +254,7 @@ export default async function DashboardPage() {
 										<div className="min-w-0 flex-1">
 											<p className="truncate text-sm font-semibold">{game.title}</p>
 											<p className="stat text-muted-foreground text-xs">
-												{game.points !== null && `${game.points} pts · `}
+												{game.points !== null && `${game.points} effort · `}
 												{game.startedAt &&
 													`started ${formatDistanceToNowStrict(game.startedAt, { addSuffix: true })}`}
 											</p>

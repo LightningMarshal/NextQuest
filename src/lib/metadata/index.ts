@@ -1,4 +1,4 @@
-import { fetchHltbTimesByTitle, hltbProvider } from "./hltb";
+import { fetchHltbTimesById, fetchHltbTimesByTitle, hltbProvider } from "./hltb";
 import { steamProvider } from "./steam";
 import type { NormalizedGameMetadata } from "./types";
 
@@ -21,6 +21,8 @@ export type FetchMetadataResult = {
 export async function fetchGameMetadata(params: {
 	title: string;
 	steamAppId?: number;
+	/** From a prior hltbProvider.search() pick — pins the exact HLTB entry. */
+	hltbId?: string;
 }): Promise<FetchMetadataResult> {
 	const metadata: NormalizedGameMetadata = {};
 	const sources: string[] = [];
@@ -41,7 +43,11 @@ export async function fetchGameMetadata(params: {
 	// Prefer Steam's canonical title for the HLTB lookup when we have it.
 	const hltbQuery = metadata.title ?? params.title;
 	try {
-		const hltb = await fetchHltbTimesByTitle(hltbQuery);
+		// A selected candidate id pins the exact entry; fall back to the title
+		// heuristic when the id has rotated out of the search page.
+		const hltb =
+			(params.hltbId ? await fetchHltbTimesById(hltbQuery, params.hltbId) : null) ??
+			(await fetchHltbTimesByTitle(hltbQuery));
 		if (hltb) {
 			metadata.hltbMain = hltb.hltbMain;
 			metadata.hltbMainExtra = hltb.hltbMainExtra;

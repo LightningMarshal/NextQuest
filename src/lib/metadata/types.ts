@@ -26,6 +26,8 @@ export type NormalizedGameMetadata = {
 	hltbMain?: number; // hours
 	hltbMainExtra?: number;
 	hltbCompletionist?: number;
+	/** Play-mode vocabulary from src/lib/pick.ts, derived from Steam categories. */
+	gameModes?: string[];
 	/** Raw provider payload, persisted to game_metadata.raw for re-derivation. */
 	raw?: unknown;
 };

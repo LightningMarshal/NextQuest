@@ -64,7 +64,7 @@ export async function setVote(gameId: string, weight: number): Promise<void> {
 		}
 	}
 
-	revalidatePath("/vote");
+	revalidatePath("/pick");
 	revalidatePath("/backlog");
 }
 

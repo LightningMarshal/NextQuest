@@ -1,4 +1,5 @@
 import { getDb, schema } from "@/db";
+import { DEFAULT_PICK_WEIGHTS, type PickWeights } from "@/lib/pick";
 import {
 	DEFAULT_DIFFICULTY_MULTIPLIERS,
 	DEFAULT_QUALITY_WEIGHT,
@@ -12,6 +13,7 @@ export type AppSettings = {
 	difficultyMultipliers: DifficultyMultipliers;
 	qualityWeight: number;
 	voteMilestones: number[];
+	pickWeights: PickWeights;
 };
 
 const DEFAULTS: AppSettings = {
@@ -21,6 +23,7 @@ const DEFAULTS: AppSettings = {
 	difficultyMultipliers: DEFAULT_DIFFICULTY_MULTIPLIERS,
 	qualityWeight: DEFAULT_QUALITY_WEIGHT,
 	voteMilestones: [5, 10, 15],
+	pickWeights: DEFAULT_PICK_WEIGHTS,
 };
 
 // The single settings row is created lazily by the first admin edit
@@ -38,5 +41,8 @@ export async function getAppSettings(): Promise<AppSettings> {
 		difficultyMultipliers: row.difficultyMultipliers,
 		qualityWeight: row.qualityWeight,
 		voteMilestones: row.voteMilestones,
+		// Rows written before the pick_weights migration may predate the column
+		// default reaching this deployment.
+		pickWeights: row.pickWeights ?? DEFAULT_PICK_WEIGHTS,
 	};
 }

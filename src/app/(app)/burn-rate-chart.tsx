@@ -93,7 +93,7 @@ export function BurnRateChart({
 				<Area
 					type="monotone"
 					dataKey="actual"
-					name="completed points"
+					name="completed effort"
 					stroke="var(--chart-1)"
 					strokeWidth={2.5}
 					fill="url(#burnFill)"
