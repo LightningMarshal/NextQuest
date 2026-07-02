@@ -27,7 +27,7 @@ Discord **server** in question.
    `#gaming`) and click the **gear icon** (Edit Channel).
 3. In the channel settings, open **Integrations** → **Webhooks**.
 4. Click **New Webhook**. Discord creates one with a random name.
-5. Click it to expand, rename it to something like `Next Quest` (this is
+5. Click it to expand, rename it to something like `NextQuest` (this is
    the name the messages will appear under), and optionally give it an
    avatar.
 6. Click **Copy Webhook URL**. It looks like:

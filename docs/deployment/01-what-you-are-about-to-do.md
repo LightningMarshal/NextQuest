@@ -6,7 +6,7 @@ up, so you never have to memorize anything.
 
 ## The shape of the thing
 
-Next Quest is a **web app**: a program that runs on a computer somewhere on
+NextQuest is a **web app**: a program that runs on a computer somewhere on
 the internet (a *server*) and talks to web browsers. When a friend opens
 the app's address, their browser asks the server for the page, the server
 builds it (reading from a database), and sends it back.

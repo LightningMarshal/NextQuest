@@ -139,7 +139,7 @@ same Neon connection string** you put in `.dev.vars`.
 
 ## Build the database tables
 
-Time to turn the empty Neon database into Next Quest's structure
+Time to turn the empty Neon database into NextQuest's structure
 ([what's a migration? →](01-what-you-are-about-to-do.md#what-is-a-migration)):
 
 **All platforms**
@@ -170,7 +170,7 @@ npm run dev
 After a few seconds it prints `Local: http://localhost:3000`. Open that in
 your browser:
 
-1. You should see the Next Quest sign-in page.
+1. You should see the NextQuest sign-in page.
 2. Click **Continue with Google** and sign in with the email you put in
    `ADMIN_EMAILS`.
 3. You should land on the **dashboard** — and because of the bootstrap,

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Gamepad2Icon, LogOutIcon, ShieldIcon } from "lucide-react";
+import { LogOutIcon, ShieldIcon } from "lucide-react";
 
+import { ChevronMark } from "@/components/chevron-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,23 +93,31 @@ export function SiteNav({ user, groupName }: { user: NavUser; groupName: string 
 	return (
 		<header className="border-b sticky top-0 z-40 bg-background/80 backdrop-blur">
 			<div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4">
-				<Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-					<Gamepad2Icon className="size-5 text-primary" />
-					{groupName}
+				<Link href="/" className="flex items-center gap-2.5">
+					<ChevronMark className="text-foreground size-6" />
+					<span className="font-display text-base font-semibold tracking-tight">NextQuest</span>
+					<span className="text-muted-foreground border-border ml-1 hidden rounded-full border px-2 py-0.5 text-xs sm:inline">
+						{groupName}
+					</span>
 				</Link>
 				<nav className="flex items-center gap-1 text-sm">
-					{links.map((link) => (
-						<Link
-							key={link.href}
-							href={link.href}
-							className={cn(
-								"rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground",
-								pathname === link.href && "bg-accent text-accent-foreground"
-							)}
-						>
-							{link.label}
-						</Link>
-					))}
+					{links.map((link) => {
+						const active = pathname === link.href;
+						return (
+							<Link
+								key={link.href}
+								href={link.href}
+								className={cn(
+									"rounded-lg px-3 py-1.5 font-medium transition-colors",
+									active
+										? "bg-primary/12 text-primary"
+										: "text-muted-foreground hover:text-foreground hover:bg-card"
+								)}
+							>
+								{link.label}
+							</Link>
+						);
+					})}
 				</nav>
 				<div className="ml-auto flex items-center gap-2">
 					<ThemeToggle />

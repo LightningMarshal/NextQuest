@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { ChevronMark } from "@/components/chevron-mark";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSessionUser } from "@/server/session";
 
@@ -15,8 +16,9 @@ export default async function SignInPage() {
 	return (
 		<div className="mx-auto flex max-w-sm flex-col gap-6 pt-16">
 			<Card>
-				<CardHeader>
-					<CardTitle>Sign in</CardTitle>
+				<CardHeader className="items-center text-center">
+					<ChevronMark className="text-foreground size-9" />
+					<CardTitle className="text-lg">Welcome to NextQuest</CardTitle>
 					<CardDescription>
 						Sign in with Google to join the group. New accounts need admin approval.
 					</CardDescription>

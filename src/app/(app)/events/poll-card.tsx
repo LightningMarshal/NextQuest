@@ -38,12 +38,15 @@ export function PollCard({
 }) {
 	const open = poll.status === "open";
 	const bestScore = Math.max(...poll.slots.map(slotScore), 0);
+	const respondedCount = new Set(
+		poll.slots.flatMap((slot) => slot.responses.map((r) => r.userId))
+	).size;
 
 	return (
 		<Card>
 			<CardContent className="flex flex-col gap-3">
 				<div className="flex flex-wrap items-center gap-2">
-					<h3 className="text-base font-semibold">{poll.title}</h3>
+					<h3 className="font-display text-base font-semibold">{poll.title}</h3>
 					{poll.scheduled ? (
 						<Badge className="gap-1">
 							<CalendarCheckIcon className="size-3" />
@@ -55,8 +58,11 @@ export function PollCard({
 					{poll.creatorName && (
 						<span className="text-muted-foreground text-xs">by {poll.creatorName}</span>
 					)}
+					<span className="stat text-muted-foreground ml-auto text-xs">
+						{respondedCount} responded
+					</span>
 					{open && (
-						<form action={closePoll.bind(null, poll.id)} className="ml-auto">
+						<form action={closePoll.bind(null, poll.id)}>
 							<Button size="sm" variant="ghost">
 								Close poll
 							</Button>
@@ -64,72 +70,93 @@ export function PollCard({
 					)}
 				</div>
 
-				<div className="flex flex-col gap-2">
+				{/* Nova: night tiles — the leading slot gets the cyan border + count. */}
+				<div className="grid items-stretch gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
 					{poll.slots.map((slot) => {
 						const mine = slot.responses.find((r) => r.userId === currentUserId)?.response;
 						const yes = slot.responses.filter((r) => r.response === "yes");
 						const ifNeedBe = slot.responses.filter((r) => r.response === "if_need_be");
 						const leading = open && bestScore > 0 && slotScore(slot) === bestScore;
+						const names = [
+							yes.length > 0 && `free: ${yes.map((r) => r.name).join(", ")}`,
+							ifNeedBe.length > 0 && `if need be: ${ifNeedBe.map((r) => r.name).join(", ")}`,
+						]
+							.filter(Boolean)
+							.join(" · ");
 						return (
 							<div
 								key={slot.id}
+								title={names || "no takers yet"}
 								className={cn(
-									"flex flex-col gap-2 rounded-lg border p-3",
+									"bg-background/50 flex flex-col gap-1.5 rounded-lg border p-3",
 									leading && "border-primary/60"
 								)}
 							>
-								<div className="flex flex-wrap items-center gap-2 text-sm">
-									<span className="font-medium">
-										<LocalTime date={slot.startsAt} withWeekday /> –{" "}
-										<LocalTime date={slot.endsAt} timeOnly />
-									</span>
-									{leading && <Badge variant="secondary">leading</Badge>}
-									{open && (
-										<form action={createEventFromSlot.bind(null, slot.id)} className="ml-auto">
-											<Button size="sm" variant={leading ? "default" : "outline"}>
-												Schedule this
-											</Button>
-										</form>
+								<span className="text-xs font-medium">
+									<LocalTime date={slot.startsAt} withWeekday />
+								</span>
+								<span
+									className={cn(
+										"stat text-sm font-semibold",
+										leading ? "text-primary" : yes.length > 0 ? "text-foreground" : "text-muted-foreground"
 									)}
-								</div>
-								<div className="text-muted-foreground text-xs">
-									{yes.length > 0 && (
-										<span>
-											<span className="text-foreground font-medium">
-												free ({yes.length}):
-											</span>{" "}
-											{yes.map((r) => r.name).join(", ")}
-										</span>
-									)}
+								>
+									{yes.length} free
 									{ifNeedBe.length > 0 && (
-										<span>
-											{yes.length > 0 && " · "}
-											if need be: {ifNeedBe.map((r) => r.name).join(", ")}
-										</span>
+										<span className="text-muted-foreground font-normal"> +{ifNeedBe.length}</span>
 									)}
-									{yes.length === 0 && ifNeedBe.length === 0 && "no takers yet"}
-								</div>
+								</span>
+								<span className="text-muted-foreground truncate text-[11px]">
+									{names || "no takers yet"}
+								</span>
 								{open && (
-									<div className="flex items-center gap-2">
+									<div className="mt-auto flex items-center gap-1 pt-1">
 										<form action={respondToSlot.bind(null, slot.id, "yes")}>
-											<Button size="sm" variant={mine === "yes" ? "default" : "outline"}>
+											<Button
+												size="icon"
+												variant="outline"
+												aria-label="Free"
+												className={cn(
+													"size-7",
+													mine === "yes" &&
+														"border-success/40 bg-success/15 text-success hover:bg-success/25 hover:text-success"
+												)}
+											>
 												<CheckIcon />
-												Free
 											</Button>
 										</form>
 										<form action={respondToSlot.bind(null, slot.id, "if_need_be")}>
-											<Button size="sm" variant={mine === "if_need_be" ? "default" : "outline"}>
+											<Button
+												size="icon"
+												variant={mine === "if_need_be" ? "secondary" : "outline"}
+												aria-label="If need be"
+												className="size-7"
+											>
 												<HelpCircleIcon />
-												If need be
 											</Button>
 										</form>
 										<form action={respondToSlot.bind(null, slot.id, "no")}>
-											<Button size="sm" variant={mine === "no" ? "default" : "outline"}>
+											<Button
+												size="icon"
+												variant={mine === "no" ? "secondary" : "outline"}
+												aria-label="Busy"
+												className="size-7"
+											>
 												<XIcon />
-												Busy
 											</Button>
 										</form>
 									</div>
+								)}
+								{open && (
+									<form action={createEventFromSlot.bind(null, slot.id)}>
+										<Button
+											size="sm"
+											variant={leading ? "default" : "outline"}
+											className="w-full"
+										>
+											Schedule
+										</Button>
+									</form>
 								)}
 							</div>
 						);

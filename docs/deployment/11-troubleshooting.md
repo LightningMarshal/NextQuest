@@ -68,7 +68,7 @@ only lets listed users through.
 **Fix**: in the Google Cloud console, open the **OAuth consent screen** /
 **Audience** page, then either add the friend's Gmail under **Test
 users**, or click **Publish app** (fine for this app — it requests no
-sensitive scopes, and Next Quest's own approval queue keeps strangers
+sensitive scopes, and NextQuest's own approval queue keeps strangers
 out).
 
 **Prevented in**: [chapter 05](05-google-sign-in.md#configure-the-consent-screen).

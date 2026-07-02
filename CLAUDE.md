@@ -2,7 +2,7 @@
 
 ## Project overview
 
-**Next Quest** is a single-tenant web app for one gaming group: a shared game
+**NextQuest** is a single-tenant web app for one gaming group: a shared game
 backlog with point values, anonymous voting to prioritize what to play next,
 burn-rate tracking, and session scheduling with attendance. One deployment =
 one group; members sign in with Google and are approved by an admin.

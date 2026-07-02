@@ -57,6 +57,13 @@
       "when": 1781242804194,
       "tag": "0007_giant_boomerang",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782082271390,
+      "tag": "0008_woozy_captain_universe",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,7 @@ export function Ballot({
 
 	const spent = Object.values(allocations).reduce((total, weight) => total + weight, 0);
 	const remaining = budget - spent;
+	const spentPct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
 
 	function adjust(gameId: string, delta: number) {
 		const current = allocations[gameId] ?? 0;
@@ -65,19 +66,35 @@ export function Ballot({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<Card>
-				<CardContent className="flex items-center justify-between">
-					<div>
-						<p className="text-sm font-medium">Your budget</p>
-						<p className="text-muted-foreground text-xs">
-							Spread up to {budget} points, max {maxPerGame} per game. Only totals are ever
-							shown — nobody sees your picks.
+			<Card className="bg-background/80 sticky top-16 z-10 backdrop-blur">
+				<CardContent className="flex flex-col gap-3">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Your budget</p>
+							<p className="text-muted-foreground text-xs">
+								Spread up to {budget} points, max {maxPerGame} per game. Only totals are ever
+								shown — nobody sees your picks.
+							</p>
+						</div>
+						<p className="stat text-2xl font-semibold">
+							{spent}
+							<span className="text-muted-foreground text-sm font-normal"> / {budget}</span>
 						</p>
 					</div>
-					<p className="text-2xl font-semibold tabular-nums">
-						{remaining}
-						<span className="text-muted-foreground text-sm font-normal"> / {budget}</span>
-					</p>
+					{/* Nova: cyan → violet meter, fills as the budget is spent. */}
+					<div
+						className="bg-muted h-2 w-full overflow-hidden rounded-full"
+						role="progressbar"
+						aria-valuenow={spent}
+						aria-valuemin={0}
+						aria-valuemax={budget}
+						aria-label="Budget spent"
+					>
+						<div
+							className="h-full rounded-full bg-gradient-to-r from-primary to-chart-2 transition-[width] duration-200"
+							style={{ width: `${spentPct}%` }}
+						/>
+					</div>
 				</CardContent>
 			</Card>
 
@@ -116,15 +133,16 @@ export function Ballot({
 												groupTotal > 0 ? "text-primary" : "text-muted-foreground"
 											)}
 										>
-											{groupTotal} group vote{groupTotal === 1 ? "" : "s"}
+											<span className="stat">{groupTotal}</span> group vote
+											{groupTotal === 1 ? "" : "s"}
 										</span>
 									</div>
 								</div>
 								<div className="flex shrink-0 items-center gap-2">
 									<Button
 										size="icon"
-										variant="outline"
-										className="size-8"
+										variant="secondary"
+										className="size-8 rounded-md"
 										aria-label={`Remove a point from ${game.title}`}
 										disabled={mine === 0}
 										onClick={() => adjust(game.id, -1)}
@@ -133,7 +151,7 @@ export function Ballot({
 									</Button>
 									<span
 										className={cn(
-											"w-6 text-center text-sm font-semibold tabular-nums",
+											"stat w-6 text-center text-sm font-semibold",
 											mine === 0 && "text-muted-foreground"
 										)}
 									>
@@ -141,8 +159,7 @@ export function Ballot({
 									</span>
 									<Button
 										size="icon"
-										variant="outline"
-										className="size-8"
+										className="size-8 rounded-md"
 										aria-label={`Add a point to ${game.title}`}
 										disabled={mine >= maxPerGame || remaining <= 0}
 										onClick={() => adjust(game.id, 1)}

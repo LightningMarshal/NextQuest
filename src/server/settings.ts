@@ -15,7 +15,7 @@ export type AppSettings = {
 };
 
 const DEFAULTS: AppSettings = {
-	groupName: "Next Quest",
+	groupName: "NextQuest",
 	voteBudget: 10,
 	voteMaxPerGame: 4,
 	difficultyMultipliers: DEFAULT_DIFFICULTY_MULTIPLIERS,

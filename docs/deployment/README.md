@@ -1,4 +1,4 @@
-# Deploying Next Quest — the beginner's guide
+# Deploying NextQuest — the beginner's guide
 
 This guide takes you from a blank computer to a live website your friends
 can sign into with their Google accounts. It assumes **no prior

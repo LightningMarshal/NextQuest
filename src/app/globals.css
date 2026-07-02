@@ -4,63 +4,71 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Next Quest theme — sleek, futuristic, simple.
- * Dark is the flagship mode (near-black slate with a cyan accent);
- * light mode is a clean off-white counterpart.
+ * NextQuest theme — "Nova".
+ * Dark is the flagship: near-black slate surfaces, a single cyan signal accent,
+ * a violet secondary used only for chart/gradient partners. Light is a clean pair.
+ *
+ * Values converted from the Nova prototype hex palette. If a hue reads slightly
+ * off after pasting, the authoritative hex values are in the handoff README.
  */
 :root {
-	--radius: 0.625rem;
-	--background: oklch(0.985 0.002 247);
-	--foreground: oklch(0.18 0.02 257);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.18 0.02 257);
+	--radius: 0.75rem;
+
+	/* Light pair */
+	--background: oklch(0.972 0.003 255);          /* #F3F5F8 */
+	--foreground: oklch(0.205 0.012 255);          /* #0E1217 */
+	--card: oklch(1 0 0);                           /* #FFFFFF */
+	--card-foreground: oklch(0.205 0.012 255);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.18 0.02 257);
-	--primary: oklch(0.62 0.13 221);
+	--popover-foreground: oklch(0.205 0.012 255);
+	--primary: oklch(0.66 0.10 205);                /* #0E9FB3 cyan (light) */
 	--primary-foreground: oklch(0.985 0.002 247);
-	--secondary: oklch(0.95 0.005 247);
-	--secondary-foreground: oklch(0.25 0.02 257);
-	--muted: oklch(0.95 0.005 247);
-	--muted-foreground: oklch(0.5 0.02 257);
-	--accent: oklch(0.93 0.02 221);
-	--accent-foreground: oklch(0.25 0.04 230);
-	--destructive: oklch(0.58 0.24 27);
+	--secondary: oklch(0.95 0.004 255);
+	--secondary-foreground: oklch(0.30 0.012 255);
+	--muted: oklch(0.95 0.004 255);
+	--muted-foreground: oklch(0.50 0.018 255);      /* #5A6472 */
+	--accent: oklch(0.93 0.02 205);
+	--accent-foreground: oklch(0.30 0.04 230);
+	--destructive: oklch(0.58 0.22 25);
 	--destructive-foreground: oklch(0.985 0.002 247);
-	--border: oklch(0.91 0.005 247);
-	--input: oklch(0.91 0.005 247);
-	--ring: oklch(0.62 0.13 221);
-	--chart-1: oklch(0.72 0.13 221);
-	--chart-2: oklch(0.65 0.18 300);
-	--chart-3: oklch(0.75 0.15 150);
-	--chart-4: oklch(0.8 0.14 85);
-	--chart-5: oklch(0.65 0.2 350);
+	--border: oklch(0.92 0.005 255);                /* #E1E6EC */
+	--input: oklch(0.92 0.005 255);
+	--ring: oklch(0.66 0.10 205);
+	--success: oklch(0.74 0.14 162);
+	--chart-1: oklch(0.66 0.10 205);                /* cyan */
+	--chart-2: oklch(0.62 0.18 292);                /* violet */
+	--chart-3: oklch(0.74 0.14 162);                /* green */
+	--chart-4: oklch(0.80 0.14 85);
+	--chart-5: oklch(0.65 0.20 350);
 }
 
 .dark {
-	--background: oklch(0.16 0.015 257);
-	--foreground: oklch(0.93 0.01 247);
-	--card: oklch(0.2 0.018 257);
-	--card-foreground: oklch(0.93 0.01 247);
-	--popover: oklch(0.2 0.018 257);
-	--popover-foreground: oklch(0.93 0.01 247);
-	--primary: oklch(0.8 0.13 221);
-	--primary-foreground: oklch(0.16 0.03 230);
-	--secondary: oklch(0.26 0.02 257);
-	--secondary-foreground: oklch(0.93 0.01 247);
-	--muted: oklch(0.26 0.02 257);
-	--muted-foreground: oklch(0.68 0.02 247);
-	--accent: oklch(0.3 0.04 230);
-	--accent-foreground: oklch(0.9 0.06 221);
-	--destructive: oklch(0.65 0.2 25);
+	/* Dark flagship */
+	--background: oklch(0.145 0.008 258);           /* #0B0D11 */
+	--foreground: oklch(0.93 0.006 255);            /* #E7EBF1 */
+	--card: oklch(0.195 0.010 260);                 /* #14171D */
+	--card-foreground: oklch(0.93 0.006 255);
+	--popover: oklch(0.195 0.010 260);
+	--popover-foreground: oklch(0.93 0.006 255);
+	--primary: oklch(0.79 0.115 205);               /* #34D1E6 cyan */
+	--primary-foreground: oklch(0.28 0.045 220);    /* #06222A */
+	--secondary: oklch(0.27 0.012 258);             /* #1F242C */
+	--secondary-foreground: oklch(0.93 0.006 255);
+	--muted: oklch(0.27 0.012 258);                 /* #1F242C */
+	--muted-foreground: oklch(0.64 0.018 255);      /* #8A93A3 */
+	--accent: oklch(0.30 0.03 258);
+	--accent-foreground: oklch(0.90 0.05 205);
+	--destructive: oklch(0.65 0.20 25);
 	--destructive-foreground: oklch(0.985 0.002 247);
-	--border: oklch(0.28 0.02 257);
-	--input: oklch(0.28 0.02 257);
-	--ring: oklch(0.8 0.13 221);
-	--chart-1: oklch(0.8 0.13 221);
-	--chart-2: oklch(0.7 0.18 300);
-	--chart-3: oklch(0.78 0.15 150);
+	--border: oklch(0.285 0.013 258);               /* #232A33 */
+	--input: oklch(0.285 0.013 258);
+	--ring: oklch(0.79 0.115 205);
+	--success: oklch(0.78 0.145 162);               /* #3FCF8E */
+	--chart-1: oklch(0.79 0.115 205);               /* cyan */
+	--chart-2: oklch(0.70 0.17 292);                /* #8B7CFF violet */
+	--chart-3: oklch(0.78 0.145 162);               /* green */
 	--chart-4: oklch(0.85 0.14 85);
-	--chart-5: oklch(0.7 0.2 350);
+	--chart-5: oklch(0.70 0.20 350);
 }
 
 @theme inline {
@@ -80,6 +88,7 @@
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
+	--color-success: var(--success);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -92,8 +101,17 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
-	--font-sans: var(--font-geist-sans);
-	--font-mono: var(--font-geist-mono);
+	/* Nova fonts — the *-nq variables come from next/font in layout.tsx and
+	   MUST be declared on <html>, not <body>: these aliases are emitted at
+	   :root and resolve against the element they're declared on. */
+	--font-sans: var(--font-sans-nq);        /* Hanken Grotesk */
+	--font-mono: var(--font-mono-nq);        /* JetBrains Mono */
+	--font-display: var(--font-display-nq);  /* Space Grotesk — headings, titles, wordmark */
+}
+
+/* Nova: glow is used sparingly — ONLY primary CTA buttons get this. */
+@utility glow-primary {
+	box-shadow: 0 0 20px -4px color-mix(in oklab, var(--primary) 55%, transparent);
 }
 
 @layer base {
@@ -102,5 +120,17 @@
 	}
 	body {
 		@apply bg-background text-foreground antialiased;
+	}
+	/* Nova: data numerals are monospaced + tabular everywhere they appear.
+	   Apply `.stat` (or `font-mono tabular-nums`) to stat values, points,
+	   percentages, counts, dates, timestamps. */
+	.stat {
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+	}
+	/* Nova: headings + card titles use the display face. */
+	.font-display {
+		font-family: var(--font-display);
+		letter-spacing: -0.02em;
 	}
 }

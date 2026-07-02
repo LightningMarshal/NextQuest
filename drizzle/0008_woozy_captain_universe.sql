@@ -1,0 +1,1 @@
+ALTER TABLE "app_settings" ALTER COLUMN "group_name" SET DEFAULT 'NextQuest';

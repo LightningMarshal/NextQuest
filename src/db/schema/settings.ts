@@ -13,7 +13,7 @@ export const appSettings = pgTable(
 	"app_settings",
 	{
 		id: smallint("id").primaryKey().default(1),
-		groupName: text("group_name").notNull().default("Next Quest"),
+		groupName: text("group_name").notNull().default("NextQuest"),
 		voteBudget: smallint("vote_budget").notNull().default(10),
 		voteMaxPerGame: smallint("vote_max_per_game").notNull().default(4),
 		difficultyMultipliers: jsonb("difficulty_multipliers")

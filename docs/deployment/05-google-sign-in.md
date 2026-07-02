@@ -31,7 +31,7 @@ You'll need your **predicted app URL** from
 ## Configure the consent screen
 
 The consent screen is what your friends see the first time they sign in
-("Next Quest wants to access your Google Account…").
+("NextQuest wants to access your Google Account…").
 
 1. In the console search bar, search for **"OAuth consent screen"** and
    open it. (Google has been reorganizing this area — it may live under a
@@ -59,7 +59,7 @@ The consent screen is what your friends see the first time they sign in
 >   remember to add each new friend here too.
 > - **Option B — publish the app**: click **Publish app** on the same
 >   page. Anyone with the link can then *attempt* to sign in — which is
->   fine, because Next Quest has its own approval queue: strangers would
+>   fine, because NextQuest has its own approval queue: strangers would
 >   just sit at "pending approval" forever. Since the app requests no
 >   sensitive scopes, publishing does not require Google's review.
 >
