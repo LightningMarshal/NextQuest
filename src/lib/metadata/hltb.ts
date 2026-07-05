@@ -135,6 +135,22 @@ export async function fetchHltbTimesByTitle(
 	return toMetadata(exact ?? results[0]);
 }
 
+/**
+ * Lookup by a game_id obtained from a prior search() call. HLTB has no
+ * fetch-by-id endpoint and their search matches NAMES, not ids — so this
+ * searches by title and picks the result whose game_id matches. Returns
+ * null when the id isn't in the result page (caller falls back to the
+ * title-based heuristic above).
+ */
+export async function fetchHltbTimesById(
+	title: string,
+	hltbId: string
+): Promise<NormalizedGameMetadata | null> {
+	const results = await searchHltb(title);
+	const match = results.find((result) => String(result.game_id) === hltbId);
+	return match ? toMetadata(match) : null;
+}
+
 export const hltbProvider: GameMetadataProvider = {
 	id: "hltb",
 
@@ -145,13 +161,15 @@ export const hltbProvider: GameMetadataProvider = {
 			externalId: String(result.game_id),
 			title: result.game_name,
 			releaseYear: result.release_world,
+			coverUrl: result.game_image ? `${BASE}/games/${result.game_image}` : undefined,
 		}));
 	},
 
 	async fetchByExternalId(hltbId: string): Promise<NormalizedGameMetadata> {
-		// No clean fetch-by-id endpoint exists; the search payload already
-		// carries the times, so by-id fetch is only used when an id came from
-		// a prior search() call of ours.
+		// CAVEAT: HLTB search matches names, so searching the bare numeric id
+		// almost never finds the game. Prefer fetchHltbTimesById(title, id)
+		// whenever the candidate's title is known — this interface method only
+		// exists to satisfy GameMetadataProvider.
 		const results = await searchHltb(hltbId);
 		const match = results.find((result) => String(result.game_id) === hltbId);
 		if (!match) throw new Error(`HLTB: no result for id ${hltbId}`);

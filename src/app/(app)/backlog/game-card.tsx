@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { TagIcon, XIcon } from "lucide-react";
+import { RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { schema } from "@/db";
-import { transitionGameStatus, updateGameScoring } from "@/server/games";
+import { refreshGameMetadata, transitionGameStatus, updateGameScoring } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
 
 type Game = typeof schema.games.$inferSelect;
@@ -71,10 +71,12 @@ export function GameCard({
 				<span className="absolute top-2 left-2">
 					<Badge variant={badge.variant}>{badge.label}</Badge>
 				</span>
+				{/* Effort = stored points (src/lib/points.ts) — burn-rate currency,
+				    not a pick ranking. */}
 				<span className="stat bg-background/60 absolute top-2 right-2 rounded-md px-2 py-0.5 text-xs font-semibold backdrop-blur">
 					{effectivePoints !== null
-						? `${effectivePoints} PTS${game.pointsOverride !== null ? "*" : ""}`
-						: "— PTS"}
+						? `${effectivePoints} EFFORT${game.pointsOverride !== null ? "*" : ""}`
+						: "— EFFORT"}
 				</span>
 			</div>
 
@@ -118,6 +120,11 @@ export function GameCard({
 						{metadata?.genres?.slice(0, 3).map((genre) => (
 							<Badge key={genre} variant="outline" className="text-[10px]">
 								{genre}
+							</Badge>
+						))}
+						{metadata?.gameModes?.map((mode) => (
+							<Badge key={mode} variant="outline" className="text-muted-foreground text-[10px]">
+								{mode}
 							</Badge>
 						))}
 						{tags.map((tag) => (
@@ -211,7 +218,7 @@ export function GameCard({
 							</div>
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor={`override-${game.id}`} className="text-xs">
-									Points override
+									Effort override
 								</Label>
 								<Input
 									id={`override-${game.id}`}
@@ -225,6 +232,15 @@ export function GameCard({
 							</div>
 							<Button size="sm">Save</Button>
 						</form>
+							<form action={refreshGameMetadata.bind(null, game.id)} className="flex items-center gap-2">
+								<Button size="sm" variant="ghost">
+									<RefreshCwIcon className="size-3.5" />
+									Refresh metadata
+								</Button>
+								<span className="text-muted-foreground text-xs">
+									re-fetches Steam/HLTB; overwrites fetched fields
+								</span>
+							</form>
 					</div>
 				</details>
 			</div>

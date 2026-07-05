@@ -1,3 +1,5 @@
+import type { GameMode } from "@/lib/pick";
+
 import type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } from "./types";
 
 // Steam storefront API (unauthenticated):
@@ -30,6 +32,7 @@ type AppDetailsData = {
 	short_description?: string;
 	header_image?: string;
 	genres?: { description: string }[];
+	categories?: { id: number; description: string }[];
 	release_date?: { coming_soon?: boolean; date?: string };
 	metacritic?: { score?: number };
 };
@@ -39,6 +42,57 @@ type AppDetailsResponse = Record<string, { success: boolean; data?: AppDetailsDa
 type AppReviewsResponse = {
 	query_summary?: { total_positive?: number; total_reviews?: number };
 };
+
+// Steam category ids are stable in practice, but fall back to matching the
+// description so a regional payload with unexpected ids still derives modes.
+const CATEGORY_ID_MODES: Record<number, GameMode> = {
+	2: "single-player",
+	1: "multi-player",
+	9: "co-op",
+	38: "online-co-op",
+	39: "local-co-op",
+	36: "pvp", // Online PvP
+	37: "pvp", // Shared/Split Screen PvP
+	49: "pvp", // LAN PvP
+};
+
+const CATEGORY_DESCRIPTION_MODES: Record<string, GameMode> = {
+	"single-player": "single-player",
+	"multi-player": "multi-player",
+	multiplayer: "multi-player",
+	"co-op": "co-op",
+	"online co-op": "online-co-op",
+	"lan co-op": "online-co-op",
+	"shared/split screen co-op": "local-co-op",
+	"online pvp": "pvp",
+	"lan pvp": "pvp",
+	"shared/split screen pvp": "pvp",
+	pvp: "pvp",
+};
+
+/**
+ * Map Steam appdetails categories onto the picker's play-mode vocabulary.
+ * `undefined` when categories are missing (unknown), `[]` when present but
+ * none matched — the picker treats both as "unknown", never a penalty.
+ * Exported so the admin backfill can re-derive from stored raw payloads
+ * without refetching.
+ */
+export function deriveGameModes(
+	categories: { id: number; description: string }[] | undefined
+): GameMode[] | undefined {
+	if (!categories) return undefined;
+	const modes = new Set<GameMode>();
+	for (const category of categories) {
+		const byId = CATEGORY_ID_MODES[category.id];
+		if (byId) {
+			modes.add(byId);
+			continue;
+		}
+		const byDescription = CATEGORY_DESCRIPTION_MODES[category.description?.toLowerCase() ?? ""];
+		if (byDescription) modes.add(byDescription);
+	}
+	return [...modes];
+}
 
 function parseReleaseDate(raw?: string): string | undefined {
 	if (!raw) return undefined;
@@ -101,6 +155,7 @@ export const steamProvider: GameMetadataProvider = {
 			coverUrl: `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/library_600x900.jpg`,
 			description: data.short_description,
 			genres: data.genres?.map((genre) => genre.description),
+			gameModes: deriveGameModes(data.categories),
 			releaseDate: parseReleaseDate(data.release_date?.date),
 			metacriticScore: data.metacritic?.score,
 			steamReviewScore,

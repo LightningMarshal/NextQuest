@@ -58,9 +58,10 @@ Production secrets: `wrangler secret put <NAME>`. Never commit either file.
 ```
 src/
 ├── app/
-│   ├── (app)/           # members-only: / (dashboard), /backlog, /vote,
-│   │   │                #   /events, /admin — layout calls requireApprovedUser
-│   │   └── layout.tsx   #   and is force-dynamic (session + DB per request)
+│   ├── (app)/           # members-only: / (dashboard), /backlog, /pick,
+│   │   │                #   /events, /admin (/vote redirects to /pick) —
+│   │   └── layout.tsx   #   layout calls requireApprovedUser and is
+│   │                    #   force-dynamic (session + DB per request)
 │   ├── (auth)/          # public: sign-in, pending-approval
 │   └── api/auth/[...all]/  # Better Auth handler
 ├── components/
@@ -72,11 +73,14 @@ src/
 ├── lib/
 │   ├── auth.ts          # getAuth() — per-request Better Auth instance
 │   ├── auth-client.ts   # Better Auth React client
-│   ├── points.ts        # pure points-formula functions
+│   ├── points.ts        # pure effort-formula functions (UI: "effort")
+│   ├── pick.ts          # pure picker-scoring functions (read-time, never stored)
 │   └── metadata/        # pluggable game-metadata providers (steam, hltb, manual)
 └── server/              # server actions + helpers per domain
     ├── session.ts       # getSessionUser / requireApprovedUser / requireAdmin
     ├── members.ts       # admin member management
+    ├── pick.ts          # /pick data assembly (read helper, like dashboard.ts)
+    ├── metadata-search.ts | metadata-write.ts  # propose typeahead / shared merge
     └── games|votes|events.ts
 ```
 
@@ -102,7 +106,10 @@ a cron expression in `custom-worker.ts` + `wrangler.jsonc` `triggers.crons`.
    explicit edit of length/difficulty/override, or via the admin-only
    recompute action (proposed/backlog games only) — both through
    `src/lib/points.ts`. Playing/completed/abandoned points never change,
-   keeping historical burn-rate stable when the formula is tuned.
+   keeping historical burn-rate stable when the formula is tuned. The UI
+   calls this value **effort**; DB columns keep the `points` names.
+   Deliberate mirror image: **pick scores (`src/lib/pick.ts`) are computed
+   at read time and never stored** — do not persist them.
 3. **All game status changes go through `transitionGameStatus`**
    (`src/server/games.ts`), which appends to `game_status_history`. Never
    update `games.status` directly — history powers burn rate.

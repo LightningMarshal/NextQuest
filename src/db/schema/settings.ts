@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, jsonb, pgTable, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
 
+import { DEFAULT_PICK_WEIGHTS, type PickWeights } from "@/lib/pick";
 import {
 	DEFAULT_DIFFICULTY_MULTIPLIERS,
 	DEFAULT_QUALITY_WEIGHT,
@@ -26,6 +27,10 @@ export const appSettings = pgTable(
 		// Vote totals (ascending) at which a backlog game earns a Discord ping,
 		// once each ever. Empty array disables milestone notifications.
 		voteMilestones: jsonb("vote_milestones").$type<number[]>().notNull().default([5, 10, 15]),
+		// Raw 0–1 picker component weights as the admin entered them. Stored
+		// un-normalized; scoreBacklog (src/lib/pick.ts) renormalizes over the
+		// components active for a given session context.
+		pickWeights: jsonb("pick_weights").$type<PickWeights>().notNull().default(DEFAULT_PICK_WEIGHTS),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [check("app_settings_single_row", sql`${table.id} = 1`)]

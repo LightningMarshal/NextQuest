@@ -49,8 +49,11 @@ config change here (see CLAUDE.md invariant #4).
 
 - **`game_metadata`** — 1:1 with `games`, kept separate so provider failures
   never block a game row. Holds art URLs, description, genres, review
-  scores, HLTB times, and the `raw` provider payloads (re-derive fields
-  later without refetching). `fetched_at` enables staleness-based refresh.
+  scores, HLTB times, `game_modes` (play-mode vocabulary derived from Steam
+  appdetails categories — feeds the picker's party-fit component; null =
+  never derived), and the `raw` provider payloads (re-derive fields later
+  without refetching — the game-modes admin backfill does exactly this).
+  `fetched_at` enables staleness-based refresh.
 
 - **`game_status_history`** — append-only transition log (`from_status`,
   `to_status`, `changed_by`, `changed_at`). Burn rate = sum of points of
@@ -61,6 +64,8 @@ config change here (see CLAUDE.md invariant #4).
 
 Budget-allocation voting (rationale: docs/DECISIONS.md). One row per
 member×game, `unique(game_id, user_id)`, `weight` 1..`vote_max_per_game`.
+Since the 2026-07-02 redesign the tally is the *interest* input to the
+picker rather than the whole ranking; the ballot UI lives on `/pick`.
 
 **Anonymity invariant:** `user_id` is for dedup/upsert only. All read paths
 aggregate to `{game_id, SUM(weight)}`; the only per-user read is the
@@ -76,8 +81,10 @@ requesting member's own ballot.
 ### Settings (`settings.ts`)
 
 `app_settings` is a single-row table (`check id = 1`): group name, vote
-budget (10), per-game vote cap (4), difficulty multipliers (jsonb) — the
-tunables, changeable without a deploy.
+budget (10), per-game vote cap (4), difficulty multipliers (jsonb), quality
+weight, vote milestones, and `pick_weights` (jsonb — the picker's component
+weights, stored raw and renormalized at read time) — the tunables,
+changeable without a deploy.
 
 ### GAC (`availability.ts`) — built in Phase 6
 
@@ -109,12 +116,42 @@ responses (yes→yes, if-need-be→maybe, no→no) and closes the poll.
 - **manual** — explicit pass-through fallback so "no provider data" is a
   supported state.
 
-## Points & burn rate
+## Points ("effort") & burn rate
 
-Formula in `src/lib/points.ts` (pure, unit-testable):
-`points = fibonacciLengthBucket(hours) × difficultyMultiplier`. Stored on
-the game row; see docs/DECISIONS.md for the buckets and rationale.
+Formula in `src/lib/points.ts` (pure, unit-testable), v2:
+`points = max(1, round(fibonacciLengthBucket(hours) × difficultyMultiplier
+× qualityMultiplier))` — the quality factor scales with Steam %/Metacritic
+around a baseline of 70 (weight in `app_settings.quality_weight`; 0
+reproduces v1). Stored on the game row; recomputed only on explicit scoring
+edits or the admin recompute action (pre-play games only). The UI labels
+this value **effort** — it is a size estimate for burn-rate, not a ranking.
+See docs/DECISIONS.md for buckets and rationale.
 
-Burn rate (Phase 4): weekly cumulative completed points from
+Burn rate (Phase 4): weekly cumulative completed effort from
 `game_status_history`, with a linear projection to estimate backlog
 completion date.
+
+## The picker (`/pick`)
+
+The selection surface (Phase 8; rationale and math in docs/DECISIONS.md,
+2026-07-02). `src/lib/pick.ts` is a pure scoring lib mirroring
+`points.ts`/`burn-rate.ts`: `scoreBacklog(games, ctx, weights)` combines
+interest (vote tally aggregates), quality, time fit, staleness, and party
+fit into a 0–100 score per backlog game. Scores are computed at **read
+time and never stored** — deliberately opposite to points, so ranking
+changes can't rewrite burn-rate history.
+
+Session context (hours tonight, commitment preset, playing
+together/player count) is carried in `/pick` query params — the
+force-dynamic `(app)` layout re-ranks server-side on every change, and the
+URL is shareable. `src/server/pick.ts` assembles the inputs
+(`parsePickContext` clamps garbage params instead of throwing); the ballot
+steppers live on the same page, feeding the interest component.
+
+Game input is search-first: `src/server/metadata-search.ts` exposes
+typeahead candidates (Steam storesearch + HLTB, in parallel) and an
+advisory metadata preview; proposals submit candidate ids and the server
+refetches authoritatively. `refreshGameMetadata` (per game, in the backlog
+card's Manage expander) is the retry path when a provider was down;
+`src/server/metadata-write.ts` holds the shared only-overwrite-returned-
+fields merge used by both it and the refresh cron.
