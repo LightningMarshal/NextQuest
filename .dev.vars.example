@@ -27,3 +27,8 @@ DISCORD_WEBHOOK_URL=
 # Shared secret gating /api/cron (called by the worker's scheduled handler,
 # see custom-worker.ts). Any random string; leave empty to disable cron tasks.
 CRON_SECRET=
+
+# Optional: BGG XML API2 bearer token (boardgamegeek.com/applications/create)
+# for board game / TTRPG search and metadata (BGG + RPGGeek share the API).
+# Leave empty to disable - tabletop proposals fall back to manual entry.
+BGG_API_TOKEN=

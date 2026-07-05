@@ -78,6 +78,13 @@
       "when": 1783217566230,
       "tag": "0010_yellow_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783218359128,
+      "tag": "0011_numerous_triathlon",
+      "breakpoints": true
     }
   ]
 }

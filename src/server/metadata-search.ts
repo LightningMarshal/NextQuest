@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import {
+	bggProvider,
 	fetchGameMetadata,
 	hltbProvider,
 	steamProvider,
@@ -26,9 +27,22 @@ export type SearchCandidatesResult = {
 	failures: string[];
 };
 
-export async function searchGameCandidates(rawQuery: string): Promise<SearchCandidatesResult> {
+export async function searchGameCandidates(
+	rawQuery: string,
+	kind: "video" | "tabletop" = "video"
+): Promise<SearchCandidatesResult> {
 	await requireApprovedUser();
 	const query = querySchema.parse(rawQuery);
+
+	// Tabletop searches BGG only — Steam/HLTB would match the wrong medium.
+	if (kind === "tabletop") {
+		try {
+			const results = await bggProvider.search(query);
+			return { candidates: results.slice(0, MAX_PER_PROVIDER * 2), failures: [] };
+		} catch {
+			return { candidates: [], failures: [bggProvider.id] };
+		}
+	}
 
 	// Both providers in parallel; either failing just narrows the results
 	// (same degradation contract as fetchGameMetadata).
@@ -51,6 +65,12 @@ const previewSchema = z.object({
 	title: z.string().trim().min(1).max(200),
 	steamAppId: z.number().int().positive().optional(),
 	hltbId: z.string().trim().regex(/^\d+$/).max(20).optional(),
+	bggId: z
+		.string()
+		.trim()
+		.regex(/^(boardgame|rpgitem):\d+$/)
+		.max(30)
+		.optional(),
 });
 
 export type PreviewCandidateResult = {
@@ -68,6 +88,7 @@ export async function previewCandidate(input: {
 	title: string;
 	steamAppId?: number;
 	hltbId?: string;
+	bggId?: string;
 }): Promise<PreviewCandidateResult> {
 	await requireApprovedUser();
 	const parsed = previewSchema.parse(input);

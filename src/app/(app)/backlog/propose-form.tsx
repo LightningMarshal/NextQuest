@@ -28,7 +28,7 @@ import {
 } from "@/server/metadata-search";
 import { cn } from "@/lib/utils";
 
-const PROVIDER_LABELS: Record<string, string> = { steam: "Steam", hltb: "HLTB" };
+const PROVIDER_LABELS: Record<string, string> = { steam: "Steam", hltb: "HLTB", bgg: "BGG" };
 
 type ProposeKind = "video" | "ttrpg" | "boardgame";
 
@@ -42,9 +42,9 @@ const KIND_DESCRIPTIONS: Record<ProposeKind, string> = {
 	video:
 		"Search by title and pick a match — art, genres, review scores, and playtime (HowLongToBeat) fill in automatically. If the lookups fail you can retry or enter the details yourself.",
 	ttrpg:
-		"Pitch a campaign or one-shot: system, length, and how you'll play. Length band and crunch drive the effort estimate — both can be edited later.",
+		"Pitch a campaign or one-shot: system, length, and how you'll play. Search RPGGeek to prefill, or type it all in — length band and crunch drive the effort estimate and can be edited later.",
 	boardgame:
-		"Add a board game to the rotation: playtime and crunch drive the effort estimate — both can be edited later.",
+		"Add a board game to the rotation. Search BGG to prefill playtime, players, and complexity, or type it all in — playtime and crunch drive the effort estimate.",
 };
 
 function SubmitButton({ pendingLabel }: { pendingLabel: string }) {
@@ -57,10 +57,16 @@ function SubmitButton({ pendingLabel }: { pendingLabel: string }) {
 	);
 }
 
-function SourceStatus({ preview }: { preview: PreviewCandidateResult }) {
+function SourceStatus({
+	preview,
+	providers,
+}: {
+	preview: PreviewCandidateResult;
+	providers: readonly string[];
+}) {
 	return (
 		<span className="flex items-center gap-2">
-			{(["steam", "hltb"] as const).map((provider) => {
+			{providers.map((provider) => {
 				const ok = preview.sources.includes(provider);
 				const failed = preview.failures.includes(provider);
 				return (
@@ -104,6 +110,10 @@ export function ProposeForm() {
 
 	const [submitError, setSubmitError] = useState<string | null>(null);
 
+	// Which providers back the current kind — drives search, failure fallback,
+	// and the per-source status row.
+	const providers = kind === "video" ? (["steam", "hltb"] as const) : (["bgg"] as const);
+
 	function handleQueryChange(value: string) {
 		setQuery(value);
 		setSelected(null);
@@ -120,13 +130,16 @@ export function ProposeForm() {
 		debounceRef.current = setTimeout(async () => {
 			const seq = ++searchSeq.current;
 			try {
-				const found = await searchGameCandidates(value.trim());
+				const found = await searchGameCandidates(
+					value.trim(),
+					kind === "video" ? "video" : "tabletop"
+				);
 				if (seq !== searchSeq.current) return;
 				setResults(found);
 				setListOpen(true);
 			} catch {
 				if (seq !== searchSeq.current) return;
-				setResults({ candidates: [], failures: ["steam", "hltb"] });
+				setResults({ candidates: [], failures: [...providers] });
 				setListOpen(true);
 			} finally {
 				if (seq === searchSeq.current) setSearching(false);
@@ -142,6 +155,7 @@ export function ProposeForm() {
 				title: candidate.title,
 				steamAppId: candidate.providerId === "steam" ? Number(candidate.externalId) : undefined,
 				hltbId: candidate.providerId === "hltb" ? candidate.externalId : undefined,
+				bggId: candidate.providerId === "bgg" ? candidate.externalId : undefined,
 			});
 			setPreview(result);
 		} catch {
@@ -225,10 +239,12 @@ export function ProposeForm() {
 			</CardHeader>
 			<CardContent>
 				<form ref={formRef} action={handleAction} className="flex flex-col gap-4">
-					{kind === "video" && !manualMode && (
+					{(kind === "video" ? !manualMode : true) && (
 						<>
 							<div className="relative flex flex-col gap-1.5">
-								<Label htmlFor="propose-search">Title</Label>
+								<Label htmlFor="propose-search">
+									{kind === "video" ? "Title" : "Search BGG (optional — prefills the form)"}
+								</Label>
 								<div className="relative">
 									<SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
 									<Input
@@ -243,7 +259,13 @@ export function ProposeForm() {
 											// The search box is not the submit trigger.
 											if (event.key === "Enter") event.preventDefault();
 										}}
-										placeholder="Deep Rock Galactic"
+										placeholder={
+											kind === "video"
+												? "Deep Rock Galactic"
+												: kind === "ttrpg"
+													? "Delta Green"
+													: "Wingspan"
+										}
 										maxLength={200}
 										autoComplete="off"
 										role="combobox"
@@ -307,11 +329,13 @@ export function ProposeForm() {
 											type="button"
 											onClick={() => {
 												setListOpen(false);
-												setManualMode(true);
+												if (kind === "video") setManualMode(true);
 											}}
 											className="text-muted-foreground hover:text-foreground border-border cursor-pointer border-t px-3 py-2 text-left text-xs"
 										>
-											Can&rsquo;t find it? Enter the details manually →
+											{kind === "video"
+												? "Can’t find it? Enter the details manually →"
+												: "Can’t find it? Just fill in the details below ↓"}
 										</button>
 									</div>
 								)}
@@ -369,6 +393,13 @@ export function ProposeForm() {
 																: null,
 															meta?.steamReviewScore != null ? `${meta.steamReviewScore}%` : null,
 															meta?.metacriticScore != null ? `MC ${meta.metacriticScore}` : null,
+															meta?.bggRating != null ? `BGG ${(meta.bggRating / 10).toFixed(1)}` : null,
+															meta?.bggWeight != null ? `weight ${meta.bggWeight}` : null,
+															meta?.playtimeMinutes != null ? `${meta.playtimeMinutes} min` : null,
+															meta?.minPlayers != null && meta?.maxPlayers != null
+																? `${meta.minPlayers}–${meta.maxPlayers} players`
+																: null,
+															meta?.system ?? null,
 															meta?.genres?.slice(0, 3).join(", ") || null,
 														]
 															.filter(Boolean)
@@ -384,7 +415,7 @@ export function ProposeForm() {
 										</div>
 									</div>
 									<div className="flex flex-wrap items-center justify-between gap-2">
-										{preview ? <SourceStatus preview={preview} /> : <span />}
+										{preview ? <SourceStatus preview={preview} providers={providers} /> : <span />}
 										<div className="flex items-center gap-2">
 											{!previewing && (previewFailed || (preview?.failures.length ?? 0) > 0) && (
 												<Button type="button" size="sm" variant="outline" onClick={() => loadPreview(selected)}>
@@ -392,24 +423,31 @@ export function ProposeForm() {
 													Retry lookups
 												</Button>
 											)}
-											<Button
-												type="button"
-												size="sm"
-												variant="ghost"
-												onClick={() => setManualMode(true)}
-											>
-												<PencilIcon className="size-3.5" />
-												Enter manually instead
-											</Button>
+											{kind === "video" && (
+												<Button
+													type="button"
+													size="sm"
+													variant="ghost"
+													onClick={() => setManualMode(true)}
+												>
+													<PencilIcon className="size-3.5" />
+													Enter manually instead
+												</Button>
+											)}
 										</div>
 									</div>
-									{/* The server refetches from these ids on submit; preview is advisory. */}
-									<input type="hidden" name="title" value={selected.title} />
+									{/* The server refetches from these ids on submit; preview is
+									    advisory. The tabletop title comes from the structured form
+									    below (prefilled from the pick), not a hidden field. */}
+									{kind === "video" && <input type="hidden" name="title" value={selected.title} />}
 									{selected.providerId === "steam" && (
 										<input type="hidden" name="steamAppId" value={selected.externalId} />
 									)}
 									{selected.providerId === "hltb" && (
 										<input type="hidden" name="hltbId" value={selected.externalId} />
+									)}
+									{selected.providerId === "bgg" && (
+										<input type="hidden" name="bggId" value={selected.externalId} />
 									)}
 								</div>
 							)}
@@ -452,13 +490,19 @@ export function ProposeForm() {
 						</>
 					)}
 
-					{/* Tabletop: structured manual entry (no providers in v1 — the BGG
-					    search-first flow slots in here later). Length band / playtime and
-					    crunch feed the same effort formula as video games. */}
+					{/* Tabletop: structured entry, optionally prefilled from a BGG pick
+					    above (the key remounts the grid when the preview lands so the
+					    defaultValues refresh — everything stays editable, and the
+					    server refetches from the bggId authoritatively on submit).
+					    Length band / playtime and crunch feed the same effort formula
+					    as video games. */}
 					{kind !== "video" && (
 						<>
 							<input type="hidden" name="gameType" value={kind} />
-							<div className="grid gap-4 sm:grid-cols-2">
+							<div
+								key={preview ? `preview-${selected?.externalId}` : (selected?.externalId ?? "blank")}
+								className="grid gap-4 sm:grid-cols-2"
+							>
 								<div className="flex flex-col gap-1.5">
 									<Label htmlFor="propose-title">Title</Label>
 									<Input
@@ -466,6 +510,7 @@ export function ProposeForm() {
 										name="title"
 										required
 										maxLength={200}
+										defaultValue={meta?.title ?? selected?.title ?? undefined}
 										placeholder={kind === "ttrpg" ? "Curse of Strahd" : "Wingspan"}
 									/>
 								</div>
@@ -478,6 +523,7 @@ export function ProposeForm() {
 										name="system"
 										required={kind === "ttrpg"}
 										maxLength={120}
+										defaultValue={meta?.system ?? undefined}
 										placeholder={kind === "ttrpg" ? "D&D 5e, Delta Green…" : "2nd edition"}
 									/>
 								</div>
@@ -516,6 +562,7 @@ export function ProposeForm() {
 											step="5"
 											min="5"
 											max="1440"
+											defaultValue={meta?.playtimeMinutes ?? undefined}
 											placeholder="90"
 										/>
 									</div>
@@ -525,7 +572,11 @@ export function ProposeForm() {
 									<select
 										id="propose-crunch"
 										name="crunch"
-										defaultValue=""
+										defaultValue={
+											meta?.bggWeight != null
+												? String(Math.min(5, Math.max(1, Math.round(meta.bggWeight))))
+												: ""
+										}
 										className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 									>
 										<option value="">unset — score it later</option>
@@ -567,6 +618,7 @@ export function ProposeForm() {
 										type="number"
 										min="1"
 										max="99"
+										defaultValue={meta?.minPlayers ?? undefined}
 										placeholder={kind === "ttrpg" ? "3" : "2"}
 									/>
 								</div>
@@ -578,6 +630,7 @@ export function ProposeForm() {
 										type="number"
 										min="1"
 										max="99"
+										defaultValue={meta?.maxPlayers ?? undefined}
 										placeholder={kind === "ttrpg" ? "6" : "5"}
 									/>
 								</div>

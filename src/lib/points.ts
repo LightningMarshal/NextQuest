@@ -89,11 +89,13 @@ export type QualitySignals = {
 	steamReviewScore?: number | null;
 	/** Metacritic metascore, 0–100. */
 	metacriticScore?: number | null;
+	/** BGG/RPGGeek community average, rescaled to 0–100. */
+	bggRating?: number | null;
 };
 
-/** Mean of the available signals clamped to 0–100; null when both missing. */
+/** Mean of the available signals clamped to 0–100; null when all missing. */
 export function qualityScore(signals: QualitySignals): number | null {
-	const values = [signals.steamReviewScore, signals.metacriticScore].filter(
+	const values = [signals.steamReviewScore, signals.metacriticScore, signals.bggRating].filter(
 		(value): value is number => typeof value === "number" && Number.isFinite(value)
 	);
 	if (values.length === 0) return null;

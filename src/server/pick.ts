@@ -98,6 +98,7 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 				gameModes: schema.gameMetadata.gameModes,
 				steamReviewScore: schema.gameMetadata.steamReviewScore,
 				metacriticScore: schema.gameMetadata.metacriticScore,
+				bggRating: schema.gameMetadata.bggRating,
 				system: schema.tabletopDetails.system,
 				minPlayers: schema.tabletopDetails.minPlayers,
 				maxPlayers: schema.tabletopDetails.maxPlayers,
@@ -175,6 +176,7 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 		signals: {
 			steamReviewScore: row.steamReviewScore,
 			metacriticScore: row.metacriticScore,
+			bggRating: row.bggRating,
 		},
 		tally: tallyByGame.get(row.id) ?? 0,
 		backlogSince: backlogSinceByGame.get(row.id) ?? null,

@@ -25,6 +25,9 @@ export const tabletopDetails = pgTable("tabletop_details", {
 	gameId: uuid("game_id")
 		.primaryKey()
 		.references(() => games.id, { onDelete: "cascade" }),
+	// BoardGameGeek / RPGGeek thing id (shared id space) — dedup at propose,
+	// mirrors games.steamAppId.
+	bggId: integer("bgg_id").unique(),
 	// Game system, e.g. "D&D 5e", "Delta Green", or a board game's edition.
 	// Required for TTRPGs at the action layer; null for board games.
 	system: text("system"),

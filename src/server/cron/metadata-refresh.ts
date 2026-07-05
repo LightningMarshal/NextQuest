@@ -29,18 +29,20 @@ export async function refreshStaleMetadata(): Promise<{
 		.select({
 			gameId: schema.games.id,
 			title: schema.games.title,
+			gameType: schema.games.gameType,
 			steamAppId: schema.games.steamAppId,
+			bggId: schema.tabletopDetails.bggId,
 			source: schema.gameMetadata.source,
 			raw: schema.gameMetadata.raw,
 		})
 		.from(schema.games)
 		.innerJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+		.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
 		.where(
 			and(
-				// Tabletop rows are manual-only (fetchedAt null) and excluded by
-				// the predicate below anyway — the explicit filter is belt-and-
-				// braces until a tabletop provider exists.
-				eq(schema.games.gameType, "video"),
+				// Tabletop rows refresh only when pinned to a BGG id — a title
+				// search against Steam/HLTB would match the wrong medium.
+				or(eq(schema.games.gameType, "video"), isNotNull(schema.tabletopDetails.bggId)),
 				inArray(schema.games.status, ["proposed", "backlog", "playing"]),
 				isNotNull(schema.gameMetadata.fetchedAt),
 				lt(schema.gameMetadata.fetchedAt, cutoff),
@@ -65,6 +67,9 @@ export async function refreshStaleMetadata(): Promise<{
 		const result = await fetchGameMetadata({
 			title: candidate.title,
 			steamAppId: candidate.steamAppId ?? undefined,
+			bggId: candidate.bggId
+				? `${candidate.gameType === "ttrpg" ? "rpgitem" : "boardgame"}:${candidate.bggId}`
+				: undefined,
 		});
 		if (result.sources.length === 0) {
 			// All providers failed — skip silently and retry after the cutoff.

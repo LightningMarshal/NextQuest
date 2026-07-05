@@ -1,10 +1,11 @@
+import { bggProvider } from "./bgg";
 import { fetchHltbTimesById, fetchHltbTimesByTitle, hltbProvider } from "./hltb";
 import { steamProvider } from "./steam";
 import type { NormalizedGameMetadata } from "./types";
 
 export type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } from "./types";
 export { manualMetadata } from "./manual";
-export { steamProvider, hltbProvider };
+export { steamProvider, hltbProvider, bggProvider };
 
 export type FetchMetadataResult = {
 	metadata: NormalizedGameMetadata;
@@ -23,11 +24,28 @@ export async function fetchGameMetadata(params: {
 	steamAppId?: number;
 	/** From a prior hltbProvider.search() pick — pins the exact HLTB entry. */
 	hltbId?: string;
+	/** "<type>:<id>" from a bggProvider.search() pick — tabletop games only. */
+	bggId?: string;
 }): Promise<FetchMetadataResult> {
 	const metadata: NormalizedGameMetadata = {};
 	const sources: string[] = [];
 	const failures: string[] = [];
 	const raw: Record<string, unknown> = {};
+
+	// Tabletop path: BGG is the only provider — Steam/HLTB would title-match
+	// the wrong medium entirely.
+	if (params.bggId) {
+		try {
+			const bgg = await bggProvider.fetchByExternalId(params.bggId);
+			raw.bgg = (bgg.raw as Record<string, unknown> | undefined)?.bgg;
+			Object.assign(metadata, bgg, { raw: undefined });
+			sources.push(bggProvider.id);
+		} catch {
+			failures.push(bggProvider.id);
+		}
+		metadata.raw = Object.keys(raw).length > 0 ? raw : undefined;
+		return { metadata, sources, failures };
+	}
 
 	if (params.steamAppId) {
 		try {
