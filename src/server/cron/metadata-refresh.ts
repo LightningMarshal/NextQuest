@@ -37,6 +37,10 @@ export async function refreshStaleMetadata(): Promise<{
 		.innerJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
 		.where(
 			and(
+				// Tabletop rows are manual-only (fetchedAt null) and excluded by
+				// the predicate below anyway — the explicit filter is belt-and-
+				// braces until a tabletop provider exists.
+				eq(schema.games.gameType, "video"),
 				inArray(schema.games.status, ["proposed", "backlog", "playing"]),
 				isNotNull(schema.gameMetadata.fetchedAt),
 				lt(schema.gameMetadata.fetchedAt, cutoff),

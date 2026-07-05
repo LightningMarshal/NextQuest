@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, isNotNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { Badge } from "@/components/ui/badge";
 import { getDb, schema } from "@/db";
@@ -38,15 +39,21 @@ export default async function BacklogPage({
 		? (sort as SortValue)
 		: "votes";
 	const db = getDb();
-	const [allRows, tally, taggings] = await Promise.all([
+	// games.proposedBy already joins user; the GM ref needs its own alias.
+	const gmUser = alias(schema.user, "gm_user");
+	const [allRows, tally, taggings, gameEvents] = await Promise.all([
 		db
 			.select({
 				game: schema.games,
 				metadata: schema.gameMetadata,
+				tabletop: schema.tabletopDetails,
+				gmName: gmUser.name,
 				proposerName: schema.user.name,
 			})
 			.from(schema.games)
 			.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+			.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
+			.leftJoin(gmUser, eq(schema.tabletopDetails.gmUserId, gmUser.id))
 			.leftJoin(schema.user, eq(schema.games.proposedBy, schema.user.id))
 			.orderBy(desc(schema.games.createdAt)),
 		getVoteTally(),
@@ -59,8 +66,34 @@ export default async function BacklogPage({
 			.from(schema.gameTags)
 			.innerJoin(schema.tags, eq(schema.gameTags.tagId, schema.tags.id))
 			.orderBy(asc(schema.tags.name)),
+		// Feeds the campaign strip on playing tabletop cards ("N sessions held ·
+		// next: …"). Friend-group scale: aggregate in JS, one small query.
+		db
+			.select({
+				gameId: schema.events.gameId,
+				status: schema.events.status,
+				scheduledAt: schema.events.scheduledAt,
+			})
+			.from(schema.events)
+			.where(isNotNull(schema.events.gameId)),
 	]);
 	const tallyByGame = new Map(tally.map((entry) => [entry.gameId, entry.totalWeight]));
+
+	const now = new Date();
+	const sessionsByGame = new Map<string, { held: number; nextAt: Date | null }>();
+	for (const event of gameEvents) {
+		if (!event.gameId) continue;
+		const entry = sessionsByGame.get(event.gameId) ?? { held: 0, nextAt: null };
+		if (event.status === "completed") entry.held += 1;
+		if (
+			event.status === "scheduled" &&
+			event.scheduledAt > now &&
+			(!entry.nextAt || event.scheduledAt < entry.nextAt)
+		) {
+			entry.nextAt = event.scheduledAt;
+		}
+		sessionsByGame.set(event.gameId, entry);
+	}
 
 	const tagsByGame = new Map<string, { id: string; name: string }[]>();
 	for (const { gameId, tagId, tagName } of taggings) {
@@ -182,6 +215,9 @@ export default async function BacklogPage({
 									key={row.game.id}
 									game={row.game}
 									metadata={row.metadata}
+									tabletop={row.tabletop}
+									gmName={row.gmName}
+									sessions={sessionsByGame.get(row.game.id)}
 									proposerName={row.proposerName}
 									tags={tagsByGame.get(row.game.id) ?? []}
 									voteTotal={

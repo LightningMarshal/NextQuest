@@ -71,6 +71,13 @@
       "when": 1782960491537,
       "tag": "0009_ordinary_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783217566230,
+      "tag": "0010_yellow_skreet",
+      "breakpoints": true
     }
   ]
 }

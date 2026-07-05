@@ -6,13 +6,44 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LocalTime } from "@/components/local-time";
 import type { schema } from "@/db";
+import { TTRPG_BAND_LABELS } from "@/lib/points";
 import { refreshGameMetadata, transitionGameStatus, updateGameScoring } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
 
 type Game = typeof schema.games.$inferSelect;
 type Metadata = typeof schema.gameMetadata.$inferSelect;
+type Tabletop = typeof schema.tabletopDetails.$inferSelect;
 type GameStatus = Game["status"];
+
+const GAME_TYPE_LABELS: Record<Exclude<Game["gameType"], "video">, string> = {
+	ttrpg: "TTRPG",
+	boardgame: "board game",
+};
+
+// Short band names for the card meta row — the long descriptions live in
+// TTRPG_BAND_LABELS (src/lib/points.ts) and are used in the selects.
+const BAND_SHORT: Record<NonNullable<Tabletop["lengthBand"]>, string> = {
+	one_shot: "one-shot",
+	arc: "arc",
+	mini_campaign: "mini-campaign",
+	campaign: "campaign",
+};
+
+const FORMAT_LABELS: Record<NonNullable<Tabletop["format"]>, string> = {
+	virtual: "virtual",
+	in_person: "in person",
+	hybrid: "hybrid",
+};
+
+function playersLabel(tabletop: Tabletop): string | null {
+	const { minPlayers: min, maxPlayers: max } = tabletop;
+	if (min && max) return min === max ? `${min} players` : `${min}–${max} players`;
+	if (min) return `${min}+ players`;
+	if (max) return `up to ${max} players`;
+	return null;
+}
 
 const TRANSITION_LABELS: Partial<Record<GameStatus, Partial<Record<GameStatus, string>>>> = {
 	proposed: { backlog: "Add to backlog", rejected: "Reject" },
@@ -34,12 +65,19 @@ const STATUS_BADGE: Record<GameStatus, { label: string; variant: "default" | "se
 export function GameCard({
 	game,
 	metadata,
+	tabletop,
+	gmName,
+	sessions,
 	proposerName,
 	tags,
 	voteTotal,
 }: {
 	game: Game;
 	metadata: Metadata | null;
+	tabletop?: Tabletop | null;
+	gmName?: string | null;
+	/** Linked events for a playing tabletop game — the campaign strip. */
+	sessions?: { held: number; nextAt: Date | null };
 	proposerName: string | null;
 	tags: { id: string; name: string }[];
 	/** Aggregate group votes — only passed for backlog-status games. */
@@ -52,6 +90,32 @@ export function GameCard({
 	][];
 	const effectivePoints = game.pointsOverride ?? game.points;
 	const art = metadata?.headerUrl ?? metadata?.coverUrl;
+	const isTabletop = game.gameType !== "video";
+	// Bands/minutes are the display surface for tabletop length — the stored
+	// hour-equivalent is internal currency and never shown raw.
+	const lengthLabel =
+		game.gameType === "ttrpg"
+			? tabletop?.lengthBand
+				? BAND_SHORT[tabletop.lengthBand]
+				: null
+			: game.gameType === "boardgame"
+				? tabletop?.playtimeMinutes
+					? `${tabletop.playtimeMinutes} min`
+					: null
+				: game.lengthHours
+					? `${Number(game.lengthHours)}h`
+					: null;
+	const tabletopInfo = tabletop
+		? [
+				tabletop.system,
+				tabletop.format ? FORMAT_LABELS[tabletop.format] : null,
+				tabletop.platform,
+				gmName ? `GM ${gmName}` : null,
+				playersLabel(tabletop),
+			]
+				.filter(Boolean)
+				.join(" · ")
+		: null;
 
 	return (
 		<Card className="hover:border-muted-foreground/40 flex h-full flex-col gap-0 overflow-hidden py-0 transition-colors">
@@ -68,8 +132,13 @@ export function GameCard({
 				) : (
 					<div className="bg-muted h-full w-full" />
 				)}
-				<span className="absolute top-2 left-2">
+				<span className="absolute top-2 left-2 flex items-center gap-1">
 					<Badge variant={badge.variant}>{badge.label}</Badge>
+					{isTabletop && (
+						<Badge variant="outline" className="bg-background/60 backdrop-blur">
+							{GAME_TYPE_LABELS[game.gameType as keyof typeof GAME_TYPE_LABELS]}
+						</Badge>
+					)}
 				</span>
 				{/* Effort = stored points (src/lib/points.ts) — burn-rate currency,
 				    not a pick ranking. */}
@@ -86,14 +155,14 @@ export function GameCard({
 				{/* Nova: single mono meta row. */}
 				<p className="stat text-muted-foreground text-xs">
 					{[
-						game.lengthHours ? `${Number(game.lengthHours)}h` : null,
-						game.difficulty ? `D${game.difficulty}` : null,
+						lengthLabel,
+						game.difficulty ? (isTabletop ? `crunch ${game.difficulty}` : `D${game.difficulty}`) : null,
 					]
 						.filter(Boolean)
 						.join(" · ")}
 					{metadata?.steamReviewScore != null && (
 						<>
-							{(game.lengthHours || game.difficulty) && " · "}
+							{(lengthLabel || game.difficulty) && " · "}
 							<span className="text-success font-medium">{metadata.steamReviewScore}%</span>
 						</>
 					)}
@@ -106,6 +175,20 @@ export function GameCard({
 						</>
 					)}
 				</p>
+
+				{tabletopInfo && <p className="text-muted-foreground text-xs">{tabletopInfo}</p>}
+
+				{/* Campaign strip: session activity for an in-progress tabletop game. */}
+				{isTabletop && game.status === "playing" && sessions && (
+					<p className="stat text-xs">
+						{sessions.held} session{sessions.held === 1 ? "" : "s"} held
+						{sessions.nextAt && (
+							<span className="text-muted-foreground">
+								{" · "}next: <LocalTime date={sessions.nextAt} />
+							</span>
+						)}
+					</p>
+				)}
 
 				{game.pitch ? (
 					<p className="line-clamp-2 text-sm italic">&ldquo;{game.pitch}&rdquo;</p>
@@ -184,36 +267,95 @@ export function GameCard({
 							action={updateGameScoring.bind(null, game.id)}
 							className="flex flex-wrap items-end gap-3"
 						>
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor={`length-${game.id}`} className="text-xs">
-									Length (h)
-								</Label>
-								<Input
-									id={`length-${game.id}`}
-									name="lengthHours"
-									type="number"
-									step="0.1"
-									min="0.1"
-									defaultValue={game.lengthHours ?? undefined}
-									className="h-8 w-24"
-								/>
-							</div>
+							{/* Length input per type: raw hours for video, band for TTRPGs,
+							    minutes for board games — the server derives the stored
+							    hour-equivalent (src/lib/points.ts tabletopLengthHours). */}
+							{game.gameType === "video" && (
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor={`length-${game.id}`} className="text-xs">
+										Length (h)
+									</Label>
+									<Input
+										id={`length-${game.id}`}
+										name="lengthHours"
+										type="number"
+										step="0.1"
+										min="0.1"
+										defaultValue={game.lengthHours ?? undefined}
+										className="h-8 w-24"
+									/>
+								</div>
+							)}
+							{game.gameType === "ttrpg" && (
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor={`length-${game.id}`} className="text-xs">
+										Length
+									</Label>
+									<select
+										id={`length-${game.id}`}
+										name="lengthBand"
+										defaultValue={tabletop?.lengthBand ?? ""}
+										className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-52 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+									>
+										<option value="">unset</option>
+										{(
+											Object.entries(TTRPG_BAND_LABELS) as [
+												keyof typeof TTRPG_BAND_LABELS,
+												string,
+											][]
+										).map(([band, label]) => (
+											<option key={band} value={band}>
+												{label}
+											</option>
+										))}
+									</select>
+								</div>
+							)}
+							{game.gameType === "boardgame" && (
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor={`length-${game.id}`} className="text-xs">
+										Playtime (min)
+									</Label>
+									<Input
+										id={`length-${game.id}`}
+										name="playtimeMinutes"
+										type="number"
+										step="5"
+										min="5"
+										max="1440"
+										defaultValue={tabletop?.playtimeMinutes ?? undefined}
+										className="h-8 w-24"
+									/>
+								</div>
+							)}
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor={`difficulty-${game.id}`} className="text-xs">
-									Difficulty
+									{isTabletop ? "Crunch" : "Difficulty"}
 								</Label>
 								<select
 									id={`difficulty-${game.id}`}
 									name="difficulty"
 									defaultValue={game.difficulty ?? ""}
-									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-28 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-32 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 								>
 									<option value="">unset</option>
-									<option value="1">1 — breezy</option>
-									<option value="2">2 — casual</option>
-									<option value="3">3 — solid</option>
-									<option value="4">4 — tough</option>
-									<option value="5">5 — brutal</option>
+									{isTabletop ? (
+										<>
+											<option value="1">1 — ultra-light</option>
+											<option value="2">2 — light</option>
+											<option value="3">3 — medium</option>
+											<option value="4">4 — heavy</option>
+											<option value="5">5 — very heavy</option>
+										</>
+									) : (
+										<>
+											<option value="1">1 — breezy</option>
+											<option value="2">2 — casual</option>
+											<option value="3">3 — solid</option>
+											<option value="4">4 — tough</option>
+											<option value="5">5 — brutal</option>
+										</>
+									)}
 								</select>
 							</div>
 							<div className="flex flex-col gap-1.5">
@@ -232,15 +374,18 @@ export function GameCard({
 							</div>
 							<Button size="sm">Save</Button>
 						</form>
-							<form action={refreshGameMetadata.bind(null, game.id)} className="flex items-center gap-2">
-								<Button size="sm" variant="ghost">
-									<RefreshCwIcon className="size-3.5" />
-									Refresh metadata
-								</Button>
-								<span className="text-muted-foreground text-xs">
-									re-fetches Steam/HLTB; overwrites fetched fields
-								</span>
-							</form>
+							{/* No tabletop provider yet — the action rejects non-video rows. */}
+							{!isTabletop && (
+								<form action={refreshGameMetadata.bind(null, game.id)} className="flex items-center gap-2">
+									<Button size="sm" variant="ghost">
+										<RefreshCwIcon className="size-3.5" />
+										Refresh metadata
+									</Button>
+									<span className="text-muted-foreground text-xs">
+										re-fetches Steam/HLTB; overwrites fetched fields
+									</span>
+								</form>
+							)}
 					</div>
 				</details>
 			</div>

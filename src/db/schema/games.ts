@@ -29,11 +29,18 @@ export const gameStatus = pgEnum("game_status", [
 
 export const metadataSource = pgEnum("metadata_source", ["steam", "hltb", "manual", "mixed"]);
 
+// Discriminator for the tabletop expansion. Video games keep every existing
+// column meaning; ttrpg/boardgame rows get a 1:1 tabletop_details sidecar
+// (schema/tabletop.ts) and reuse lengthHours as a derived hour-equivalent
+// and difficulty as "crunch" (see docs/DECISIONS.md).
+export const gameType = pgEnum("game_type", ["video", "ttrpg", "boardgame"]);
+
 export const games = pgTable(
 	"games",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		title: text("title").notNull(),
+		gameType: gameType("game_type").notNull().default("video"),
 		status: gameStatus("status").notNull().default("proposed"),
 		proposedBy: text("proposed_by").references(() => user.id, { onDelete: "set null" }),
 		pitch: text("pitch"),
