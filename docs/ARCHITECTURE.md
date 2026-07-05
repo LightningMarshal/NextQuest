@@ -7,7 +7,8 @@ Browser ──► Cloudflare Worker (Next.js via @opennextjs/cloudflare)
                  │
                  ├──► Neon Postgres (HTTP driver, per-request client)
                  ├──► Steam storefront API (metadata, unauthenticated)
-                 └──► HowLongToBeat (unofficial — expected to break, optional)
+                 ├──► HowLongToBeat (unofficial — expected to break, optional)
+                 └──► BGG XML API2 (BoardGameGeek + RPGGeek; bearer token, optional)
 ```
 
 Single-tenant: one deployment is one gaming group. There is no `groups`
@@ -42,18 +43,31 @@ config change here (see CLAUDE.md invariant #4).
       └─► rejected └────────────────► abandoned
   ```
 
-  Scoring fields: `length_hours` (HLTB Main+Extra by convention),
-  `difficulty` (1–5, group-assigned), `points` (stored formula output),
-  `points_override` (wins when set). `started_at`/`completed_at` support the
-  dashboard.
+  `game_type` (`video`/`ttrpg`/`boardgame`) discriminates the medium; all
+  three share this one lifecycle, votes, and history. Scoring fields:
+  `length_hours` (video: HLTB Main+Extra by convention; tabletop: a derived
+  hour-equivalent — band hours for TTRPGs, playtime ÷ 60 for board games —
+  never displayed raw), `difficulty` (1–5; UI says "crunch" for tabletop),
+  `points` (stored formula output), `points_override` (wins when set).
+  `started_at`/`completed_at` support the dashboard.
+
+- **`tabletop_details`** — 1:1 sidecar for ttrpg/boardgame rows (the
+  `game_metadata` pattern): `system`, `format` (virtual/in-person/hybrid),
+  free-text `platform` ("Roll20", "kitchen table"), `gm_user_id`,
+  `min_players`/`max_players` (feeds picker party-fit), `length_band`
+  (TTRPG), `playtime_minutes` (board game), `bgg_id` (dedup, mirrors
+  `steamAppId`). Crunch and length deliberately have no columns here —
+  they ride `games.difficulty`/`games.length_hours` so the formulas stay
+  type-blind (docs/DECISIONS.md 2026-07-05).
 
 - **`game_metadata`** — 1:1 with `games`, kept separate so provider failures
   never block a game row. Holds art URLs, description, genres, review
-  scores, HLTB times, `game_modes` (play-mode vocabulary derived from Steam
-  appdetails categories — feeds the picker's party-fit component; null =
-  never derived), and the `raw` provider payloads (re-derive fields later
-  without refetching — the game-modes admin backfill does exactly this).
-  `fetched_at` enables staleness-based refresh.
+  scores, HLTB times, BGG signals (`bgg_rating` 0–100 rescale,
+  `bgg_weight` 1–5 — board games only), `game_modes` (play-mode vocabulary
+  derived from Steam appdetails categories — feeds the picker's party-fit
+  component; null = never derived), and the `raw` provider payloads
+  (re-derive fields later without refetching — the game-modes admin
+  backfill does exactly this). `fetched_at` enables staleness-based refresh.
 
 - **`game_status_history`** — append-only transition log (`from_status`,
   `to_status`, `changed_by`, `changed_at`). Burn rate = sum of points of
@@ -105,7 +119,8 @@ responses (yes→yes, if-need-be→maybe, no→no) and closes the poll.
 
 `src/lib/metadata/` defines `GameMetadataProvider` (`search`,
 `fetchByExternalId` → normalized partial). The orchestrator
-(`fetchGameMetadata`) merges providers with per-provider try/catch:
+(`fetchGameMetadata`) branches on medium — video merges steam + hltb,
+tabletop (a `bggId` param) uses bgg alone — with per-provider try/catch:
 
 - **steam** — unauthenticated storefront endpoints (`storesearch`,
   `appdetails`, `appreviews`): art, description, genres, release date,
@@ -113,6 +128,14 @@ responses (yes→yes, if-need-be→maybe, no→no) and closes the poll.
 - **hltb** — unofficial (no public API); supplies only the three time
   fields. Expected to break periodically; failures surface as "fill in
   manually", never as errors that block.
+- **bgg** — BGG XML API2, covering BoardGameGeek *and* RPGGeek (shared id
+  space; externalId `"boardgame:174430"` / `"rpgitem:283355"`). Requires
+  the `BGG_API_TOKEN` bearer secret; without it the provider throws and
+  proposals degrade to manual entry. Board games: rating, weight, playtime,
+  player range. RPG items: rating + taxonomy only (no weight/playtime
+  exists). Structured fields prefill `tabletop_details` at propose time
+  only — refresh never rewrites them (the tabletop analog of "refresh
+  never touches `games.*`").
 - **manual** — explicit pass-through fallback so "no provider data" is a
   supported state.
 
@@ -120,12 +143,14 @@ responses (yes→yes, if-need-be→maybe, no→no) and closes the poll.
 
 Formula in `src/lib/points.ts` (pure, unit-testable), v2:
 `points = max(1, round(fibonacciLengthBucket(hours) × difficultyMultiplier
-× qualityMultiplier))` — the quality factor scales with Steam %/Metacritic
-around a baseline of 70 (weight in `app_settings.quality_weight`; 0
-reproduces v1). Stored on the game row; recomputed only on explicit scoring
-edits or the admin recompute action (pre-play games only). The UI labels
-this value **effort** — it is a size estimate for burn-rate, not a ranking.
-See docs/DECISIONS.md for buckets and rationale.
+× qualityMultiplier))` — the quality factor scales with the mean of Steam
+%, Metacritic, and BGG rating (0–100 rescale) around a baseline of 70
+(weight in `app_settings.quality_weight`; 0 reproduces v1). Stored on the
+game row; recomputed only on explicit scoring edits or the admin recompute
+action (pre-play games only). The UI labels this value **effort** — it is
+a size estimate for burn-rate, not a ranking. Tabletop games enter the same
+formula through hour-equivalents (`TTRPG_BAND_HOURS`, playtime ÷ 60) with
+crunch riding the difficulty parameter — see docs/DECISIONS.md 2026-07-05.
 
 Burn rate (Phase 4): weekly cumulative completed effort from
 `game_status_history`, with a linear projection to estimate backlog
@@ -142,11 +167,15 @@ time and never stored** — deliberately opposite to points, so ranking
 changes can't rewrite burn-rate history.
 
 Session context (hours tonight, commitment preset, playing
-together/player count) is carried in `/pick` query params — the
-force-dynamic `(app)` layout re-ranks server-side on every change, and the
-URL is shareable. `src/server/pick.ts` assembles the inputs
-(`parsePickContext` clamps garbage params instead of throwing); the ballot
-steppers live on the same page, feeding the interest component.
+together/player count, and `kind` — the "what kind of night is it?"
+video/ttrpg/boardgame **filter**, deliberately not a scored component) is
+carried in `/pick` query params — the force-dynamic `(app)` layout
+re-ranks server-side on every change, and the URL is shareable.
+`src/server/pick.ts` assembles the inputs (`parsePickContext` clamps
+garbage params instead of throwing); the ballot steppers live on the same
+page, feeding the interest component. Party fit branches by medium:
+tabletop games score against their declared min/max player range, video
+games against the Steam-derived `game_modes`.
 
 Game input is search-first: `src/server/metadata-search.ts` exposes
 typeahead candidates (Steam storesearch + HLTB, in parallel) and an

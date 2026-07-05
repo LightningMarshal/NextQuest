@@ -3,9 +3,10 @@
 ## Project overview
 
 **NextQuest** is a single-tenant web app for one gaming group: a shared game
-backlog with point values, anonymous voting to prioritize what to play next,
-burn-rate tracking, and session scheduling with attendance. One deployment =
-one group; members sign in with Google and are approved by an admin.
+backlog (video games, TTRPGs, and board games) with point values, anonymous
+voting to prioritize what to play next, burn-rate tracking, and session
+scheduling with attendance. One deployment = one group; members sign in with
+Google and are approved by an admin.
 
 - Feature roadmap and current phase: `docs/ROADMAP.md`
 - Data model, data flow, and future GAC module design: `docs/ARCHITECTURE.md`
@@ -47,7 +48,9 @@ Two files, two runtimes — keep `DATABASE_URL` in sync between them:
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` (first-admin
   bootstrap: comma-separated emails that arrive approved + admin),
   `DISCORD_WEBHOOK_URL` (optional — notifications no-op without it),
-  `CRON_SECRET` (optional — gates `/api/cron`; scheduled tasks no-op without it)
+  `CRON_SECRET` (optional — gates `/api/cron`; scheduled tasks no-op without it),
+  `BGG_API_TOKEN` (optional — BGG XML API2 bearer token for tabletop
+  search/metadata; without it tabletop proposals degrade to manual entry)
 - **`.env`** (from `.env.example`) — Node-side tooling only (drizzle-kit):
   `DATABASE_URL`
 
@@ -69,13 +72,14 @@ src/
 │   └── *.tsx            # theme-provider, theme-toggle, site-nav (user menu)
 ├── db/
 │   ├── index.ts         # getDb() — per-request Neon HTTP + Drizzle client
-│   └── schema/          # domain-split: auth, games, votes, events, settings
+│   └── schema/          # domain-split: auth, games, tabletop, votes, events, settings
 ├── lib/
 │   ├── auth.ts          # getAuth() — per-request Better Auth instance
 │   ├── auth-client.ts   # Better Auth React client
-│   ├── points.ts        # pure effort-formula functions (UI: "effort")
+│   ├── points.ts        # pure effort-formula functions (UI: "effort") +
+│   │                    #   tabletop hour-equivalents (TTRPG_BAND_HOURS)
 │   ├── pick.ts          # pure picker-scoring functions (read-time, never stored)
-│   └── metadata/        # pluggable game-metadata providers (steam, hltb, manual)
+│   └── metadata/        # pluggable game-metadata providers (steam, hltb, bgg, manual)
 └── server/              # server actions + helpers per domain
     ├── session.ts       # getSessionUser / requireApprovedUser / requireAdmin
     ├── members.ts       # admin member management
@@ -110,6 +114,10 @@ a cron expression in `custom-worker.ts` + `wrangler.jsonc` `triggers.crons`.
    calls this value **effort**; DB columns keep the `points` names.
    Deliberate mirror image: **pick scores (`src/lib/pick.ts`) are computed
    at read time and never stored** — do not persist them.
+   Tabletop footnote: for `ttrpg`/`boardgame` rows, `difficulty` means
+   **crunch** and `length_hours` is a derived hour-equivalent (TTRPG length
+   band / board-game playtime ÷ 60) — edit length via band/minutes through
+   `updateGameScoring`, never write raw hours, and never display them.
 3. **All game status changes go through `transitionGameStatus`**
    (`src/server/games.ts`), which appends to `game_status_history`. Never
    update `games.status` directly — history powers burn rate.

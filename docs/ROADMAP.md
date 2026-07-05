@@ -114,9 +114,57 @@ theme system (dark/light), route + server-action stubs, docs.
   reads stored raw payloads, no network); per-game "Refresh metadata"
   action as the in-app recourse when a provider was down
 
+## Phase 9 — Tabletop core ✅ (done)
+
+- `games.game_type` (`video`/`ttrpg`/`boardgame`, default backfills) +
+  `tabletop_details` 1:1 sidecar: system, format (virtual/in-person/hybrid),
+  free-text platform, GM, min/max players, TTRPG length band, board-game
+  playtime (migration 0010, purely additive)
+- Effort adaptation with zero formula changes: length bands → hour-
+  equivalents (`TTRPG_BAND_HOURS` 4/15/35/110 → 1/3/5/13 pts), playtime ÷ 60
+  for board games, crunch 1–5 riding the difficulty column/multipliers
+- `proposeTabletopGame` (structured entry; video propose untouched),
+  per-type scoring editor (band/minutes + crunch, never raw hours), type
+  badges + system·format·platform·GM·players info line on cards
+- Refresh + metadata cron guarded to video/BGG-pinned rows
+
+## Phase 10 — Tabletop-aware picker ✅ (done)
+
+- "What kind of night?" chips (`kind` in the /pick URL context) — a filter,
+  not a scored component
+- Party fit from declared player ranges for tabletop (below-min 0.05,
+  above-max 0.3); video keeps the gameModes path; timeFit unchanged
+  (hour-equivalents already classify correctly)
+- Type badges, TTRPG system display (no raw hours), board-game minutes,
+  player-range lines in the pick list
+
+## Phase 11 — Campaign sessions ✅ (done)
+
+- `scheduleNextSession`: clone-forward +7 days (same game/duration/location,
+  trailing session number bumped, creator auto-RSVP, Discord ping) — the
+  deliberate alternative to a recurrence engine
+- Wrap-up form checkbox ("same time next week") + button on completed events
+- Campaign strip on playing tabletop cards: sessions held · next date
+
+## Phase 12 — BGG metadata provider ✅ (done)
+
+- `bgg` provider over the BGG XML API2 (BoardGameGeek + RPGGeek, one id
+  space; `BGG_API_TOKEN` bearer secret, optional — no token degrades to
+  manual entry); fast-xml-parser, 202-queue retry
+- Search-first tabletop proposing: BGG typeahead + preview prefill the
+  structured form (editable; server refetches by id, dedups on `bgg_id`)
+- Board games: rating, 1–5 weight (crunch prefill), playtime, player range.
+  RPG items: rating + taxonomy only (no weight/playtime exists — expected)
+- `bggRating` joins the quality signals (points + picker); structured
+  prefills are propose-only, never rewritten on refresh; cron refreshes
+  BGG-pinned tabletop rows (migration 0011, additive)
+
 ## Future ideas (unscheduled)
 
 - Additional metadata/search providers (IGDB, RAWG) behind the existing
   provider interface
+- DriveThruRPG page-count crunch heuristic for TTRPGs (undocumented API —
+  research 2026-07: page count is the best available crunch proxy)
+- Community crunch ratings (accumulate our own BGG-style weight over time)
 - Mood/genre filters as picker context
 - Keyboard navigation for the propose-form search dropdown
