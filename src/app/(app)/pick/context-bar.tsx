@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Commitment, SessionContext } from "@/lib/pick";
+import type { Commitment, PickKind, SessionContext } from "@/lib/pick";
 import { cn } from "@/lib/utils";
 
 const COMMITMENT_CHIPS: { value: Commitment; label: string; hint: string }[] = [
@@ -17,6 +17,13 @@ const COMMITMENT_CHIPS: { value: Commitment; label: string; hint: string }[] = [
 	{ value: "weeknight", label: "Weeknight", hint: "8–25h" },
 	{ value: "standard", label: "Standard", hint: "25–60h" },
 	{ value: "epic", label: "Epic", hint: "60h+" },
+];
+
+const KIND_CHIPS: { value: PickKind; label: string; hint: string }[] = [
+	{ value: "any", label: "Any", hint: "the whole backlog" },
+	{ value: "video", label: "Video", hint: "video games only" },
+	{ value: "boardgame", label: "Board game", hint: "board games only" },
+	{ value: "ttrpg", label: "TTRPG", hint: "campaigns & one-shots only" },
 ];
 
 export type NextEventContext = {
@@ -35,6 +42,7 @@ function contextHref(ctx: SessionContext): string {
 	if (ctx.commitment !== "any") params.set("commitment", ctx.commitment);
 	if (ctx.together) params.set("together", "1");
 	if (ctx.players !== undefined) params.set("players", String(ctx.players));
+	if (ctx.kind !== "any") params.set("kind", ctx.kind);
 	const query = params.toString();
 	return query ? `/pick?${query}` : "/pick";
 }
@@ -75,6 +83,27 @@ export function ContextBar({ ctx, nextEvent }: { ctx: SessionContext; nextEvent:
 		<Card>
 			<CardContent className="flex flex-col gap-4">
 				<div className="flex flex-wrap items-end gap-4">
+					<div className="flex flex-col gap-1.5">
+						<Label>What kind of night?</Label>
+						<div className="border-border bg-card flex items-center gap-0.5 rounded-lg border p-0.5 text-xs">
+							{KIND_CHIPS.map((chip) => (
+								<button
+									key={chip.value}
+									type="button"
+									title={chip.hint}
+									onClick={() => apply({ ...ctx, kind: chip.value })}
+									className={cn(
+										"cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors",
+										chip.value === ctx.kind
+											? "bg-primary/12 text-primary"
+											: "text-muted-foreground hover:text-foreground"
+									)}
+								>
+									{chip.label}
+								</button>
+							))}
+						</div>
+					</div>
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="pick-hours">Hours tonight</Label>
 						<Input
@@ -168,6 +197,7 @@ export function ContextBar({ ctx, nextEvent }: { ctx: SessionContext; nextEvent:
 									commitment: ctx.commitment,
 									together: true,
 									players: nextEvent.yesCount >= 2 ? nextEvent.yesCount : ctx.players,
+									kind: ctx.kind,
 								};
 								setHoursDraft(next.sessionHours?.toString() ?? "");
 								setPlayersDraft(next.players?.toString() ?? "");

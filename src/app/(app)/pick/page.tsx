@@ -11,7 +11,13 @@ export const metadata: Metadata = { title: "What's next?" };
 export default async function PickPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ hours?: string; commitment?: string; players?: string; together?: string }>;
+	searchParams: Promise<{
+		hours?: string;
+		commitment?: string;
+		players?: string;
+		together?: string;
+		kind?: string;
+	}>;
 }) {
 	// Session context lives entirely in the URL: every change re-ranks
 	// server-side (the (app) layout is force-dynamic) and the link is shareable.
@@ -25,10 +31,13 @@ export default async function PickPage({
 			return {
 				id: game.id,
 				title: game.title,
+				gameType: game.gameType,
+				system: game.system,
 				art: game.art,
 				effort: game.effort,
 				lengthHours: game.lengthHours,
 				gameModes: game.gameModes,
+				playerRange: game.playerRange,
 				backlogSince: game.backlogSince,
 				groupTotal: game.groupTotal,
 				mine: game.mine,
@@ -52,11 +61,17 @@ export default async function PickPage({
 
 			{games.length === 0 ? (
 				<p className="text-muted-foreground text-center text-sm">
-					Nothing in the backlog to rank yet — move a{" "}
-					<Link href="/backlog" className="underline underline-offset-4">
-						proposal into the backlog
-					</Link>{" "}
-					first.
+					{ctx.kind !== "any" ? (
+						<>No {ctx.kind === "video" ? "video games" : ctx.kind === "ttrpg" ? "TTRPGs" : "board games"} in the backlog — switch the night type or propose one.</>
+					) : (
+						<>
+							Nothing in the backlog to rank yet — move a{" "}
+							<Link href="/backlog" className="underline underline-offset-4">
+								proposal into the backlog
+							</Link>{" "}
+							first.
+						</>
+					)}
 				</p>
 			) : (
 				<PickList

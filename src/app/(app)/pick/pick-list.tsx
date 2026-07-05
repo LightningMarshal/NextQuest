@@ -15,11 +15,14 @@ import { cn } from "@/lib/utils";
 export type PickListGame = {
 	id: string;
 	title: string;
+	gameType: "video" | "ttrpg" | "boardgame";
+	system: string | null;
 	art: string | null;
 	/** Stored points (override wins) — the burn-rate effort currency. */
 	effort: number | null;
 	lengthHours: number | null;
 	gameModes: string[] | null;
+	playerRange: { min: number | null; max: number | null } | null;
 	backlogSince: Date | null;
 	/** Group aggregate including the caller's own allocation. */
 	groupTotal: number;
@@ -29,6 +32,30 @@ export type PickListGame = {
 	score: number;
 	components: PickComponent[];
 };
+
+const TYPE_BADGES: Record<PickListGame["gameType"], string | null> = {
+	video: null,
+	ttrpg: "TTRPG",
+	boardgame: "board game",
+};
+
+/** Meta-row line about a game's length — never raw hours for a TTRPG. */
+function lengthLine(game: PickListGame): string | null {
+	if (game.gameType === "ttrpg") return game.system;
+	if (game.gameType === "boardgame") {
+		return game.lengthHours !== null ? `${Math.round(game.lengthHours * 60)} min` : null;
+	}
+	return game.lengthHours !== null ? `${game.lengthHours}h` : null;
+}
+
+function playerLine(game: PickListGame): string | null {
+	const range = game.playerRange;
+	if (!range || (range.min === null && range.max === null)) return null;
+	if (range.min !== null && range.max !== null) {
+		return range.min === range.max ? `${range.min} players` : `${range.min}–${range.max} players`;
+	}
+	return range.min !== null ? `${range.min}+ players` : `up to ${range.max} players`;
+}
 
 const COMPONENT_LABELS: Record<PickComponentKey, string> = {
 	interest: "group interest",
@@ -58,7 +85,9 @@ function explanation(game: PickListGame, hasSessionHours: boolean): string {
 		if (months >= 2) phrases.push(`waiting ${months} months`);
 		else phrases.push("been waiting a while");
 	}
-	if (componentValue(game, "partyFit") === 1) phrases.push("plays together");
+	if (componentValue(game, "partyFit") === 1) {
+		phrases.push(game.gameType === "video" ? "plays together" : "fits your player count");
+	}
 	return phrases.join(" · ");
 }
 
@@ -243,14 +272,22 @@ export function PickList({
 								</Badge>
 								<h2 className="font-display truncate text-xl font-semibold">{top.title}</h2>
 								<div className="mt-1 flex flex-wrap items-center gap-2">
+									{TYPE_BADGES[top.gameType] && (
+										<Badge variant="outline" className="text-[10px]">
+											{TYPE_BADGES[top.gameType]}
+										</Badge>
+									)}
 									{top.effort !== null && (
 										<Badge variant="secondary" className="gap-1">
 											<StarIcon className="size-3" />
 											{top.effort} effort
 										</Badge>
 									)}
-									{top.lengthHours !== null && (
-										<span className="stat text-muted-foreground text-xs">{top.lengthHours}h</span>
+									{lengthLine(top) && (
+										<span className="stat text-muted-foreground text-xs">{lengthLine(top)}</span>
+									)}
+									{playerLine(top) && (
+										<span className="stat text-muted-foreground text-xs">{playerLine(top)}</span>
 									)}
 									<span
 										className={cn(
@@ -320,15 +357,25 @@ export function PickList({
 										</span>
 									</div>
 									<div className="mt-1 flex flex-wrap items-center gap-2">
+										{TYPE_BADGES[game.gameType] && (
+											<Badge variant="outline" className="text-[10px]">
+												{TYPE_BADGES[game.gameType]}
+											</Badge>
+										)}
 										{game.effort !== null && (
 											<Badge variant="secondary" className="gap-1 text-[10px]">
 												<StarIcon className="size-3" />
 												{game.effort} effort
 											</Badge>
 										)}
-										{game.lengthHours !== null && (
+										{lengthLine(game) && (
 											<span className="stat text-muted-foreground text-xs">
-												{game.lengthHours}h
+												{lengthLine(game)}
+											</span>
+										)}
+										{playerLine(game) && (
+											<span className="stat text-muted-foreground text-xs">
+												{playerLine(game)}
 											</span>
 										)}
 										<span

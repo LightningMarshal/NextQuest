@@ -22,6 +22,13 @@ export type GameMode =
 /** How big a game the group wants to start — maps to Main+Extra hour ranges. */
 export type Commitment = "snack" | "weeknight" | "standard" | "epic" | "any";
 
+/**
+ * "What kind of night is it?" — a FILTER over the backlog, deliberately not
+ * a scored component: board-game night vs. starting a campaign are different
+ * questions, and blending them into one score would just mush the ranking.
+ */
+export type PickKind = "any" | "video" | "ttrpg" | "boardgame";
+
 export type SessionContext = {
 	/** Hours available tonight — enables the "finishable tonight" boost. */
 	sessionHours?: number;
@@ -30,6 +37,7 @@ export type SessionContext = {
 	players?: number;
 	/** Playing one game together vs. picking for the shared backlog. */
 	together: boolean;
+	kind: PickKind;
 };
 
 export type PickWeights = {
@@ -61,7 +69,8 @@ export const COMMITMENT_RANGES: Record<Commitment, { min: number; max: number } 
 /** Everything the scorer needs about one backlog game. */
 export type PickableGame = {
 	gameId: string;
-	/** HLTB Main+Extra by convention; null = unscored. */
+	gameType: "video" | "ttrpg" | "boardgame";
+	/** HLTB Main+Extra for video; band/playtime hour-equivalent for tabletop. */
 	lengthHours: number | null;
 	signals: QualitySignals;
 	/** Aggregate vote weight — from getVoteTally(), never per-member. */
@@ -69,6 +78,8 @@ export type PickableGame = {
 	/** Latest transition into `backlog`; null falls back to "just arrived". */
 	backlogSince: Date | null;
 	gameModes: GameMode[] | null;
+	/** Tabletop min/max players — real data, unlike video's derived modes. */
+	playerRange: { min: number | null; max: number | null } | null;
 };
 
 export type PickComponent = {
@@ -154,8 +165,20 @@ const GROUP_MODES: ReadonlyArray<GameMode> = [
 
 // null (never derived) and [] (derived, nothing recognized) both mean
 // "unknown" — neutral rather than punished, so missing Steam data can't
-// bury a game.
-export function partyFitComponent(modes: GameMode[] | null): number {
+// bury a game. Tabletop games use their declared player range instead:
+// that's real structured data, so the penalties can be sharper.
+export function partyFitComponent(
+	game: Pick<PickableGame, "gameType" | "gameModes" | "playerRange">,
+	players?: number
+): number {
+	if (game.gameType !== "video") {
+		const range = game.playerRange;
+		if (!range || (range.min === null && range.max === null) || !players) return 0.5;
+		if (range.min !== null && players < range.min) return 0.05; // can't even start
+		if (range.max !== null && players > range.max) return 0.3; // someone sits out
+		return 1;
+	}
+	const modes = game.gameModes;
 	if (modes === null || modes.length === 0) return 0.5;
 	if (modes.some((mode) => GROUP_MODES.includes(mode))) return 1;
 	return 0.1; // single-player/pvp only — a poor pick for playing together
@@ -196,7 +219,7 @@ export function scoreBacklog(
 				quality: qualityComponent(qualityScore(game.signals)),
 				timeFit: timeFitComponent(game.lengthHours, ctx),
 				staleness: stalenessComponent(game.backlogSince, now),
-				partyFit: partyFitComponent(game.gameModes),
+				partyFit: partyFitComponent(game, ctx.players),
 			};
 			const components: PickComponent[] = activeKeys.map((key) => ({
 				key,
