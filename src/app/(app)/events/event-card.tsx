@@ -1,11 +1,11 @@
-import { CheckIcon, ClockIcon, Gamepad2Icon, MapPinIcon } from "lucide-react";
+import { CalendarPlusIcon, CheckIcon, ClockIcon, Gamepad2Icon, MapPinIcon } from "lucide-react";
 
 import { LocalTime } from "@/components/local-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { cancelEvent, recordAttendance, setRsvp } from "@/server/events";
+import { cancelEvent, recordAttendance, scheduleNextSession, setRsvp } from "@/server/events";
 
 import { DateChip } from "./date-chip";
 
@@ -119,6 +119,17 @@ export function EventCard({
 					</p>
 				)}
 
+				{/* Clone-forward recurrence: "same time next week" as an explicit
+				    action, not a rules engine (docs/DECISIONS.md). */}
+				{event.status === "completed" && (
+					<form action={scheduleNextSession.bind(null, event.id)} className="mt-auto pt-1">
+						<Button size="sm" variant="outline">
+							<CalendarPlusIcon className="size-3.5" />
+							Schedule next week
+						</Button>
+					</form>
+				)}
+
 				{event.status === "scheduled" && !needsWrapUp && (
 					<div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
 						{/* Nova: the selected "yes" pill is success-tinted; maybe/no muted. */}
@@ -181,6 +192,10 @@ export function EventCard({
 							placeholder="Recap (optional) — what happened, where you left off…"
 							className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 						/>
+						<label className="flex items-center gap-2 text-sm">
+							<input type="checkbox" name="scheduleNext" value="1" className="accent-primary size-4" />
+							Schedule the next session — same time next week
+						</label>
 						<div className="flex items-center gap-2">
 							<Button size="sm">Save attendance & complete</Button>
 							<Button size="sm" variant="ghost" formAction={cancelEvent.bind(null, event.id)}>

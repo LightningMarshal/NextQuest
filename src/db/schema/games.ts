@@ -27,13 +27,20 @@ export const gameStatus = pgEnum("game_status", [
 	"rejected",
 ]);
 
-export const metadataSource = pgEnum("metadata_source", ["steam", "hltb", "manual", "mixed"]);
+export const metadataSource = pgEnum("metadata_source", ["steam", "hltb", "bgg", "manual", "mixed"]);
+
+// Discriminator for the tabletop expansion. Video games keep every existing
+// column meaning; ttrpg/boardgame rows get a 1:1 tabletop_details sidecar
+// (schema/tabletop.ts) and reuse lengthHours as a derived hour-equivalent
+// and difficulty as "crunch" (see docs/DECISIONS.md).
+export const gameType = pgEnum("game_type", ["video", "ttrpg", "boardgame"]);
 
 export const games = pgTable(
 	"games",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		title: text("title").notNull(),
+		gameType: gameType("game_type").notNull().default("video"),
 		status: gameStatus("status").notNull().default("proposed"),
 		proposedBy: text("proposed_by").references(() => user.id, { onDelete: "set null" }),
 		pitch: text("pitch"),
@@ -78,6 +85,11 @@ export const gameMetadata = pgTable("game_metadata", {
 	hltbMain: numeric("hltb_main", { precision: 6, scale: 1 }),
 	hltbMainExtra: numeric("hltb_main_extra", { precision: 6, scale: 1 }),
 	hltbCompletionist: numeric("hltb_completionist", { precision: 6, scale: 1 }),
+	// BGG/RPGGeek community signals: average rating rescaled to 0–100 (feeds
+	// the quality factor alongside Steam/Metacritic) and the 1–5 complexity
+	// weight (board games only — RPG items never have one).
+	bggRating: smallint("bgg_rating"),
+	bggWeight: numeric("bgg_weight", { precision: 2, scale: 1 }),
 	raw: jsonb("raw"),
 	fetchedAt: timestamp("fetched_at", { withTimezone: true }),
 	// Stamped on every cron refresh attempt (success or not) so a permanently

@@ -10,10 +10,10 @@ type MetadataSource = (typeof schema.metadataSource.enumValues)[number];
 
 export function mergedSource(current: MetadataSource, fetched: string[]): MetadataSource {
 	const contributors = new Set<string>(fetched);
-	if (current === "steam" || current === "hltb" || current === "mixed") {
-		if (current === "mixed") return "mixed";
-		contributors.add(current);
-	}
+	// Any prior provider source counts as a contributor; manual doesn't (a
+	// provider fetch on a manual row upgrades it to that provider's source).
+	if (current === "mixed") return "mixed";
+	if (current !== "manual") contributors.add(current);
 	if (contributors.size > 1) return "mixed";
 	return (contributors.values().next().value as MetadataSource) ?? current;
 }
@@ -52,6 +52,12 @@ export function buildMetadataUpdates(
 		updates.hltbMainExtra = String(metadata.hltbMainExtra);
 	if (metadata.hltbCompletionist !== undefined)
 		updates.hltbCompletionist = String(metadata.hltbCompletionist);
+	if (metadata.bggRating !== undefined) updates.bggRating = metadata.bggRating;
+	if (metadata.bggWeight !== undefined) updates.bggWeight = String(metadata.bggWeight);
+	// Deliberately NOT written here: playtimeMinutes/minPlayers/maxPlayers/
+	// system live in tabletop_details and prefill at propose time only —
+	// a refresh never rewrites the group's curated structured fields (the
+	// tabletop analog of "refresh never touches games.*").
 	if (metadata.raw !== undefined) {
 		const oldRaw =
 			current.raw && typeof current.raw === "object"

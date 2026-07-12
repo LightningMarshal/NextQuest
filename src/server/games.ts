@@ -7,9 +7,15 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { notifyDiscord } from "@/lib/discord";
 import { fetchGameMetadata } from "@/lib/metadata";
+import { parseBggExternalId } from "@/lib/metadata/bgg";
 import { deriveGameModes } from "@/lib/metadata/steam";
 import type { GameMode } from "@/lib/pick";
-import { computePoints, type Difficulty } from "@/lib/points";
+import {
+	computePoints,
+	tabletopLengthHours,
+	type Difficulty,
+	type TtrpgLengthBand,
+} from "@/lib/points";
 import { buildMetadataUpdates } from "@/server/metadata-write";
 import { requireAdmin, requireApprovedUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
@@ -100,7 +106,11 @@ export async function proposeGame(formData: FormData): Promise<void> {
 	await db.insert(schema.gameMetadata).values({
 		gameId: game.id,
 		source:
-			sources.length === 0 ? "manual" : sources.length > 1 ? "mixed" : (sources[0] as "steam" | "hltb"),
+			sources.length === 0
+				? "manual"
+				: sources.length > 1
+					? "mixed"
+					: (sources[0] as (typeof schema.metadataSource.enumValues)[number]),
 		coverUrl: metadata.coverUrl,
 		headerUrl: metadata.headerUrl,
 		description: metadata.description,
@@ -127,6 +137,180 @@ export async function proposeGame(formData: FormData): Promise<void> {
 
 	notifyDiscord(
 		`🎮 ${user.name} proposed **${metadata.title ?? input.title}**${input.pitch ? ` — “${input.pitch}”` : ""}`
+	);
+	revalidatePath("/backlog");
+}
+
+const tabletopProposeSchema = z
+	.object({
+		gameType: z.enum(["ttrpg", "boardgame"]),
+		title: z.string().trim().min(1, "Title is required").max(200),
+		pitch: z.string().trim().max(2000).optional(),
+		// Game system, e.g. "D&D 5e" or "Delta Green" — the thing you'd tell a
+		// friend you're running. Required for TTRPGs, optional for board games.
+		system: z.string().trim().min(1).max(120).optional(),
+		lengthBand: z.enum(["one_shot", "arc", "mini_campaign", "campaign"]).optional(),
+		playtimeMinutes: z.coerce.number().int().positive().max(1440).optional(),
+		crunch: z.coerce.number().int().min(1).max(5).optional(),
+		format: z.enum(["virtual", "in_person", "hybrid"]).optional(),
+		platform: z.string().trim().max(120).optional(),
+		gmMe: z.coerce.boolean().optional(),
+		minPlayers: z.coerce.number().int().min(1).max(99).optional(),
+		maxPlayers: z.coerce.number().int().min(1).max(99).optional(),
+		coverUrl: z.string().trim().url().max(500).optional(),
+		// Hidden field from a BGG search pick — the server refetches from the
+		// id itself; client-supplied metadata is never trusted.
+		bggId: z
+			.string()
+			.trim()
+			.regex(/^(boardgame|rpgitem):\d+$/)
+			.max(30)
+			.optional(),
+	})
+	.refine((input) => input.gameType !== "ttrpg" || input.system, {
+		message: "System is required for a TTRPG (e.g. D&D 5e).",
+		path: ["system"],
+	})
+	.refine((input) => input.gameType !== "ttrpg" || input.lengthBand, {
+		message: "Pick a length band — it drives the effort estimate.",
+		path: ["lengthBand"],
+	})
+	.refine(
+		(input) =>
+			input.minPlayers === undefined ||
+			input.maxPlayers === undefined ||
+			input.minPlayers <= input.maxPlayers,
+		{ message: "Min players can't exceed max players.", path: ["minPlayers"] }
+	);
+
+/**
+ * Tabletop counterpart of proposeGame — a separate action so the video
+ * search-first path can't regress. Manual structured entry only in v1 (no
+ * providers involved); the BGG provider slots in later without changing the
+ * shape of what gets stored. Length arrives as a band (TTRPG) or playtime
+ * minutes (board game) and is canonicalized into games.length_hours; crunch
+ * rides the difficulty column so computePoints applies unchanged.
+ */
+export async function proposeTabletopGame(formData: FormData): Promise<void> {
+	const user = await requireApprovedUser();
+	const input = tabletopProposeSchema.parse({
+		gameType: formData.get("gameType"),
+		title: formData.get("title"),
+		pitch: formData.get("pitch") || undefined,
+		system: formData.get("system") || undefined,
+		lengthBand: formData.get("lengthBand") || undefined,
+		playtimeMinutes: formData.get("playtimeMinutes") || undefined,
+		crunch: formData.get("crunch") || undefined,
+		format: formData.get("format") || undefined,
+		platform: formData.get("platform") || undefined,
+		gmMe: formData.get("gmMe") || undefined,
+		minPlayers: formData.get("minPlayers") || undefined,
+		maxPlayers: formData.get("maxPlayers") || undefined,
+		coverUrl: formData.get("coverUrl") || undefined,
+		bggId: formData.get("bggId") || undefined,
+	});
+
+	const db = getDb();
+	const bggNumericId = input.bggId ? parseBggExternalId(input.bggId).id : undefined;
+
+	// Friendly duplicate check, mirroring proposeGame's steamAppId dedup.
+	if (bggNumericId !== undefined) {
+		const [existing] = await db
+			.select({ title: schema.games.title, status: schema.games.status })
+			.from(schema.tabletopDetails)
+			.innerJoin(schema.games, eq(schema.tabletopDetails.gameId, schema.games.id))
+			.where(eq(schema.tabletopDetails.bggId, bggNumericId));
+		if (existing) {
+			throw new Error(`Already in the list as “${existing.title}” (${existing.status}).`);
+		}
+	}
+
+	// Optional BGG enrichment; a failure only means fewer prefilled fields
+	// (CLAUDE.md #5). Fetched values fill blanks — explicit user input wins.
+	const fetched = input.bggId
+		? await fetchGameMetadata({ title: input.title, bggId: input.bggId })
+		: null;
+	const meta = fetched?.metadata;
+
+	const system = input.system ?? meta?.system;
+	const playtimeMinutes = input.playtimeMinutes ?? meta?.playtimeMinutes;
+	const minPlayers = input.minPlayers ?? meta?.minPlayers;
+	const maxPlayers = input.maxPlayers ?? meta?.maxPlayers;
+	// BGG weight (1–5) seeds crunch as an editable prefill, never on refresh.
+	const crunch =
+		input.crunch ??
+		(meta?.bggWeight !== undefined
+			? (Math.min(5, Math.max(1, Math.round(meta.bggWeight))) as Difficulty)
+			: undefined);
+
+	const lengthHours = tabletopLengthHours({
+		gameType: input.gameType,
+		lengthBand: input.lengthBand as TtrpgLengthBand | undefined,
+		playtimeMinutes,
+	});
+
+	let points: number | undefined;
+	if (lengthHours && crunch) {
+		const settings = await getAppSettings();
+		points = computePoints(lengthHours, crunch as Difficulty, settings.difficultyMultipliers, {
+			weight: settings.qualityWeight,
+			signals: { bggRating: meta?.bggRating },
+		});
+	}
+
+	const [game] = await db
+		.insert(schema.games)
+		.values({
+			title: meta?.title ?? input.title,
+			gameType: input.gameType,
+			status: "proposed",
+			proposedBy: user.id,
+			pitch: input.pitch,
+			lengthHours: lengthHours !== undefined ? String(lengthHours) : undefined,
+			difficulty: crunch,
+			points,
+		})
+		.returning({ id: schema.games.id });
+
+	await db.insert(schema.tabletopDetails).values({
+		gameId: game.id,
+		bggId: bggNumericId,
+		system,
+		format: input.format,
+		platform: input.platform,
+		gmUserId: input.gameType === "ttrpg" && input.gmMe ? user.id : undefined,
+		minPlayers,
+		maxPlayers,
+		lengthBand: input.lengthBand,
+		playtimeMinutes,
+	});
+
+	const bggFetched = (fetched?.sources.length ?? 0) > 0;
+	await db.insert(schema.gameMetadata).values({
+		gameId: game.id,
+		source: bggFetched ? "bgg" : "manual",
+		coverUrl: input.coverUrl ?? meta?.coverUrl,
+		description: meta?.description,
+		genres: meta?.genres,
+		bggRating: meta?.bggRating,
+		bggWeight: meta?.bggWeight !== undefined ? String(meta.bggWeight) : undefined,
+		raw: meta?.raw,
+		fetchedAt: bggFetched ? new Date() : undefined,
+	});
+
+	await db.insert(schema.gameStatusHistory).values({
+		gameId: game.id,
+		fromStatus: null,
+		toStatus: "proposed",
+		changedBy: user.id,
+	});
+
+	const flavor =
+		input.gameType === "ttrpg"
+			? `${system}${input.lengthBand === "one_shot" ? " one-shot" : input.lengthBand === "campaign" ? " campaign" : ""}`
+			: "board game";
+	notifyDiscord(
+		`🎲 ${user.name} proposed **${meta?.title ?? input.title}** (${flavor})${input.pitch ? ` — “${input.pitch}”` : ""}`
 	);
 	revalidatePath("/backlog");
 }
@@ -187,6 +371,10 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 
 const scoringSchema = z.object({
 	lengthHours: z.coerce.number().positive().max(9999).optional(),
+	// Tabletop length inputs — the UI shows band/minutes, never raw hours.
+	lengthBand: z.enum(["one_shot", "arc", "mini_campaign", "campaign"]).optional(),
+	playtimeMinutes: z.coerce.number().int().positive().max(1440).optional(),
+	// "Crunch" in the tabletop UI; same column, same multipliers.
 	difficulty: z.coerce.number().int().min(1).max(5).optional(),
 	pointsOverride: z.coerce.number().int().min(0).max(999).optional(),
 });
@@ -197,6 +385,8 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 	await requireApprovedUser();
 	const input = scoringSchema.parse({
 		lengthHours: formData.get("lengthHours") || undefined,
+		lengthBand: formData.get("lengthBand") || undefined,
+		playtimeMinutes: formData.get("playtimeMinutes") || undefined,
 		difficulty: formData.get("difficulty") || undefined,
 		pointsOverride: formData.get("pointsOverride") || undefined,
 	});
@@ -204,17 +394,41 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 	const db = getDb();
 	const [game] = await db
 		.select({
+			gameType: schema.games.gameType,
 			lengthHours: schema.games.lengthHours,
 			difficulty: schema.games.difficulty,
 			steamReviewScore: schema.gameMetadata.steamReviewScore,
 			metacriticScore: schema.gameMetadata.metacriticScore,
+			bggRating: schema.gameMetadata.bggRating,
+			lengthBand: schema.tabletopDetails.lengthBand,
+			playtimeMinutes: schema.tabletopDetails.playtimeMinutes,
 		})
 		.from(schema.games)
 		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+		.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
 		.where(eq(schema.games.id, gameId));
 	if (!game) throw new Error("Game not found.");
 
-	const lengthHours = input.lengthHours ?? (game.lengthHours ? Number(game.lengthHours) : undefined);
+	// Tabletop games edit length via band/minutes; the server derives the
+	// hour-equivalent so raw hours never round-trip through the UI.
+	let lengthHours: number | undefined;
+	if (game.gameType === "video") {
+		lengthHours = input.lengthHours ?? (game.lengthHours ? Number(game.lengthHours) : undefined);
+	} else {
+		const lengthBand = (input.lengthBand ?? game.lengthBand ?? undefined) as
+			| TtrpgLengthBand
+			| undefined;
+		const playtimeMinutes = input.playtimeMinutes ?? game.playtimeMinutes ?? undefined;
+		lengthHours = tabletopLengthHours({ gameType: game.gameType, lengthBand, playtimeMinutes });
+		await db
+			.update(schema.tabletopDetails)
+			.set({
+				...(game.gameType === "ttrpg" && lengthBand ? { lengthBand } : {}),
+				...(game.gameType === "boardgame" && playtimeMinutes ? { playtimeMinutes } : {}),
+				updatedAt: new Date(),
+			})
+			.where(eq(schema.tabletopDetails.gameId, gameId));
+	}
 	const difficulty = (input.difficulty ?? game.difficulty ?? undefined) as Difficulty | undefined;
 
 	let points: number | undefined;
@@ -225,6 +439,7 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 			signals: {
 				steamReviewScore: game.steamReviewScore,
 				metacriticScore: game.metacriticScore,
+				bggRating: game.bggRating,
 			},
 		});
 	}
@@ -262,6 +477,7 @@ export async function recomputeUnplayedPoints(): Promise<void> {
 			difficulty: schema.games.difficulty,
 			steamReviewScore: schema.gameMetadata.steamReviewScore,
 			metacriticScore: schema.gameMetadata.metacriticScore,
+			bggRating: schema.gameMetadata.bggRating,
 		})
 		.from(schema.games)
 		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
@@ -278,6 +494,7 @@ export async function recomputeUnplayedPoints(): Promise<void> {
 				signals: {
 					steamReviewScore: row.steamReviewScore,
 					metacriticScore: row.metacriticScore,
+					bggRating: row.bggRating,
 				},
 			}
 		);
@@ -306,14 +523,23 @@ export async function refreshGameMetadata(gameId: string): Promise<void> {
 	const [row] = await db
 		.select({
 			title: schema.games.title,
+			gameType: schema.games.gameType,
 			steamAppId: schema.games.steamAppId,
+			bggId: schema.tabletopDetails.bggId,
 			source: schema.gameMetadata.source,
 			raw: schema.gameMetadata.raw,
 		})
 		.from(schema.games)
 		.innerJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
+		.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
 		.where(eq(schema.games.id, gameId));
 	if (!row) throw new Error("Game not found.");
+
+	// Tabletop refresh needs a pinned BGG id — a title search against
+	// Steam/HLTB would match the wrong medium and clobber manual entries.
+	if (row.gameType !== "video" && !row.bggId) {
+		throw new Error("This tabletop game is manual-entry — no BGG id to refresh from.");
+	}
 
 	// Claim-style stamp first (no transactions on Neon HTTP): a mid-flight
 	// failure still records the attempt for the cron's stale queue.
@@ -325,6 +551,9 @@ export async function refreshGameMetadata(gameId: string): Promise<void> {
 	const result = await fetchGameMetadata({
 		title: row.title,
 		steamAppId: row.steamAppId ?? undefined,
+		bggId: row.bggId
+			? `${row.gameType === "ttrpg" ? "rpgitem" : "boardgame"}:${row.bggId}`
+			: undefined,
 	});
 	if (result.sources.length === 0) {
 		throw new Error("All metadata providers failed — try again later.");

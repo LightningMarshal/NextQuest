@@ -18,7 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { GameSearchResult } from "@/lib/metadata";
-import { proposeGame } from "@/server/games";
+import { TTRPG_BAND_LABELS } from "@/lib/points";
+import { proposeGame, proposeTabletopGame } from "@/server/games";
 import {
 	previewCandidate,
 	searchGameCandidates,
@@ -27,22 +28,45 @@ import {
 } from "@/server/metadata-search";
 import { cn } from "@/lib/utils";
 
-const PROVIDER_LABELS: Record<string, string> = { steam: "Steam", hltb: "HLTB" };
+const PROVIDER_LABELS: Record<string, string> = { steam: "Steam", hltb: "HLTB", bgg: "BGG" };
 
-function SubmitButton() {
+type ProposeKind = "video" | "ttrpg" | "boardgame";
+
+const KIND_LABELS: Record<ProposeKind, string> = {
+	video: "Video game",
+	ttrpg: "TTRPG",
+	boardgame: "Board game",
+};
+
+const KIND_DESCRIPTIONS: Record<ProposeKind, string> = {
+	video:
+		"Search by title and pick a match — art, genres, review scores, and playtime (HowLongToBeat) fill in automatically. If the lookups fail you can retry or enter the details yourself.",
+	ttrpg:
+		"Pitch a campaign or one-shot: system, length, and how you'll play. Search RPGGeek to prefill, or type it all in — length band and crunch drive the effort estimate and can be edited later.",
+	boardgame:
+		"Add a board game to the rotation. Search BGG to prefill playtime, players, and complexity, or type it all in — playtime and crunch drive the effort estimate.",
+};
+
+function SubmitButton({ pendingLabel }: { pendingLabel: string }) {
 	const { pending } = useFormStatus();
 	return (
 		<Button className="glow-primary" disabled={pending}>
 			{pending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-			{pending ? "Fetching metadata…" : "Propose"}
+			{pending ? pendingLabel : "Propose"}
 		</Button>
 	);
 }
 
-function SourceStatus({ preview }: { preview: PreviewCandidateResult }) {
+function SourceStatus({
+	preview,
+	providers,
+}: {
+	preview: PreviewCandidateResult;
+	providers: readonly string[];
+}) {
 	return (
 		<span className="flex items-center gap-2">
-			{(["steam", "hltb"] as const).map((provider) => {
+			{providers.map((provider) => {
 				const ok = preview.sources.includes(provider);
 				const failed = preview.failures.includes(provider);
 				return (
@@ -65,6 +89,7 @@ function SourceStatus({ preview }: { preview: PreviewCandidateResult }) {
 
 export function ProposeForm() {
 	const formRef = useRef<HTMLFormElement>(null);
+	const [kind, setKind] = useState<ProposeKind>("video");
 	const [manualMode, setManualMode] = useState(false);
 
 	// --- title search ---------------------------------------------------
@@ -85,6 +110,10 @@ export function ProposeForm() {
 
 	const [submitError, setSubmitError] = useState<string | null>(null);
 
+	// Which providers back the current kind — drives search, failure fallback,
+	// and the per-source status row.
+	const providers = kind === "video" ? (["steam", "hltb"] as const) : (["bgg"] as const);
+
 	function handleQueryChange(value: string) {
 		setQuery(value);
 		setSelected(null);
@@ -101,13 +130,16 @@ export function ProposeForm() {
 		debounceRef.current = setTimeout(async () => {
 			const seq = ++searchSeq.current;
 			try {
-				const found = await searchGameCandidates(value.trim());
+				const found = await searchGameCandidates(
+					value.trim(),
+					kind === "video" ? "video" : "tabletop"
+				);
 				if (seq !== searchSeq.current) return;
 				setResults(found);
 				setListOpen(true);
 			} catch {
 				if (seq !== searchSeq.current) return;
-				setResults({ candidates: [], failures: ["steam", "hltb"] });
+				setResults({ candidates: [], failures: [...providers] });
 				setListOpen(true);
 			} finally {
 				if (seq === searchSeq.current) setSearching(false);
@@ -123,6 +155,7 @@ export function ProposeForm() {
 				title: candidate.title,
 				steamAppId: candidate.providerId === "steam" ? Number(candidate.externalId) : undefined,
 				hltbId: candidate.providerId === "hltb" ? candidate.externalId : undefined,
+				bggId: candidate.providerId === "bgg" ? candidate.externalId : undefined,
 			});
 			setPreview(result);
 		} catch {
@@ -155,10 +188,20 @@ export function ProposeForm() {
 		formRef.current?.reset();
 	}
 
+	function switchKind(next: ProposeKind) {
+		setKind(next);
+		resetAll();
+		setManualMode(false);
+	}
+
 	async function handleAction(formData: FormData) {
 		setSubmitError(null);
 		try {
-			await proposeGame(formData);
+			if (kind === "video") {
+				await proposeGame(formData);
+			} else {
+				await proposeTabletopGame(formData);
+			}
 			resetAll();
 		} catch (error) {
 			setSubmitError(error instanceof Error ? error.message : "Something went wrong — try again.");
@@ -171,19 +214,37 @@ export function ProposeForm() {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Propose a game</CardTitle>
-				<CardDescription>
-					Search by title and pick a match — art, genres, review scores, and playtime
-					(HowLongToBeat) fill in automatically. If the lookups fail you can retry or enter the
-					details yourself.
-				</CardDescription>
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<CardTitle>Propose a game</CardTitle>
+					{/* Same segmented-control pattern as the backlog sort switcher. */}
+					<div className="border-border bg-card flex items-center gap-0.5 rounded-lg border p-0.5 text-xs">
+						{(Object.keys(KIND_LABELS) as ProposeKind[]).map((value) => (
+							<button
+								key={value}
+								type="button"
+								onClick={() => switchKind(value)}
+								className={cn(
+									"cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors",
+									value === kind
+										? "bg-primary/12 text-primary"
+										: "text-muted-foreground hover:text-foreground"
+								)}
+							>
+								{KIND_LABELS[value]}
+							</button>
+						))}
+					</div>
+				</div>
+				<CardDescription>{KIND_DESCRIPTIONS[kind]}</CardDescription>
 			</CardHeader>
 			<CardContent>
 				<form ref={formRef} action={handleAction} className="flex flex-col gap-4">
-					{!manualMode && (
+					{(kind === "video" ? !manualMode : true) && (
 						<>
 							<div className="relative flex flex-col gap-1.5">
-								<Label htmlFor="propose-search">Title</Label>
+								<Label htmlFor="propose-search">
+									{kind === "video" ? "Title" : "Search BGG (optional — prefills the form)"}
+								</Label>
 								<div className="relative">
 									<SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
 									<Input
@@ -198,7 +259,13 @@ export function ProposeForm() {
 											// The search box is not the submit trigger.
 											if (event.key === "Enter") event.preventDefault();
 										}}
-										placeholder="Deep Rock Galactic"
+										placeholder={
+											kind === "video"
+												? "Deep Rock Galactic"
+												: kind === "ttrpg"
+													? "Delta Green"
+													: "Wingspan"
+										}
 										maxLength={200}
 										autoComplete="off"
 										role="combobox"
@@ -262,11 +329,13 @@ export function ProposeForm() {
 											type="button"
 											onClick={() => {
 												setListOpen(false);
-												setManualMode(true);
+												if (kind === "video") setManualMode(true);
 											}}
 											className="text-muted-foreground hover:text-foreground border-border cursor-pointer border-t px-3 py-2 text-left text-xs"
 										>
-											Can&rsquo;t find it? Enter the details manually →
+											{kind === "video"
+												? "Can’t find it? Enter the details manually →"
+												: "Can’t find it? Just fill in the details below ↓"}
 										</button>
 									</div>
 								)}
@@ -324,6 +393,13 @@ export function ProposeForm() {
 																: null,
 															meta?.steamReviewScore != null ? `${meta.steamReviewScore}%` : null,
 															meta?.metacriticScore != null ? `MC ${meta.metacriticScore}` : null,
+															meta?.bggRating != null ? `BGG ${(meta.bggRating / 10).toFixed(1)}` : null,
+															meta?.bggWeight != null ? `weight ${meta.bggWeight}` : null,
+															meta?.playtimeMinutes != null ? `${meta.playtimeMinutes} min` : null,
+															meta?.minPlayers != null && meta?.maxPlayers != null
+																? `${meta.minPlayers}–${meta.maxPlayers} players`
+																: null,
+															meta?.system ?? null,
 															meta?.genres?.slice(0, 3).join(", ") || null,
 														]
 															.filter(Boolean)
@@ -339,7 +415,7 @@ export function ProposeForm() {
 										</div>
 									</div>
 									<div className="flex flex-wrap items-center justify-between gap-2">
-										{preview ? <SourceStatus preview={preview} /> : <span />}
+										{preview ? <SourceStatus preview={preview} providers={providers} /> : <span />}
 										<div className="flex items-center gap-2">
 											{!previewing && (previewFailed || (preview?.failures.length ?? 0) > 0) && (
 												<Button type="button" size="sm" variant="outline" onClick={() => loadPreview(selected)}>
@@ -347,31 +423,38 @@ export function ProposeForm() {
 													Retry lookups
 												</Button>
 											)}
-											<Button
-												type="button"
-												size="sm"
-												variant="ghost"
-												onClick={() => setManualMode(true)}
-											>
-												<PencilIcon className="size-3.5" />
-												Enter manually instead
-											</Button>
+											{kind === "video" && (
+												<Button
+													type="button"
+													size="sm"
+													variant="ghost"
+													onClick={() => setManualMode(true)}
+												>
+													<PencilIcon className="size-3.5" />
+													Enter manually instead
+												</Button>
+											)}
 										</div>
 									</div>
-									{/* The server refetches from these ids on submit; preview is advisory. */}
-									<input type="hidden" name="title" value={selected.title} />
+									{/* The server refetches from these ids on submit; preview is
+									    advisory. The tabletop title comes from the structured form
+									    below (prefilled from the pick), not a hidden field. */}
+									{kind === "video" && <input type="hidden" name="title" value={selected.title} />}
 									{selected.providerId === "steam" && (
 										<input type="hidden" name="steamAppId" value={selected.externalId} />
 									)}
 									{selected.providerId === "hltb" && (
 										<input type="hidden" name="hltbId" value={selected.externalId} />
 									)}
+									{selected.providerId === "bgg" && (
+										<input type="hidden" name="bggId" value={selected.externalId} />
+									)}
 								</div>
 							)}
 						</>
 					)}
 
-					{manualMode && (
+					{kind === "video" && manualMode && (
 						<>
 							<div className="grid gap-4 sm:grid-cols-2">
 								<div className="flex flex-col gap-1.5">
@@ -407,6 +490,176 @@ export function ProposeForm() {
 						</>
 					)}
 
+					{/* Tabletop: structured entry, optionally prefilled from a BGG pick
+					    above (the key remounts the grid when the preview lands so the
+					    defaultValues refresh — everything stays editable, and the
+					    server refetches from the bggId authoritatively on submit).
+					    Length band / playtime and crunch feed the same effort formula
+					    as video games. */}
+					{kind !== "video" && (
+						<>
+							<input type="hidden" name="gameType" value={kind} />
+							<div
+								key={preview ? `preview-${selected?.externalId}` : (selected?.externalId ?? "blank")}
+								className="grid gap-4 sm:grid-cols-2"
+							>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-title">Title</Label>
+									<Input
+										id="propose-title"
+										name="title"
+										required
+										maxLength={200}
+										defaultValue={meta?.title ?? selected?.title ?? undefined}
+										placeholder={kind === "ttrpg" ? "Curse of Strahd" : "Wingspan"}
+									/>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-system">
+										{kind === "ttrpg" ? "System" : "Edition / system (optional)"}
+									</Label>
+									<Input
+										id="propose-system"
+										name="system"
+										required={kind === "ttrpg"}
+										maxLength={120}
+										defaultValue={meta?.system ?? undefined}
+										placeholder={kind === "ttrpg" ? "D&D 5e, Delta Green…" : "2nd edition"}
+									/>
+								</div>
+								{kind === "ttrpg" ? (
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="propose-length-band">Length</Label>
+										<select
+											id="propose-length-band"
+											name="lengthBand"
+											required
+											defaultValue=""
+											className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+										>
+											<option value="" disabled>
+												How long a commitment?
+											</option>
+											{(
+												Object.entries(TTRPG_BAND_LABELS) as [
+													keyof typeof TTRPG_BAND_LABELS,
+													string,
+												][]
+											).map(([band, label]) => (
+												<option key={band} value={band}>
+													{label}
+												</option>
+											))}
+										</select>
+									</div>
+								) : (
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="propose-playtime">Playtime (minutes, optional)</Label>
+										<Input
+											id="propose-playtime"
+											name="playtimeMinutes"
+											type="number"
+											step="5"
+											min="5"
+											max="1440"
+											defaultValue={meta?.playtimeMinutes ?? undefined}
+											placeholder="90"
+										/>
+									</div>
+								)}
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-crunch">Crunch (optional)</Label>
+									<select
+										id="propose-crunch"
+										name="crunch"
+										defaultValue={
+											meta?.bggWeight != null
+												? String(Math.min(5, Math.max(1, Math.round(meta.bggWeight))))
+												: ""
+										}
+										className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+									>
+										<option value="">unset — score it later</option>
+										<option value="1">1 — ultra-light</option>
+										<option value="2">2 — light</option>
+										<option value="3">3 — medium</option>
+										<option value="4">4 — heavy</option>
+										<option value="5">5 — very heavy</option>
+									</select>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-format">Format (optional)</Label>
+									<select
+										id="propose-format"
+										name="format"
+										defaultValue=""
+										className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+									>
+										<option value="">unset</option>
+										<option value="virtual">Virtual</option>
+										<option value="in_person">In person</option>
+										<option value="hybrid">Hybrid</option>
+									</select>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-platform">Platform / venue (optional)</Label>
+									<Input
+										id="propose-platform"
+										name="platform"
+										maxLength={120}
+										placeholder="Roll20, Foundry, kitchen table…"
+									/>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-min-players">Min players (optional)</Label>
+									<Input
+										id="propose-min-players"
+										name="minPlayers"
+										type="number"
+										min="1"
+										max="99"
+										defaultValue={meta?.minPlayers ?? undefined}
+										placeholder={kind === "ttrpg" ? "3" : "2"}
+									/>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="propose-max-players">Max players (optional)</Label>
+									<Input
+										id="propose-max-players"
+										name="maxPlayers"
+										type="number"
+										min="1"
+										max="99"
+										defaultValue={meta?.maxPlayers ?? undefined}
+										placeholder={kind === "ttrpg" ? "6" : "5"}
+									/>
+								</div>
+								<div className="flex flex-col gap-1.5 sm:col-span-2">
+									<Label htmlFor="propose-cover">Cover image URL (optional)</Label>
+									<Input
+										id="propose-cover"
+										name="coverUrl"
+										type="url"
+										maxLength={500}
+										placeholder="https://…"
+									/>
+								</div>
+							</div>
+							{kind === "ttrpg" && (
+								<label className="flex items-center gap-2 text-sm">
+									<input
+										type="checkbox"
+										name="gmMe"
+										value="1"
+										defaultChecked
+										className="accent-primary size-4"
+									/>
+									I&rsquo;ll run it (GM)
+								</label>
+							)}
+						</>
+					)}
+
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="propose-pitch">Pitch (optional)</Label>
 						<textarea
@@ -422,8 +675,8 @@ export function ProposeForm() {
 					{submitError && <p className="text-destructive text-sm">{submitError}</p>}
 
 					<div>
-						{manualMode || selected ? (
-							<SubmitButton />
+						{kind !== "video" || manualMode || selected ? (
+							<SubmitButton pendingLabel={kind === "video" ? "Fetching metadata…" : "Proposing…"} />
 						) : (
 							<p className="text-muted-foreground text-xs">
 								Pick a search result to propose it, or{" "}

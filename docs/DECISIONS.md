@@ -156,3 +156,81 @@ cron it also runs on manual-only rows, deliberately, since the user asked).
 HLTB caveat: their search matches names, not ids, so "fetch by id" is
 implemented as a title search filtered to the picked `game_id`, falling
 back to the title heuristic.
+
+## 2026-07-05 — Tabletop expansion: game_type + tabletop_details sidecar
+
+The group wants to coordinate TTRPGs (D&D 5e, Delta Green, …) and board
+games through the same propose → vote → pick → schedule flows. Modeled as
+a `game_type` discriminator on `games` (`video`/`ttrpg`/`boardgame`,
+default backfills existing rows) plus a 1:1 **`tabletop_details`** sidecar
+(system, format virtual/in-person/hybrid, free-text platform à la
+`events.location`, GM user ref, min/max players, TTRPG length band,
+board-game playtime minutes) — mirroring the `game_metadata` precedent so
+tabletop attributes never widen the games table. NOT a second entity:
+one lifecycle, one history table, one votes table (all already
+type-agnostic), same "proposals are a status" rule.
+
+## 2026-07-05 — Tabletop effort: hour-equivalents through the existing formula
+
+Tabletop games join the one shared effort/burn-rate economy — no second
+currency, no second chart. Two deliberate column overloads make the entire
+points/pick math byte-identical:
+
+- **Length**: TTRPGs are proposed as descriptive bands (one-shot / arc /
+  mini-campaign / campaign) mapped to representative hour-equivalents
+  (`TTRPG_BAND_HOURS`: 4/15/35/110 — chosen to land in the existing
+  Fibonacci buckets as 1/3/5/13 pts); board games store playtime ÷ 60.
+  The hour value in `games.length_hours` is internal currency: **bands and
+  minutes are the only display surface for tabletop** — the UI never shows
+  the raw hours, so their false precision stays private.
+- **Crunch**: rules complexity 1–5 (ultra-light → very heavy) rides the
+  `games.difficulty` column and the same admin-tunable multipliers. There
+  is no authoritative TTRPG complexity data anywhere; group-assigned, with
+  BGG's community weight as an editable prefill for board games.
+
+Board-game completion convention: a board game moves playing → completed
+when the group has had its fill (typically after the first play-through)
+and earns its stored points once; replays are *events*, not points —
+per-session point accrual would be the first write path to touch points
+outside a scoring edit and dies on invariant #2.
+
+## 2026-07-05 — Picker: night type is a filter, party fit uses player ranges
+
+`/pick` gains `kind` (any/video/ttrpg/boardgame) in the session context —
+a **filter**, deliberately not a scored component: "board game night" and
+"should we start a campaign?" are different questions, and a soft weight
+would just blend them into mush. Party fit branches: tabletop games use
+their declared min/max player range (real data, so sharper penalties —
+below min 0.05, above max 0.3) while video games keep the derived
+`gameModes` heuristic. Time fit needed no change: the hour-equivalents
+already classify a 90-minute board game as a snack and a campaign as epic.
+Read-time-only scoring is untouched.
+
+## 2026-07-05 — Session recurrence: clone-forward, not a rules engine
+
+Weekly campaigns need "same time next week", not RRULE. A recurrence
+engine (materialization horizons, edit-this-vs-all-future, reminder
+interactions) is complexity the group doesn't need; an explicit
+`scheduleNextSession` action clones an event +7 days (same game, duration,
+location; trailing session number bumped), offered as a checkbox on the
+wrap-up form and a button on completed events. Only the caller is
+auto-RSVP'd — seeding others' RSVPs from past attendance would make RSVPs
+dishonest (revisit if the group wants attended→maybe seeding). GAC polls
+remain the tool when the weekly slot breaks.
+
+## 2026-07-05 — Tabletop metadata: one BGG provider, propose-only prefill
+
+BoardGameGeek and RPGGeek share one XML API2 and one id space, so a single
+`bgg` provider serves both game types (`type=boardgame,rpgitem`;
+externalId `"<type>:<id>"`). The API now requires a registered bearer
+token (`BGG_API_TOKEN`, optional secret): no token → the provider throws →
+the standard degradation contract lands proposals in manual entry.
+Board games carry real community weight/playtime/player-count; **RPG items
+carry neither weight nor playtime nor player counts** — that data does not
+exist on the site, so TTRPG length/crunch stay group-assigned forever.
+`bggRating` (0–100 rescale) joins the quality signals. Structured fields
+(playtime, players, crunch-from-weight, system) prefill **at propose time
+only and are never written on refresh** — the tabletop analog of "refresh
+never touches games.*"; refresh only updates `game_metadata` (art,
+description, genres, bggRating/bggWeight). DriveThruRPG page-count crunch
+seeding stays a future idea: the API is undocumented and the proxy is weak.

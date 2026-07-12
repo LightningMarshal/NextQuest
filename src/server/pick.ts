@@ -10,6 +10,7 @@ import {
 	scoreBacklog,
 	type Commitment,
 	type GameMode,
+	type PickKind,
 	type PickableGame,
 	type RankedGame,
 	type SessionContext,
@@ -18,6 +19,7 @@ import { getAppSettings, type AppSettings } from "@/server/settings";
 import { getMyBallot, getVoteTally } from "@/server/votes";
 
 const COMMITMENTS: Commitment[] = ["snack", "weeknight", "standard", "epic", "any"];
+const KINDS: PickKind[] = ["any", "video", "ttrpg", "boardgame"];
 
 /**
  * Session context comes from user-editable URL params — clamp and default,
@@ -28,6 +30,7 @@ export function parsePickContext(params: {
 	commitment?: string;
 	players?: string;
 	together?: string;
+	kind?: string;
 }): SessionContext {
 	const hours = Number(params.hours);
 	const players = Number(params.players);
@@ -40,18 +43,23 @@ export function parsePickContext(params: {
 		players:
 			Number.isInteger(players) && players > 0 ? Math.min(20, players) : undefined,
 		together: params.together === "1",
+		kind: KINDS.includes(params.kind as PickKind) ? (params.kind as PickKind) : "any",
 	};
 }
 
 export type PickGameRow = {
 	id: string;
 	title: string;
+	gameType: "video" | "ttrpg" | "boardgame";
+	/** Tabletop system ("D&D 5e") — display only. */
+	system: string | null;
 	art: string | null;
 	/** Effort (stored points, override wins) — display only, not a rank input. */
 	effort: number | null;
 	lengthHours: number | null;
 	genres: string[] | null;
 	gameModes: GameMode[] | null;
+	playerRange: { min: number | null; max: number | null } | null;
 	backlogSince: Date | null;
 	/** Group aggregate including the caller's own allocation. */
 	groupTotal: number;
@@ -80,6 +88,7 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 			.select({
 				id: schema.games.id,
 				title: schema.games.title,
+				gameType: schema.games.gameType,
 				points: schema.games.points,
 				pointsOverride: schema.games.pointsOverride,
 				lengthHours: schema.games.lengthHours,
@@ -89,10 +98,21 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 				gameModes: schema.gameMetadata.gameModes,
 				steamReviewScore: schema.gameMetadata.steamReviewScore,
 				metacriticScore: schema.gameMetadata.metacriticScore,
+				bggRating: schema.gameMetadata.bggRating,
+				system: schema.tabletopDetails.system,
+				minPlayers: schema.tabletopDetails.minPlayers,
+				maxPlayers: schema.tabletopDetails.maxPlayers,
 			})
 			.from(schema.games)
 			.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
-			.where(eq(schema.games.status, "backlog")),
+			.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
+			.where(
+				and(
+					eq(schema.games.status, "backlog"),
+					// "What kind of night is it?" — a filter, not a component.
+					...(ctx.kind !== "any" ? [eq(schema.games.gameType, ctx.kind)] : [])
+				)
+			),
 		getMyBallot(),
 		getVoteTally(),
 		getAppSettings(),
@@ -146,16 +166,22 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 	// come back in a human-sensible order.
 	const sortedRows = [...rows].sort((a, b) => a.title.localeCompare(b.title));
 
+	const playerRange = (row: { gameType: string; minPlayers: number | null; maxPlayers: number | null }) =>
+		row.gameType !== "video" ? { min: row.minPlayers, max: row.maxPlayers } : null;
+
 	const pickable: PickableGame[] = sortedRows.map((row) => ({
 		gameId: row.id,
+		gameType: row.gameType,
 		lengthHours: row.lengthHours !== null ? Number(row.lengthHours) : null,
 		signals: {
 			steamReviewScore: row.steamReviewScore,
 			metacriticScore: row.metacriticScore,
+			bggRating: row.bggRating,
 		},
 		tally: tallyByGame.get(row.id) ?? 0,
 		backlogSince: backlogSinceByGame.get(row.id) ?? null,
 		gameModes: row.gameModes,
+		playerRange: playerRange(row),
 	}));
 
 	const games = new Map<string, PickGameRow>(
@@ -164,11 +190,14 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 			{
 				id: row.id,
 				title: row.title,
+				gameType: row.gameType,
+				system: row.system,
 				art: row.headerUrl ?? row.coverUrl,
 				effort: row.pointsOverride ?? row.points,
 				lengthHours: row.lengthHours !== null ? Number(row.lengthHours) : null,
 				genres: row.genres,
 				gameModes: row.gameModes,
+				playerRange: playerRange(row),
 				backlogSince: backlogSinceByGame.get(row.id) ?? null,
 				groupTotal: tallyByGame.get(row.id) ?? 0,
 				mine: mineByGame.get(row.id) ?? 0,

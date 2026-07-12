@@ -85,6 +85,85 @@ export async function setRsvp(eventId: string, rsvp: Rsvp): Promise<void> {
 	revalidatePath("/events");
 }
 
+// "Session 12" → "Session 13"; titles without a trailing number are copied
+// verbatim. Deliberately dumb — a regex, not a naming scheme.
+function bumpSessionNumber(title: string): string {
+	return title.replace(/(\d+)\s*$/, (match) => String(Number(match) + 1));
+}
+
+type CloneSource = {
+	id: string;
+	title: string;
+	gameId: string | null;
+	scheduledAt: Date;
+	durationMinutes: number | null;
+	location: string | null;
+};
+
+// Clone-forward is the recurrence model (docs/DECISIONS.md): "same time next
+// week" as an explicit action after each session instead of a rules engine.
+// Only the caller is RSVP'd — seeding others' RSVPs from past attendance
+// would make them dishonest.
+async function cloneEventForward(
+	db: ReturnType<typeof getDb>,
+	user: { id: string; name: string },
+	source: CloneSource
+): Promise<void> {
+	// A pure +7d offset on the stored timestamptz keeps the weekday and time
+	// in every viewer's timezone (DST shifts the wall-clock hour at most).
+	const scheduledAt = new Date(source.scheduledAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+	const title = bumpSessionNumber(source.title);
+
+	const [event] = await db
+		.insert(schema.events)
+		.values({
+			title,
+			gameId: source.gameId,
+			scheduledAt,
+			durationMinutes: source.durationMinutes,
+			location: source.location,
+			createdBy: user.id,
+		})
+		.returning({ id: schema.events.id });
+
+	await db.insert(schema.eventAttendance).values({
+		eventId: event.id,
+		userId: user.id,
+		rsvp: "yes",
+	});
+
+	notifyDiscord(
+		`📅 ${user.name} scheduled **${title}** for ${discordTimestamp(scheduledAt)}${source.location ? ` (${source.location})` : ""}`
+	);
+}
+
+/**
+ * One-click "same time next week": clones an event 7 days forward, copying
+ * game, duration, and location, bumping a trailing session number in the
+ * title. Works from any event (the wrap-up form and completed cards call it).
+ */
+export async function scheduleNextSession(eventId: string): Promise<void> {
+	const user = await requireApprovedUser();
+	const db = getDb();
+
+	const [source] = await db
+		.select({
+			id: schema.events.id,
+			title: schema.events.title,
+			gameId: schema.events.gameId,
+			scheduledAt: schema.events.scheduledAt,
+			durationMinutes: schema.events.durationMinutes,
+			location: schema.events.location,
+		})
+		.from(schema.events)
+		.where(eq(schema.events.id, eventId));
+	if (!source) throw new Error("Event not found.");
+
+	await cloneEventForward(db, user, source);
+	revalidatePath("/events");
+	revalidatePath("/");
+}
+
 export async function cancelEvent(eventId: string): Promise<void> {
 	await requireApprovedUser();
 	const db = getDb();
@@ -101,11 +180,19 @@ export async function cancelEvent(eventId: string): Promise<void> {
  * member), optionally update the recap notes, and mark the event completed.
  */
 export async function recordAttendance(eventId: string, formData: FormData): Promise<void> {
-	await requireApprovedUser();
+	const user = await requireApprovedUser();
 	const db = getDb();
 
 	const [event] = await db
-		.select({ status: schema.events.status })
+		.select({
+			id: schema.events.id,
+			title: schema.events.title,
+			gameId: schema.events.gameId,
+			scheduledAt: schema.events.scheduledAt,
+			durationMinutes: schema.events.durationMinutes,
+			location: schema.events.location,
+			status: schema.events.status,
+		})
 		.from(schema.events)
 		.where(eq(schema.events.id, eventId));
 	if (!event) throw new Error("Event not found.");
@@ -138,6 +225,11 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			updatedAt: new Date(),
 		})
 		.where(eq(schema.events.id, eventId));
+
+	// "Same time next week" checkbox on the wrap-up form — one round-trip.
+	if (formData.get("scheduleNext")) {
+		await cloneEventForward(db, user, event);
+	}
 
 	revalidatePath("/events");
 	revalidatePath("/");

@@ -37,6 +37,44 @@ export function lengthPoints(hours: number): number {
 	return LENGTH_BUCKETS.find((bucket) => hours < bucket.maxHours)?.points ?? 13;
 }
 
+// --- Tabletop hour-equivalents ---------------------------------------------
+// TTRPGs have no HowLongToBeat: length is proposed as a descriptive band and
+// converted to a representative hour-equivalent stored in games.length_hours.
+// The representative values are chosen to land in the buckets above
+// (one-shot→1, arc→3, mini-campaign→5, campaign→13 pts), so the formula and
+// every stored-points rule apply unchanged. Bands are the only display
+// surface — the UI never shows raw hours for tabletop games.
+
+export type TtrpgLengthBand = "one_shot" | "arc" | "mini_campaign" | "campaign";
+
+export const TTRPG_BAND_HOURS: Record<TtrpgLengthBand, number> = {
+	one_shot: 4,
+	arc: 15,
+	mini_campaign: 35,
+	campaign: 110,
+};
+
+export const TTRPG_BAND_LABELS: Record<TtrpgLengthBand, string> = {
+	one_shot: "One-shot (single session)",
+	arc: "Arc (2–5 sessions)",
+	mini_campaign: "Mini-campaign (6–12 sessions)",
+	campaign: "Campaign (months+)",
+};
+
+/** Hour-equivalent for a tabletop game: band for TTRPGs, minutes for board games. */
+export function tabletopLengthHours(input: {
+	gameType: "ttrpg" | "boardgame";
+	lengthBand?: TtrpgLengthBand | null;
+	playtimeMinutes?: number | null;
+}): number | undefined {
+	if (input.gameType === "ttrpg") {
+		return input.lengthBand ? TTRPG_BAND_HOURS[input.lengthBand] : undefined;
+	}
+	return input.playtimeMinutes && input.playtimeMinutes > 0
+		? Math.round((input.playtimeMinutes / 60) * 10) / 10
+		: undefined;
+}
+
 // Quality factor: a game rated at the baseline (a "decent game") is neutral;
 // better-reviewed games earn a bonus, worse ones a discount. The admin-tuned
 // weight (0–1, app_settings.quality_weight) scales the effect; 0 disables it
@@ -51,11 +89,13 @@ export type QualitySignals = {
 	steamReviewScore?: number | null;
 	/** Metacritic metascore, 0–100. */
 	metacriticScore?: number | null;
+	/** BGG/RPGGeek community average, rescaled to 0–100. */
+	bggRating?: number | null;
 };
 
-/** Mean of the available signals clamped to 0–100; null when both missing. */
+/** Mean of the available signals clamped to 0–100; null when all missing. */
 export function qualityScore(signals: QualitySignals): number | null {
-	const values = [signals.steamReviewScore, signals.metacriticScore].filter(
+	const values = [signals.steamReviewScore, signals.metacriticScore, signals.bggRating].filter(
 		(value): value is number => typeof value === "number" && Number.isFinite(value)
 	);
 	if (values.length === 0) return null;
