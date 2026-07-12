@@ -458,6 +458,54 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 	revalidatePath("/backlog");
 }
 
+// A valid https:// image URL, or "" to clear the field back to null.
+const imageUrlField = z
+	.union([
+		z.literal(""),
+		z.string().trim().url().max(2000).startsWith("https://", "Image URLs must start with https://."),
+	])
+	.optional();
+
+const artworkSchema = z.object({
+	coverUrl: imageUrlField,
+	headerUrl: imageUrlField,
+});
+
+// Lets a member fix a broken or oversized cover/header image after a game is
+// proposed (issue #14). updateGameScoring only writes the games table, so image
+// URLs — which live on game_metadata — had no editor before. Empty input clears.
+export async function updateGameArtwork(gameId: string, formData: FormData): Promise<void> {
+	await requireApprovedUser();
+	const input = artworkSchema.parse({
+		coverUrl: formData.get("coverUrl") ?? undefined,
+		headerUrl: formData.get("headerUrl") ?? undefined,
+	});
+	const coverUrl = input.coverUrl ? input.coverUrl : null;
+	const headerUrl = input.headerUrl ? input.headerUrl : null;
+
+	const db = getDb();
+	const [game] = await db
+		.select({ id: schema.games.id })
+		.from(schema.games)
+		.where(eq(schema.games.id, gameId));
+	if (!game) throw new Error("Game not found.");
+
+	// The metadata row is 1:1 and normally created in proposeGame; upsert keeps
+	// this safe if a game somehow lacks one (Neon HTTP has no transactions).
+	await db
+		.insert(schema.gameMetadata)
+		.values({ gameId, coverUrl, headerUrl })
+		.onConflictDoUpdate({
+			target: schema.gameMetadata.gameId,
+			set: { coverUrl, headerUrl },
+		});
+
+	// The vote page and dashboard also render cover art.
+	revalidatePath("/backlog");
+	revalidatePath("/vote");
+	revalidatePath("/");
+}
+
 /**
  * Admin-only bulk refresh after tuning the formula settings: re-runs
  * computePoints for proposed and backlog games only. Playing, completed,
