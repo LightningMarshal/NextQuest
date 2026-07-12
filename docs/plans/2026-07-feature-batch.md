@@ -20,28 +20,48 @@ Each workstream is independently shippable.
 
 ---
 
-## WS0 — Branch reconciliation (prerequisite)
+## WS0 — Branch reconciliation (prerequisite) — ✅ DONE (2026-07-12)
 
-Rebase the branch onto `origin/main` (`git rebase origin/main`; conflicts
-expected in `game-card.tsx`, `propose-form.tsx`, `next.config.ts`,
-`src/server/games.ts`). Reconcile the two stale-base commits:
+Rebased onto `origin/main` and pushed (`git push --force-with-lease`). The
+conflict surface was verified with a read-only `git merge-tree --write-tree`
+simulation before rebasing (this corrects an earlier draft of this section,
+which guessed at four conflicting files) — **only
+`src/app/(app)/backlog/game-card.tsx` had a real conflict**:
 
-- **#14 fix (`updateGameArtwork` + wildcard `remotePatterns`) — still valid
-  and now MORE valuable.** Main has no artwork editor, and main's
-  `next.config.ts` allows only Steam CDNs — which means **BGG board-game/TTRPG
-  covers and manual tabletop cover URLs are broken on backlog cards on main
-  today** (bgg provider returns `cf.geekdo-images.com` images; the card renders
-  via `next/image`, `game-card.tsx:125-131`). Port the action + form onto
-  main's `game-card.tsx` Manage expander and keep
-  `{ protocol: "https", hostname: "**" }`.
-- **#15 fix (pitch expander, proposer byline, `/backlog/[gameId]` detail
-  page)** — main's card already shows pitch/proposer differently; drop
-  conflicting hunks and carry the detail page forward as the **seed for WS3**
-  (it must be extended with main's type badges, tabletop info line, campaign
-  strip).
+- `src/server/games.ts` auto-merged cleanly (our `updateGameArtwork` addition
+  and main's `proposeTabletopGame`/`refreshGameMetadata`/`backfillGameModes`
+  landed in non-overlapping regions).
+- `next.config.ts` had no conflict — main never touched it since divergence,
+  so the wildcard `remotePatterns` addition applied untouched. This also
+  **fixes a live bug on main**: BGG board-game/TTRPG cover art
+  (`cf.geekdo-images.com`) and manual tabletop cover URLs were broken on
+  backlog cards because only Steam CDNs were allowlisted.
+- `src/app/(app)/backlog/[gameId]/page.tsx` had no conflict (new file, only
+  on our side) — carried forward as the seed for WS3, but it predates the
+  tabletop data model and still needs `tabletop_details` fields
+  (system/format/GM/players) and session history added (see WS3).
+- `src/app/(app)/backlog/propose-form.tsx` and `backlog/page.tsx` auto-merged
+  cleanly (main rewrote these heavily; our branch never touched them).
 
-Verify with `npm run typecheck && npm run lint && npm run build` after rebase;
-re-test both fixes manually under `npm run preview`.
+`game-card.tsx`'s five overlapping hunks (imports; derived variables;
+pitch/tabletop-info display block; art-header/title `<Link>` wrapping vs
+type badge/"EFFORT" relabel; Manage-expander forms) were reconciled by hand,
+keeping both sides' additions — main's tabletop info line, campaign strip,
+type badge, and refresh-metadata button all coexist with our pitch read-more
+expander, proposer byline, and artwork-edit form.
+
+Verified: `npm run typecheck`, `npm run lint`, and `npm run build` all pass;
+the OpenNext/Cloudflare build (`npm run preview`) completed the workerd
+bundling step cleanly (`Worker saved in .open-next/worker.js`, no
+compatibility errors) — the meaningful proxy for "does this run under
+Workers." A live click-through wasn't possible in the environment this was
+executed from (no `DATABASE_URL`/secrets, and the local `wrangler dev`
+server didn't come up under that sandbox's network policy) — **do a full
+`npm run preview` click-through before shipping**: propose a video game and
+a tabletop game, confirm both card variants render correctly together
+(type badge, effort label, tabletop info line, campaign strip where
+applicable, pitch read-more, proposer byline, artwork-edit form, detail-page
+link).
 
 ## WS1 — Bug fixes (small; ship first)
 
