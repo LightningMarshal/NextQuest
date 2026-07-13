@@ -17,7 +17,6 @@ import {
 	updateGameScoring,
 } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
-import { cn } from "@/lib/utils";
 
 import {
 	GAME_TYPE_LABELS,
@@ -217,22 +216,11 @@ export function GameCard({
 					</div>
 				)}
 
-				{/* Completion is the loop's payoff — surface it on the card face for
-				    playing games instead of burying it in the Manage expander. */}
-				{game.status === "playing" && (
-					<form
-						action={transitionGameStatus.bind(null, game.id, "completed")}
-						className="mt-auto pt-1"
-					>
-						<Button size="sm" variant="outline" className="w-full">
-							Mark completed
-						</Button>
-					</form>
-				)}
-
 				{/* All admin/curation controls live behind the expander so the card
-				    itself stays a Nova display card. Same server actions as before. */}
-				<details className={cn("group pt-1", game.status !== "playing" && "mt-auto")}>
+				    itself stays a Nova display card. Same server actions as before.
+				    Completion lives here (and on the game page), not on the card
+				    face — "completed" is terminal, so a stray click has no undo. */}
+				<details className="group mt-auto pt-1">
 					<summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
 						Manage
 					</summary>
