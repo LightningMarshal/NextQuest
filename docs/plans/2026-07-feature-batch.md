@@ -369,7 +369,16 @@ Audit result: docs are current through Phase 12; the gaps are specific:
   leftover in 02-set-up-your-computer.md) and issue **#5** (PowerShell
   execution-policy callout in the Node.js install section).
 
-## WS7 — Product evaluation (written deliverable)
+## WS7 — Product evaluation (written deliverable) — ✅ done (2026-07-12)
+
+Shipped `docs/EVALUATION-2026-07.md`: a full-loop walkthrough (propose →
+prioritize → schedule → play → wrap up → dashboard) with per-stage friction,
+ranked missing features, a lightweight-first recommendation for the #13
+tutorial, and a "known issues & technical debt" section (unapplied migrations
+0012/0013, unexercised RAWG, HLTB assume-broken, pending preview QA). Findings
+flagged as hypotheses to confirm against the group, not observed usage.
+
+Original notes:
 
 Produce `docs/EVALUATION-2026-07.md`: a walkthrough of the full loop
 (propose → vote/pick → schedule → play → wrap up → burn rate) with friction
