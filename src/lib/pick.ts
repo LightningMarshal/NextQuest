@@ -38,6 +38,8 @@ export type SessionContext = {
 	/** Playing one game together vs. picking for the shared backlog. */
 	together: boolean;
 	kind: PickKind;
+	/** Genre filter (metadata.genres) — like kind, a filter, not a component. */
+	genre?: string;
 };
 
 export type PickWeights = {

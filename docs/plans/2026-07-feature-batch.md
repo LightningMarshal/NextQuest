@@ -183,7 +183,20 @@ anywhere** — URL searchParams is the established view-state idiom
 - Chart: keep the same props; the x-axis label format comes from the series
   labels the lib emits.
 
-## WS3 — Explore, game detail pages, and clearer completion (the big UX slice)
+## WS3 — Explore, game detail pages, and clearer completion — ✅ done (2026-07-12)
+
+Shipped: shared display vocabulary (`backlog/game-display.ts`) deduplicating
+card + detail page; detail page rewritten tabletop-aware (type badge, EFFORT
+relabel, band/minutes length labels — never raw hour-equivalents, crunch
+label, Metacritic/BGG signals, mode badges, tabletop info line, prominent
+transition buttons with self-approval hint, Sessions card with upcoming/held
++ notes); "Mark completed" surfaced on the face of playing cards; backlog
+Type/Genre/Mode/Tags filter rows (vocabulary derived from the library) with a
+generic href builder preserving all dimensions + sort; /pick gains a Genre
+filter (SessionContext.genre — a pre-score filter mirroring `kind`, chips fed
+from the kind-filtered backlog). typecheck/lint/build green.
+
+Original notes:
 
 Owner wants **both** a browse surface and per-game detail pages. Today: no
 detail route on main; completing a game requires Backlog → card → expand

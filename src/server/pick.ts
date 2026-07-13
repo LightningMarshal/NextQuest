@@ -31,9 +31,11 @@ export function parsePickContext(params: {
 	players?: string;
 	together?: string;
 	kind?: string;
+	genre?: string;
 }): SessionContext {
 	const hours = Number(params.hours);
 	const players = Number(params.players);
+	const genre = params.genre?.trim();
 	return {
 		sessionHours:
 			Number.isFinite(hours) && hours > 0 ? Math.min(200, Math.max(0.5, hours)) : undefined,
@@ -44,6 +46,9 @@ export function parsePickContext(params: {
 			Number.isInteger(players) && players > 0 ? Math.min(20, players) : undefined,
 		together: params.together === "1",
 		kind: KINDS.includes(params.kind as PickKind) ? (params.kind as PickKind) : "any",
+		// Free text matched against metadata.genres; a bogus value just yields
+		// an empty list — never throw on a GET.
+		genre: genre && genre.length <= 60 ? genre : undefined,
 	};
 }
 
@@ -72,6 +77,8 @@ export type PickData = {
 	games: Map<string, PickGameRow>;
 	remainingBudget: number;
 	settings: AppSettings;
+	/** Distinct genres across the (kind-filtered) backlog — feeds the chips. */
+	genres: string[];
 	nextEvent: {
 		title: string;
 		scheduledAt: Date;
@@ -133,6 +140,14 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 			.limit(1),
 	]);
 
+	// Genre chips offer what the (kind-filtered) backlog actually has; the
+	// active genre then narrows the rows below. Like kind: a filter, never a
+	// scored component.
+	const genres = [...new Set(rows.flatMap((row) => row.genres ?? []))].sort();
+	const genreRows = ctx.genre
+		? rows.filter((row) => (row.genres ?? []).includes(ctx.genre as string))
+		: rows;
+
 	// Staleness input: the latest transition INTO backlog (a re-backlogged
 	// game restarts its clock). Second query rather than a join so the main
 	// row select stays simple.
@@ -164,7 +179,7 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 
 	// Pre-sort by title: scoreBacklog's sort is stable, so equal-score games
 	// come back in a human-sensible order.
-	const sortedRows = [...rows].sort((a, b) => a.title.localeCompare(b.title));
+	const sortedRows = [...genreRows].sort((a, b) => a.title.localeCompare(b.title));
 
 	const playerRange = (row: { gameType: string; minPlayers: number | null; maxPlayers: number | null }) =>
 		row.gameType !== "video" ? { min: row.minPlayers, max: row.maxPlayers } : null;
@@ -210,6 +225,7 @@ export async function getPickData(ctx: SessionContext): Promise<PickData> {
 		games,
 		remainingBudget: ballot.remainingBudget,
 		settings,
+		genres,
 		nextEvent: nextEvents[0] ?? null,
 	};
 }

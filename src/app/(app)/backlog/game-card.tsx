@@ -17,56 +17,20 @@ import {
 	updateGameScoring,
 } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
+import { cn } from "@/lib/utils";
+
+import {
+	GAME_TYPE_LABELS,
+	STATUS_BADGE,
+	TRANSITION_LABELS,
+	lengthLabel as gameLengthLabel,
+	tabletopInfoLine,
+} from "./game-display";
 
 type Game = typeof schema.games.$inferSelect;
 type Metadata = typeof schema.gameMetadata.$inferSelect;
 type Tabletop = typeof schema.tabletopDetails.$inferSelect;
 type GameStatus = Game["status"];
-
-const GAME_TYPE_LABELS: Record<Exclude<Game["gameType"], "video">, string> = {
-	ttrpg: "TTRPG",
-	boardgame: "board game",
-};
-
-// Short band names for the card meta row — the long descriptions live in
-// TTRPG_BAND_LABELS (src/lib/points.ts) and are used in the selects.
-const BAND_SHORT: Record<NonNullable<Tabletop["lengthBand"]>, string> = {
-	one_shot: "one-shot",
-	arc: "arc",
-	mini_campaign: "mini-campaign",
-	campaign: "campaign",
-};
-
-const FORMAT_LABELS: Record<NonNullable<Tabletop["format"]>, string> = {
-	virtual: "virtual",
-	in_person: "in person",
-	hybrid: "hybrid",
-};
-
-function playersLabel(tabletop: Tabletop): string | null {
-	const { minPlayers: min, maxPlayers: max } = tabletop;
-	if (min && max) return min === max ? `${min} players` : `${min}–${max} players`;
-	if (min) return `${min}+ players`;
-	if (max) return `up to ${max} players`;
-	return null;
-}
-
-const TRANSITION_LABELS: Partial<Record<GameStatus, Partial<Record<GameStatus, string>>>> = {
-	proposed: { backlog: "Add to backlog", rejected: "Reject" },
-	backlog: { playing: "Start playing", abandoned: "Abandon" },
-	playing: { completed: "Mark completed", backlog: "Back to backlog", abandoned: "Abandon" },
-	abandoned: { backlog: "Back to backlog" },
-	rejected: { proposed: "Re-propose" },
-};
-
-const STATUS_BADGE: Record<GameStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-	proposed: { label: "proposed", variant: "outline" },
-	backlog: { label: "backlog", variant: "secondary" },
-	playing: { label: "playing", variant: "default" },
-	completed: { label: "completed", variant: "secondary" },
-	abandoned: { label: "abandoned", variant: "outline" },
-	rejected: { label: "rejected", variant: "destructive" },
-};
 
 export function GameCard({
 	game,
@@ -100,31 +64,8 @@ export function GameCard({
 	const effectivePoints = game.pointsOverride ?? game.points;
 	const art = metadata?.headerUrl ?? metadata?.coverUrl;
 	const isTabletop = game.gameType !== "video";
-	// Bands/minutes are the display surface for tabletop length — the stored
-	// hour-equivalent is internal currency and never shown raw.
-	const lengthLabel =
-		game.gameType === "ttrpg"
-			? tabletop?.lengthBand
-				? BAND_SHORT[tabletop.lengthBand]
-				: null
-			: game.gameType === "boardgame"
-				? tabletop?.playtimeMinutes
-					? `${tabletop.playtimeMinutes} min`
-					: null
-				: game.lengthHours
-					? `${Number(game.lengthHours)}h`
-					: null;
-	const tabletopInfo = tabletop
-		? [
-				tabletop.system,
-				tabletop.format ? FORMAT_LABELS[tabletop.format] : null,
-				tabletop.platform,
-				gmName ? `GM ${gmName}` : null,
-				playersLabel(tabletop),
-			]
-				.filter(Boolean)
-				.join(" · ")
-		: null;
+	const lengthLabel = gameLengthLabel(game, tabletop);
+	const tabletopInfo = tabletopInfoLine(tabletop, gmName);
 	const detailHref = `/backlog/${game.id}`;
 	// Full text shown in-card behind a "read more" toggle; the detail page
 	// (issue #15) has the untruncated version. Only long text needs the toggle.
@@ -276,9 +217,22 @@ export function GameCard({
 					</div>
 				)}
 
+				{/* Completion is the loop's payoff — surface it on the card face for
+				    playing games instead of burying it in the Manage expander. */}
+				{game.status === "playing" && (
+					<form
+						action={transitionGameStatus.bind(null, game.id, "completed")}
+						className="mt-auto pt-1"
+					>
+						<Button size="sm" variant="outline" className="w-full">
+							Mark completed
+						</Button>
+					</form>
+				)}
+
 				{/* All admin/curation controls live behind the expander so the card
 				    itself stays a Nova display card. Same server actions as before. */}
-				<details className="group mt-auto pt-1">
+				<details className={cn("group pt-1", game.status !== "playing" && "mt-auto")}>
 					<summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
 						Manage
 					</summary>
