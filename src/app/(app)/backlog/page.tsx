@@ -5,6 +5,7 @@ import { alias } from "drizzle-orm/pg-core";
 
 import { Badge } from "@/components/ui/badge";
 import { getDb, schema } from "@/db";
+import { requireApprovedUser } from "@/server/session";
 import { getVoteTally } from "@/server/votes";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,9 @@ export default async function BacklogPage({
 	const activeSort: SortValue = SORTS.some((s) => s.value === sort)
 		? (sort as SortValue)
 		: "votes";
+	// The (app) layout already gates; this call is just for the viewer's id
+	// (used to hide "Add to backlog" on their own proposals).
+	const viewer = await requireApprovedUser();
 	const db = getDb();
 	// games.proposedBy already joins user; the GM ref needs its own alias.
 	const gmUser = alias(schema.user, "gm_user");
@@ -219,6 +223,7 @@ export default async function BacklogPage({
 									gmName={row.gmName}
 									sessions={sessionsByGame.get(row.game.id)}
 									proposerName={row.proposerName}
+									currentUserId={viewer.id}
 									tags={tagsByGame.get(row.game.id) ?? []}
 									voteTotal={
 										status === "backlog" ? (tallyByGame.get(row.game.id) ?? 0) : undefined

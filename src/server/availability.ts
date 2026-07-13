@@ -12,18 +12,40 @@ type AvailabilityResponse = (typeof schema.availabilityResponseValue.enumValues)
 
 const createPollSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
-	durationMinutes: z.coerce.number().int().positive().max(24 * 60),
+	durationMinutes: z.coerce
+		.number()
+		.int()
+		.positive()
+		.max(24 * 60)
+		.multipleOf(15, "Session length uses 15-minute increments."),
 	// ISO instants, converted from datetime-local in the browser.
-	slotStarts: z.array(z.coerce.date()).min(1, "Add at least one time slot").max(20),
+	slotStarts: z
+		.array(
+			z.coerce
+				.date()
+				.refine((d) => d.getTime() > Date.now(), "Slots must be in the future.")
+				// Every real UTC offset is a multiple of 15 min, so UTC alignment
+				// ⇔ local alignment; datetime-local never carries seconds.
+				.refine(
+					(d) => d.getUTCMinutes() % 15 === 0 && d.getUTCSeconds() === 0,
+					"Slot times use 15-minute increments."
+				)
+		)
+		.min(1, "Add at least one time slot")
+		.max(20),
 });
 
 export async function createAvailabilityPoll(formData: FormData): Promise<void> {
 	const user = await requireApprovedUser();
-	const input = createPollSchema.parse({
+	const parsed = createPollSchema.safeParse({
 		title: formData.get("title"),
 		durationMinutes: formData.get("durationMinutes"),
 		slotStarts: formData.getAll("slotStart"),
 	});
+	// First issue as a plain Error so the form shows a readable message
+	// instead of a ZodError JSON blob.
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const input = parsed.data;
 
 	const db = getDb();
 	const [poll] = await db

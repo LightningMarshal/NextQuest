@@ -75,6 +75,7 @@ export function GameCard({
 	gmName,
 	sessions,
 	proposerName,
+	currentUserId,
 	tags,
 	voteTotal,
 }: {
@@ -85,6 +86,8 @@ export function GameCard({
 	/** Linked events for a playing tabletop game — the campaign strip. */
 	sessions?: { held: number; nextAt: Date | null };
 	proposerName: string | null;
+	/** Viewer id — used to hide "Add to backlog" on their own proposals. */
+	currentUserId?: string;
 	tags: { id: string; name: string }[];
 	/** Aggregate group votes — only passed for backlog-status games. */
 	voteTotal?: number;
@@ -281,16 +284,32 @@ export function GameCard({
 					</summary>
 					<div className="mt-3 flex flex-col gap-3">
 						<div className="flex flex-wrap items-center gap-2">
-							{transitions.map(([toStatus, label]) => (
-								<form key={toStatus} action={transitionGameStatus.bind(null, game.id, toStatus)}>
-									<Button
-										size="sm"
-										variant={toStatus === "rejected" || toStatus === "abandoned" ? "ghost" : "outline"}
-									>
-										{label}
-									</Button>
-								</form>
-							))}
+							{transitions.map(([toStatus, label]) => {
+								// A proposal needs a second — the server enforces this too
+								// (transitionGameStatus); hiding the button is a courtesy.
+								if (
+									game.status === "proposed" &&
+									toStatus === "backlog" &&
+									currentUserId !== undefined &&
+									game.proposedBy === currentUserId
+								) {
+									return (
+										<span key={toStatus} className="text-muted-foreground text-xs">
+											another member adds it to the backlog
+										</span>
+									);
+								}
+								return (
+									<form key={toStatus} action={transitionGameStatus.bind(null, game.id, toStatus)}>
+										<Button
+											size="sm"
+											variant={toStatus === "rejected" || toStatus === "abandoned" ? "ghost" : "outline"}
+										>
+											{label}
+										</Button>
+									</form>
+								);
+							})}
 						</div>
 						<form action={addTagToGame.bind(null, game.id)} className="flex items-center gap-1">
 							<Input

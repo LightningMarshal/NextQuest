@@ -65,7 +65,11 @@ link).
 
 ## WS1 — Bug fixes (small; ship first)
 
-### 1a. Past-date event crash + validation
+**Status (2026-07-12): 1a, 1b, 1c ✅ done and pushed. 1d deferred (HLTB
+unreachable from the execution sandbox — needs an egress-open environment).
+1e skipped for now per owner.**
+
+### 1a. Past-date event crash + validation — ✅ done
 There is currently **no past-date validation anywhere**, and the most
 plausible crash is the unguarded conversion in
 `src/app/(app)/events/create-event-form.tsx:30-37`:
@@ -85,7 +89,7 @@ reproducible defect.
   local-time string — compute it client-side (both forms are already client
   components).
 
-### 1b. 15-minute increments (start time + duration)
+### 1b. 15-minute increments (start time + duration) — ✅ done
 - Client: `step={900}` (seconds) on both `datetime-local` inputs so the picker
   snaps to :00/:15/:30/:45. Event duration input already has `step="15"`
   (`create-event-form.tsx:74`); the GAC length `<select>` (60/90/120/180/240)
@@ -95,7 +99,7 @@ reproducible defect.
   `d.getUTCMinutes() % 15 === 0 && d.getUTCSeconds() === 0`;
   `durationMinutes % 15 === 0`.
 
-### 1c. Proposer cannot approve their own proposal
+### 1c. Proposer cannot approve their own proposal — ✅ done
 Today `transitionGameStatus` (`src/server/games.ts:321-370`) gates only on
 `requireApprovedUser()` — any member, including the proposer, can promote
 `proposed → backlog` ("Add to backlog" button, `game-card.tsx:242-251`).
@@ -111,7 +115,7 @@ Today `transitionGameStatus` (`src/server/games.ts:321-370`) gates only on
   "Add to backlog" button for the proposer and show a muted hint instead.
   Server check is the source of truth; UI is a courtesy.
 
-### 1d. HLTB scraping broken
+### 1d. HLTB scraping broken — deferred (sandbox egress blocks HLTB)
 `src/lib/metadata/hltb.ts` reverse-engineers HLTB's Next.js bundle per
 request: regex 1 finds the `_app-*.js` chunk (`:43`), regex 2 extracts the
 rotating endpoint+key from a `fetch("/api/<path>/".concat(...))` pattern
@@ -132,11 +136,11 @@ blocks proposals) — the fix restores data, no UX change. Acceptance: HLTB
 results appear in the propose typeahead and `fetchGameMetadata` populates
 `hltb*` fields under `npm run preview`.
 
-### 1e. Google avatar broken image (issue #7)
+### 1e. Google avatar broken image (issue #7) — skipped per owner (2026-07-12)
 One-liner already diagnosed in the issue: add `referrerPolicy="no-referrer"`
 to the avatar `<Image>` in `src/components/site-nav.tsx` (~L48-57), plus an
-`onError` fallback to the initial-letter span if desired. Fold into this
-batch.
+`onError` fallback to the initial-letter span if desired. Owner asked to
+hold off for now — do not fold into this batch.
 
 ## WS2 — Burn-rate period toggle (weekly / monthly / yearly / all-time)
 

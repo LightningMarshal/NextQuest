@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createAvailabilityPoll } from "@/server/availability";
 
+import { useMinDatetimeLocal } from "./create-event-form";
+
 function SubmitButton() {
 	const { pending } = useFormStatus();
 	return (
@@ -24,6 +26,8 @@ export function CreatePollForm() {
 	const formRef = useRef<HTMLFormElement>(null);
 	const [slotKeys, setSlotKeys] = useState<number[]>([0, 1]);
 	const nextKey = useRef(2);
+	const [error, setError] = useState<string | null>(null);
+	const minSlot = useMinDatetimeLocal();
 
 	function addSlot() {
 		setSlotKeys((keys) => [...keys, nextKey.current++]);
@@ -34,14 +38,28 @@ export function CreatePollForm() {
 	}
 
 	async function handleAction(formData: FormData) {
+		setError(null);
 		// datetime-local is timezone-less; convert in the browser (see
 		// create-event-form.tsx for the same dance).
+		const isoSlots: string[] = [];
 		for (const local of formData.getAll("slotLocal")) {
 			const value = String(local);
-			if (value) formData.append("slotStart", new Date(value).toISOString());
+			if (!value) continue;
+			const date = new Date(value);
+			if (Number.isNaN(date.getTime())) {
+				setError("One of the slots couldn't be read — please re-pick it.");
+				return;
+			}
+			isoSlots.push(date.toISOString());
 		}
 		formData.delete("slotLocal");
-		await createAvailabilityPoll(formData);
+		for (const iso of isoSlots) formData.append("slotStart", iso);
+		try {
+			await createAvailabilityPoll(formData);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Something went wrong — try again.");
+			return;
+		}
 		formRef.current?.reset();
 		setSlotKeys([0, 1]);
 	}
@@ -82,7 +100,14 @@ export function CreatePollForm() {
 						<Label>Candidate slots</Label>
 						{slotKeys.map((key) => (
 							<div key={key} className="flex items-center gap-2">
-								<Input name="slotLocal" type="datetime-local" required className="max-w-xs" />
+								<Input
+									name="slotLocal"
+									type="datetime-local"
+									required
+									min={minSlot}
+									step={900}
+									className="max-w-xs"
+								/>
 								<Button
 									type="button"
 									variant="ghost"
@@ -108,6 +133,7 @@ export function CreatePollForm() {
 							Add a slot
 						</Button>
 					</div>
+					{error && <p className="text-destructive text-sm">{error}</p>}
 					<div>
 						<SubmitButton />
 					</div>

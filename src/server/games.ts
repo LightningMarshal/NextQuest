@@ -327,6 +327,7 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 			id: schema.games.id,
 			status: schema.games.status,
 			title: schema.games.title,
+			proposedBy: schema.games.proposedBy,
 		})
 		.from(schema.games)
 		.where(eq(schema.games.id, gameId));
@@ -334,6 +335,12 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 
 	if (!ALLOWED_TRANSITIONS[game.status].includes(toStatus)) {
 		throw new Error(`Can't move a ${game.status} game to ${toStatus}.`);
+	}
+
+	// A proposal needs a second: the proposer can't add their own game to the
+	// backlog. Every other transition stays open to any member.
+	if (game.status === "proposed" && toStatus === "backlog" && game.proposedBy === user.id) {
+		throw new Error("Someone else has to add your proposal to the backlog.");
 	}
 
 	await db

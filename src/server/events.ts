@@ -13,15 +13,29 @@ type Rsvp = (typeof schema.rsvpStatus.enumValues)[number];
 const createEventSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
 	gameId: z.string().uuid().optional(),
-	scheduledAt: z.coerce.date(),
-	durationMinutes: z.coerce.number().int().positive().max(24 * 60).optional(),
+	scheduledAt: z.coerce
+		.date()
+		.refine((d) => d.getTime() > Date.now(), "Pick a time in the future.")
+		// Every real UTC offset is a multiple of 15 min, so UTC alignment ⇔
+		// local alignment; datetime-local never carries seconds.
+		.refine(
+			(d) => d.getUTCMinutes() % 15 === 0 && d.getUTCSeconds() === 0,
+			"Start times use 15-minute increments."
+		),
+	durationMinutes: z.coerce
+		.number()
+		.int()
+		.positive()
+		.max(24 * 60)
+		.multipleOf(15, "Duration uses 15-minute increments.")
+		.optional(),
 	location: z.string().trim().max(300).optional(),
 	notes: z.string().trim().max(5000).optional(),
 });
 
 export async function createEvent(formData: FormData): Promise<void> {
 	const user = await requireApprovedUser();
-	const input = createEventSchema.parse({
+	const parsed = createEventSchema.safeParse({
 		title: formData.get("title"),
 		gameId: formData.get("gameId") || undefined,
 		// The client form converts datetime-local to ISO (browser timezone)
@@ -32,6 +46,10 @@ export async function createEvent(formData: FormData): Promise<void> {
 		location: formData.get("location") || undefined,
 		notes: formData.get("notes") || undefined,
 	});
+	// First issue as a plain Error so the form shows a readable message
+	// instead of a ZodError JSON blob.
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const input = parsed.data;
 
 	const db = getDb();
 	const [event] = await db
