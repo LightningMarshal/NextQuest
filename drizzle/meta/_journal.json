@@ -85,6 +85,13 @@
       "when": 1783218359128,
       "tag": "0011_numerous_triathlon",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783965036557,
+      "tag": "0012_slim_husk",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import {
 	pgEnum,
 	pgTable,
 	primaryKey,
+	smallint,
 	text,
 	timestamp,
 	uuid,
@@ -29,7 +30,15 @@ export const events = pgTable("events", {
 	durationMinutes: integer("duration_minutes"),
 	// Free-form: a Discord channel, a URL, or "the couch".
 	location: text("location"),
+	// Planning notes, set when the session is created ("bring snacks"). Kept
+	// distinct from the post-session recap below so wrapping up never destroys
+	// the plan.
 	notes: text("notes"),
+	// Session-capture fields, filled in at wrap-up (all nullable):
+	// what happened, a 1–5 "how did it go", and where a campaign left off.
+	recap: text("recap"),
+	howItWent: smallint("how_it_went"),
+	progressNote: text("progress_note"),
 	status: eventStatus("status").notNull().default("scheduled"),
 	// Sent-markers for the cron reminders (src/server/cron/event-reminders.ts):
 	// stamped via single-statement claim updates so the hourly tick can never

@@ -193,13 +193,33 @@ export async function cancelEvent(eventId: string): Promise<void> {
 	revalidatePath("/");
 }
 
+const wrapUpSchema = z.object({
+	// What was actually played — defaults to the planned game, editable when
+	// the night changed. "" clears the link.
+	gameId: z.string().uuid().optional(),
+	recap: z.string().trim().max(5000).optional(),
+	howItWent: z.coerce.number().int().min(1).max(5).optional(),
+	progressNote: z.string().trim().max(2000).optional(),
+});
+
 /**
  * Wrap up a session: record who actually showed up (checkbox per approved
- * member), optionally update the recap notes, and mark the event completed.
+ * member), capture the recap / rating / progress and what was played, and
+ * mark the event completed. Writes the recap to its own column — the planning
+ * notes are never overwritten.
  */
 export async function recordAttendance(eventId: string, formData: FormData): Promise<void> {
 	const user = await requireApprovedUser();
 	const db = getDb();
+
+	const parsed = wrapUpSchema.safeParse({
+		gameId: formData.get("gameId") || undefined,
+		recap: formData.get("recap") || undefined,
+		howItWent: formData.get("howItWent") || undefined,
+		progressNote: formData.get("progressNote") || undefined,
+	});
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const input = parsed.data;
 
 	const [event] = await db
 		.select({
@@ -234,19 +254,25 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			});
 	}
 
-	const notes = String(formData.get("notes") ?? "").trim();
+	// The wrap-up form always submits the game select, so treat it as
+	// authoritative (a blank selection clears the link). Planning notes are
+	// left untouched — the recap lives in its own column now.
 	await db
 		.update(schema.events)
 		.set({
 			status: "completed",
-			...(notes ? { notes } : {}),
+			gameId: input.gameId ?? null,
+			recap: input.recap ?? null,
+			howItWent: input.howItWent ?? null,
+			progressNote: input.progressNote ?? null,
 			updatedAt: new Date(),
 		})
 		.where(eq(schema.events.id, eventId));
 
 	// "Same time next week" checkbox on the wrap-up form — one round-trip.
+	// Clone from the confirmed game, not the originally-planned one.
 	if (formData.get("scheduleNext")) {
-		await cloneEventForward(db, user, event);
+		await cloneEventForward(db, user, { ...event, gameId: input.gameId ?? null });
 	}
 
 	revalidatePath("/events");

@@ -24,6 +24,10 @@ export type EventWithDetails = {
 	durationMinutes: number | null;
 	location: string | null;
 	notes: string | null;
+	recap: string | null;
+	howItWent: number | null;
+	progressNote: string | null;
+	gameId: string | null;
 	gameTitle: string | null;
 	creatorName: string | null;
 	attendance: EventAttendee[];
@@ -43,12 +47,15 @@ export function EventCard({
 	event,
 	currentUserId,
 	members,
+	candidateGames = [],
 	needsWrapUp = false,
 }: {
 	event: EventWithDetails;
 	currentUserId: string;
 	/** Approved members, for the wrap-up checklist. */
 	members: { id: string; name: string }[];
+	/** Games to pick from for "what did you play" — only wrap-up cards use it. */
+	candidateGames?: { id: string; title: string }[];
 	needsWrapUp?: boolean;
 }) {
 	const myRsvp = event.attendance.find((a) => a.userId === currentUserId)?.rsvp ?? null;
@@ -56,6 +63,12 @@ export function EventCard({
 	const maybe = rsvpNames(event.attendance, "maybe");
 	const noCount = event.attendance.filter((a) => a.rsvp === "no").length;
 	const attendees = event.attendance.filter((a) => a.attended === true).map((a) => a.name);
+	// The wrap-up game picker offers the current candidates plus the event's
+	// own game if it has since left the playing/backlog list.
+	const wrapUpGames =
+		event.gameId && !candidateGames.some((game) => game.id === event.gameId)
+			? [{ id: event.gameId, title: event.gameTitle ?? "current game" }, ...candidateGames]
+			: candidateGames;
 
 	return (
 		<Card className="h-full">
@@ -93,7 +106,27 @@ export function EventCard({
 					</div>
 				</div>
 
-				{event.notes && <p className="text-sm whitespace-pre-line">{event.notes}</p>}
+				{/* Planning notes stay visible until the session is wrapped up; after
+			    that the recap takes over (its own column, never overwrites notes). */}
+			{event.status === "scheduled" && event.notes && (
+				<p className="text-sm whitespace-pre-line">{event.notes}</p>
+			)}
+
+			{event.status === "completed" && (event.recap || event.howItWent || event.progressNote) && (
+				<div className="flex flex-col gap-1.5">
+					{event.howItWent && (
+						<Badge variant="secondary" className="w-fit">
+							Went {event.howItWent}/5
+						</Badge>
+					)}
+					{event.recap && <p className="text-sm whitespace-pre-line">{event.recap}</p>}
+					{event.progressNote && (
+						<p className="text-muted-foreground text-sm whitespace-pre-line">
+							<span className="font-medium">Where we left off:</span> {event.progressNote}
+						</p>
+					)}
+				</div>
+			)}
 
 				{event.status === "scheduled" && (
 					<div className="text-muted-foreground text-xs">
@@ -184,12 +217,52 @@ export function EventCard({
 								);
 							})}
 						</div>
+						<div className="grid gap-3 sm:grid-cols-2">
+							<label className="flex flex-col gap-1.5 text-sm">
+								What did you play?
+								<select
+									name="gameId"
+									defaultValue={event.gameId ?? ""}
+									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+								>
+									<option value="">none / undecided</option>
+									{wrapUpGames.map((game) => (
+										<option key={game.id} value={game.id}>
+											{game.title}
+										</option>
+									))}
+								</select>
+							</label>
+							<label className="flex flex-col gap-1.5 text-sm">
+								How did it go?
+								<select
+									name="howItWent"
+									defaultValue={event.howItWent ?? ""}
+									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+								>
+									<option value="">no rating</option>
+									<option value="5">5 — a blast</option>
+									<option value="4">4 — great</option>
+									<option value="3">3 — solid</option>
+									<option value="2">2 — meh</option>
+									<option value="1">1 — rough</option>
+								</select>
+							</label>
+						</div>
 						<textarea
-							name="notes"
+							name="recap"
 							rows={2}
 							maxLength={5000}
-							defaultValue={event.notes ?? ""}
-							placeholder="Recap (optional) — what happened, where you left off…"
+							defaultValue={event.recap ?? ""}
+							placeholder="Recap (optional) — what happened, highlights, who won…"
+							className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+						/>
+						<textarea
+							name="progressNote"
+							rows={2}
+							maxLength={2000}
+							defaultValue={event.progressNote ?? ""}
+							placeholder="Where we left off (optional) — for a campaign next time…"
 							className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 						/>
 						<label className="flex items-center gap-2 text-sm">

@@ -241,7 +241,22 @@ browse surface; `/pick` remains the decision tool):
   `kind` filter pattern (`context-bar.tsx:22-27`, `pick.ts` SessionContext) —
   a filter, not a scored component.
 
-## WS4 — Session capture workflow
+## WS4 — Session capture workflow — ✅ done (2026-07-12)
+
+Shipped: migration 0012 adds `events.recap`, `events.how_it_went` (1–5),
+`events.progress_note` (all nullable, additive). `recordAttendance` now writes
+the recap to its own column (**planning `notes` are no longer overwritten**),
+captures the rating + progress note, and lets the wrapper correct **what was
+actually played** (game select defaulting to the planned game; the "same time
+next week" clone follows the corrected game). Wrap-up form gains the game
+picker, a 1–5 "how did it go" select, a recap textarea (was overwriting
+notes), and a progress textarea. Completed EventCards and the game detail
+Sessions card show recap + rating + progress instead of the notes blob.
+Deferred (noted): dashboard activity rows for completed sessions; a real
+session_number column. `db:migrate` pending (owner — no DB in sandbox).
+typecheck/lint/build green.
+
+Original notes:
 
 Today's wrap-up captures attendance checkboxes and a recap that **overwrites
 the planning notes** (same `events.notes` column —

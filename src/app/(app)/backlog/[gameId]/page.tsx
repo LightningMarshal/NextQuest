@@ -83,7 +83,9 @@ export default async function GameDetailPage({
 				title: schema.events.title,
 				scheduledAt: schema.events.scheduledAt,
 				status: schema.events.status,
-				notes: schema.events.notes,
+				recap: schema.events.recap,
+				howItWent: schema.events.howItWent,
+				progressNote: schema.events.progressNote,
 				attendedCount: sql<number>`(
 					select count(*)::int from "event_attendance"
 					where "event_attendance"."event_id" = "events"."id"
@@ -284,11 +286,18 @@ export default async function GameDetailPage({
 									<span className="font-medium">{event.title}</span>{" "}
 									<span className="text-muted-foreground">
 										— <LocalTime date={event.scheduledAt} />
-										{event.attendedCount > 0 &&
-											` · ${event.attendedCount} showed up`}
+										{event.attendedCount > 0 && ` · ${event.attendedCount} showed up`}
+										{event.howItWent && ` · went ${event.howItWent}/5`}
 									</span>
-									{event.notes && (
-										<p className="text-muted-foreground text-xs">{event.notes}</p>
+									{event.recap && (
+										<p className="text-muted-foreground text-xs whitespace-pre-line">
+											{event.recap}
+										</p>
+									)}
+									{event.progressNote && (
+										<p className="text-muted-foreground text-xs whitespace-pre-line">
+											<span className="font-medium">Left off:</span> {event.progressNote}
+										</p>
 									)}
 								</div>
 							</li>
