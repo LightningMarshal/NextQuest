@@ -142,7 +142,19 @@ to the avatar `<Image>` in `src/components/site-nav.tsx` (~L48-57), plus an
 `onError` fallback to the initial-letter span if desired. Owner asked to
 hold off for now — do not fold into this batch.
 
-## WS2 — Burn-rate period toggle (weekly / monthly / yearly / all-time)
+## WS2 — Burn-rate period toggle (weekly / monthly / yearly / all-time) — ✅ done (2026-07-12)
+
+Shipped: `buildBurnRateSeries` generalized to week/month/year buckets with a
+trailing-window option (`PERIOD_CONFIG`: weekly=12wk, monthly=12mo, yearly=all
+years, all=full-history weekly = unchanged default); `getDashboardData(period)`
+builds a weekly series for the projection (units stay points/week) and a
+separate display series for the chart; `DashboardPage` resolves period from
+`?period=` → `nq-burn-period` cookie → `all`, and a client `BurnPeriodToggle`
+segmented control writes the cookie on click. `BurnRatePoint.weekStart` renamed
+`bucketStart`. Verified the pure lib across all four periods (trailing windows
+preserve the true cumulative). typecheck/lint/build green.
+
+Original notes:
 
 Current state: `src/lib/burn-rate.ts` hardcodes Monday-week cumulative buckets
 over all history (`buildBurnRateSeries`, `:21-44`); regression projects from

@@ -12,12 +12,20 @@ import {
 	UsersIcon,
 } from "lucide-react";
 
+import { cookies } from "next/headers";
+
 import { LocalTime } from "@/components/local-time";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardData, type ActivityItem } from "@/server/dashboard";
+import { BURN_RATE_PERIODS, type BurnRatePeriod } from "@/lib/burn-rate";
 import { cn } from "@/lib/utils";
 
 import { BurnRateChart } from "./burn-rate-chart";
+import { BurnPeriodToggle } from "./burn-period-toggle";
+
+function isBurnPeriod(value: string | undefined): value is BurnRatePeriod {
+	return value !== undefined && (BURN_RATE_PERIODS as string[]).includes(value);
+}
 
 const STATUS_VERB: Record<string, { before: string; after?: string }> = {
 	proposed: { before: "proposed" },
@@ -105,9 +113,22 @@ function StatCard({
 	);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ period?: string }>;
+}) {
+	// URL param wins; otherwise fall back to the viewer's remembered choice
+	// (cookie set by the toggle); otherwise the all-time default.
+	const { period: periodParam } = await searchParams;
+	const cookiePeriod = (await cookies()).get("nq-burn-period")?.value;
+	const period: BurnRatePeriod = isBurnPeriod(periodParam)
+		? periodParam
+		: isBurnPeriod(cookiePeriod)
+			? cookiePeriod
+			: "all";
 	const { totals, burnRate, playing, upcomingEvents, activity, memberStats, completedEventCount } =
-		await getDashboardData();
+		await getDashboardData(period);
 	const projection = burnRate.projectedCompletionDate
 		? { label: format(new Date(burnRate.projectedCompletionDate), "MMM d") }
 		: null;
@@ -170,11 +191,16 @@ export default async function DashboardPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Burn rate</CardTitle>
-					<CardDescription>
-						Cumulative completed effort per week
-						{projection && " — dashed line projects the current pace"}.
-					</CardDescription>
+					<div className="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<CardTitle>Burn rate</CardTitle>
+							<CardDescription>
+								Cumulative completed effort
+								{projection && " — dashed line projects the current pace"}.
+							</CardDescription>
+						</div>
+						<BurnPeriodToggle active={period} />
+					</div>
 				</CardHeader>
 				<CardContent>
 					{burnRate.series.length > 0 ? (
