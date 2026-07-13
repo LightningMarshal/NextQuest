@@ -28,7 +28,12 @@ import {
 } from "@/server/metadata-search";
 import { cn } from "@/lib/utils";
 
-const PROVIDER_LABELS: Record<string, string> = { steam: "Steam", hltb: "HLTB", bgg: "BGG" };
+const PROVIDER_LABELS: Record<string, string> = {
+	steam: "Steam",
+	hltb: "HLTB",
+	bgg: "BGG",
+	rawg: "RAWG",
+};
 
 type ProposeKind = "video" | "ttrpg" | "boardgame";
 
@@ -156,6 +161,7 @@ export function ProposeForm() {
 				steamAppId: candidate.providerId === "steam" ? Number(candidate.externalId) : undefined,
 				hltbId: candidate.providerId === "hltb" ? candidate.externalId : undefined,
 				bggId: candidate.providerId === "bgg" ? candidate.externalId : undefined,
+				rawgId: candidate.providerId === "rawg" ? Number(candidate.externalId) : undefined,
 			});
 			setPreview(result);
 		} catch {
@@ -445,6 +451,9 @@ export function ProposeForm() {
 									)}
 									{selected.providerId === "hltb" && (
 										<input type="hidden" name="hltbId" value={selected.externalId} />
+									)}
+									{selected.providerId === "rawg" && (
+										<input type="hidden" name="rawgId" value={selected.externalId} />
 									)}
 									{selected.providerId === "bgg" && (
 										<input type="hidden" name="bggId" value={selected.externalId} />

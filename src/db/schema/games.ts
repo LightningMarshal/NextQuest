@@ -27,7 +27,14 @@ export const gameStatus = pgEnum("game_status", [
 	"rejected",
 ]);
 
-export const metadataSource = pgEnum("metadata_source", ["steam", "hltb", "bgg", "manual", "mixed"]);
+export const metadataSource = pgEnum("metadata_source", [
+	"steam",
+	"hltb",
+	"bgg",
+	"rawg",
+	"manual",
+	"mixed",
+]);
 
 // Discriminator for the tabletop expansion. Video games keep every existing
 // column meaning; ttrpg/boardgame rows get a 1:1 tabletop_details sidecar

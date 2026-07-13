@@ -32,3 +32,8 @@ CRON_SECRET=
 # for board game / TTRPG search and metadata (BGG + RPGGeek share the API).
 # Leave empty to disable - tabletop proposals fall back to manual entry.
 BGG_API_TOKEN=
+
+# Optional: RAWG API key (rawg.io/apidocs) — a supplemental video-game source
+# that fills art/description/genres/release/Metacritic when Steam is missing
+# or down. Leave empty to disable; Steam stays the canonical video source.
+RAWG_API_KEY=

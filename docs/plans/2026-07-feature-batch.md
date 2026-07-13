@@ -287,7 +287,27 @@ Flow changes (`event-card.tsx:163-206` wrap-up form + `recordAttendance`):
   populated by `cloneEventForward` — decide during implementation; not
   required for the capture goals.
 
-## WS5 — Additional data providers
+## WS5 — Additional data providers — ✅ done (2026-07-12)
+
+Shipped: (1) TTRPG/board cover images already work — BGG returns cover art for
+board games and RPG items (`bgg.ts`), and WS0's wildcard `next/image`
+allowlist renders geekdo/any-https hosts, so no image work was needed. (2) New
+`src/lib/metadata/rawg.ts` (RAWG provider, `GameMetadataProvider`) wired as a
+**Steam supplement**: fills art/description/genres/release/Metacritic that
+Steam left blank (Steam stays canonical), participates in the video typeahead,
+and is fully gated behind `RAWG_API_KEY` via `rawgConfigured()` — a keyless
+deployment (every current one) is a complete no-op with zero spurious
+failures. `rawgId` threaded through `fetchGameMetadata`/`previewCandidate`/
+`proposeGame`/propose-form exactly like `hltbId`. `metadata_source` enum gains
+`rawg` (migration 0013, append-only `ALTER TYPE ADD VALUE`); `mergedSource` is
+generic so refresh handles it unchanged. `RAWG_API_KEY` documented in
+`.dev.vars.example`. **IGDB deferred** (Twitch OAuth exchange — more surface,
+similar coverage). DriveThruRPG deferred (no public API; the manual tabletop
+cover field covers it). typecheck/lint/build green. Not exercisable in-sandbox
+(no key, no egress) — behavior is gated and mirrors the proven HLTB/BGG
+id-threading; verify against a keyed preview.
+
+Original notes:
 
 Priority order (owner intent: "at least load the TTRPG image"):
 1. **TTRPG/board-game images: already 90% solved.** `bgg.ts` returns

@@ -46,6 +46,7 @@ const proposeSchema = z.object({
 		.regex(/^\d+$/)
 		.max(20)
 		.optional(),
+	rawgId: z.coerce.number().int().positive().optional(),
 });
 
 /** Accepts a bare app id ("1145360") or any store URL containing /app/<id>/. */
@@ -64,6 +65,7 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		pitch: formData.get("pitch") || undefined,
 		steamAppId: formData.get("steamAppId") || undefined,
 		hltbId: formData.get("hltbId") || undefined,
+		rawgId: formData.get("rawgId") || undefined,
 	});
 	const steamAppId = input.steamAppId ?? parseSteamAppId(input.steam);
 
@@ -87,6 +89,7 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		title: input.title,
 		steamAppId,
 		hltbId: input.hltbId,
+		rawgId: input.rawgId,
 	});
 
 	const lengthHours = metadata.hltbMainExtra ?? metadata.hltbMain;
