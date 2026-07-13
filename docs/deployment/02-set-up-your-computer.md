@@ -62,6 +62,21 @@ npm --version
 > that downloads the app's dependencies and runs project commands like
 > `npm run dev`.
 
+> [!WARNING]
+> **Windows / PowerShell:** if `npm --version` errors with *"npm.ps1 cannot
+> be loaded because running scripts is disabled on this system"*, PowerShell
+> is blocking the script `npm` ships as. Allow locally-created and
+> signed-remote scripts for your user only:
+>
+> ```powershell
+> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+> ```
+>
+> Answer `Y` when prompted, then reopen the terminal and try again. This
+> affects only your user account and still blocks unsigned scripts
+> downloaded from the internet. (Alternatively, run the commands from "Git
+> Bash", installed with git below, which isn't subject to this policy.)
+
 ## Install git
 
 git is the tool that downloads ("clones") the code and later pulls
@@ -90,14 +105,19 @@ git --version
 Pick or make a folder for projects, then clone the repository and step
 into it. Replace `<repo-url>` with the address of your copy of the repo
 (on the GitHub page, the green **Code** button shows it — use the HTTPS
-one):
+one, which ends in `.git`):
 
 **All platforms**
 
 ```bash
-git clone https://github.com/CybrRunnr/NextQuest.git
-cd .\NextQuest\
+git clone <repo-url>
+cd NextQuest
 ```
+
+> [!NOTE]
+> `git clone` creates a folder named after the repo (here, `NextQuest`) in
+> your current directory. If your repo has a different name, `cd` into that
+> name instead.
 
 > [!NOTE]
 > `cd` means "change directory". Every command in the rest of this guide

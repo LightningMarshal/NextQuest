@@ -159,12 +159,51 @@ theme system (dark/light), route + server-action stubs, docs.
   prefills are propose-only, never rewritten on refresh; cron refreshes
   BGG-pinned tabletop rows (migration 0011, additive)
 
+## Phase 13 — Coordination polish & fixes ✅ (done)
+
+- Event scheduling hardened: past dates rejected (server + picker `min`) on
+  both the create-event form and GAC polls, 15-minute increments enforced,
+  and the client date→ISO conversion guarded so a bad value shows a field
+  error instead of crashing
+- A proposal needs a second: `transitionGameStatus` blocks the proposer from
+  adding their own game to the backlog (self-voting stays — anonymity)
+- Per-viewer burn-rate period toggle (weekly/monthly/yearly/all-time) via
+  `?period=` + a `nq-burn-period` cookie; projection stays weekly-based
+
+## Phase 14 — Browse & game detail ✅ (done)
+
+- `/backlog/[gameId]` detail page: full pitch/description/metadata, tabletop
+  info line, and per-game session history (events joined on `game_id`); cards
+  link through by art + title
+- Backlog Type/Genre/Mode/Tags filter rows (vocabulary from the library),
+  composing with sort; a Genre filter on `/pick` alongside the `kind` chips
+- Completion moved off the card face into the Manage expander + detail page
+  (`completed` is terminal — no accidental one-tap)
+
+## Phase 15 — Session capture ✅ (done)
+
+- Wrap-up captures `recap`, a 1–5 `how_it_went` rating, a `progress_note`
+  ("where we left off"), and confirms *what was actually played* — recap now
+  has its own column so planning notes survive (migration 0012)
+- Recap/rating/progress shown on completed event cards and the game detail
+  Sessions card
+
+## Phase 16 — RAWG provider ✅ (done)
+
+- `rawg` provider (optional `RAWG_API_KEY`) supplements Steam with
+  art/description/genres/release/Metacritic when Steam is blank; gated to a
+  no-op without a key; joins the video typeahead and `fetchGameMetadata`
+  (migration 0013 — `metadata_source` gains `rawg`)
+
 ## Future ideas (unscheduled)
 
-- Additional metadata/search providers (IGDB, RAWG) behind the existing
-  provider interface
+- IGDB provider (needs a Twitch OAuth client-credentials exchange — deferred
+  behind RAWG, similar coverage)
 - DriveThruRPG page-count crunch heuristic for TTRPGs (undocumented API —
   research 2026-07: page count is the best available crunch proxy)
 - Community crunch ratings (accumulate our own BGG-style weight over time)
-- Mood/genre filters as picker context
+- A dedicated "mood" taxonomy for the picker (today mood rides genre/mode/tags)
+- Dashboard activity rows for completed sessions; a real `session_number`
+  column (today it lives in the title string)
+- First-time user tutorial (issue #13)
 - Keyboard navigation for the propose-form search dropdown

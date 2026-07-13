@@ -234,3 +234,65 @@ only and are never written on refresh** — the tabletop analog of "refresh
 never touches games.*"; refresh only updates `game_metadata` (art,
 description, genres, bggRating/bggWeight). DriveThruRPG page-count crunch
 seeding stays a future idea: the API is undocumented and the proxy is weak.
+
+## 2026-07-12 — Backfilled: member tags + vote-milestone pings
+
+Two features that shipped before this log existed, recorded for completeness:
+
+- **Member tags** (`tags`/`game_tags`): a free-form shared vocabulary
+  alongside the structured `game_type` and provider genres. Names are
+  normalized (trim + lowercase) and unique so "RPG"/"rpg" don't fork;
+  zero-assignment tags are kept as filter/autocomplete vocabulary.
+- **Vote-milestone Discord pings**: when a game's group total crosses a
+  configured threshold (`app_settings.vote_milestones`, default [5,10,15]) it
+  pings Discord once *ever*. The `game_vote_milestones` ledger (PK
+  `(game_id, milestone)`) makes "notify once" an atomic
+  `onConflictDoNothing` — no transactions on Neon HTTP. Only aggregate totals
+  are used, so the anonymity invariant holds.
+
+## 2026-07-12 — A proposal needs a second
+
+`transitionGameStatus` blocks the `proposed → backlog` move when the caller
+is the game's proposer ("someone else has to add your proposal"). Cheap
+guard against a member unilaterally promoting their own pick; every other
+transition stays open to any member. Voting on your own game is **not**
+blocked — votes are anonymous, and disabling a member's own games on the
+ballot would leak which ones are theirs.
+
+## 2026-07-12 — Burn-rate period toggle: URL + cookie, weekly projection
+
+Each viewer can switch the burn-rate x-axis (weekly / monthly / yearly /
+all-time). No per-user settings table exists (single-tenant, `app_settings`
+is global), and one isn't worth it for a view preference: the choice rides a
+`?period=` param (shareable, re-rendered by the force-dynamic layout) plus a
+`nq-burn-period` cookie so it sticks per browser. `all-time` reproduces the
+pre-toggle view, so the default is unchanged. The projection always regresses
+over the **weekly** series regardless of the displayed bucket — its
+`slice(-12)` window and points/week units assume weeks, and re-deriving per
+period would add noise for no gain.
+
+## 2026-07-12 — Session capture: columns on events, recap ≠ notes
+
+Wrapping up a session used to write the recap into `events.notes` — the same
+column as the pre-session planning notes — destroying the plan. Fixed by
+giving the post-session write-up its own columns on `events` (1 event = 1
+session, so no sidecar): `recap`, `how_it_went` (1–5), `progress_note`
+(campaign continuity). Wrap-up also confirms *what was actually played*
+(editable game link, defaulting to the plan). Additive migration; no
+points/vote surfaces touched. Deferred: dashboard activity rows for completed
+sessions, and promoting the title-embedded session number to a real column —
+neither is needed for the capture goals.
+
+## 2026-07-12 — RAWG as a Steam supplement; IGDB deferred; mood = filters
+
+RAWG joins as a *supplement*, not a peer: it fills art/description/genres/
+release/Metacritic that Steam left blank, and Steam stays canonical (its
+review % and category-derived play-modes have no RAWG equivalent). Gated
+behind an optional `RAWG_API_KEY` via `rawgConfigured()`, so a keyless
+deployment is a complete no-op — no requests, no spurious failures in the
+propose UI — matching the BGG/Discord optional-secret pattern. `rawgId` is
+threaded through preview/propose exactly like `hltbId`; `metadata_source`
+gains `rawg` (append-only). **IGDB deferred**: its Twitch OAuth
+client-credentials exchange is more surface for similar coverage. A dedicated
+**mood** taxonomy is also deferred — mood rides the existing genre/mode/tag
+filters (a member can make a "chill" or "brainburner" tag today).

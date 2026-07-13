@@ -333,7 +333,22 @@ Priority order (owner intent: "at least load the TTRPG image"):
    + migration), `PROVIDER_LABELS` (`propose-form.tsx:31`), and cover hosts
    (moot with the wildcard). Document `RAWG_API_KEY` in `.dev.vars.example`.
 
-## WS6 — Documentation refresh
+## WS6 — Documentation refresh — ✅ done (2026-07-12)
+
+Shipped: ARCHITECTURE.md gained a Tags section, `game_vote_milestones`,
+`game_metadata.last_refresh_attempt_at`/`source`, the events session-capture
+columns, the RAWG provider + deployment-diagram entry, the burn-rate period
+model, and a Backlog-browse/game-detail section. ROADMAP.md pruned "Future
+ideas" (RAWG/mood done) and added Phases 13–16 (fixes+burn periods, browse+
+detail, session capture, RAWG). DECISIONS.md added ADRs for the batch
+(self-approval, burn-rate period toggle, session capture, RAWG-supplement/
+IGDB-deferred/mood-as-filters) plus backfilled tags + vote-milestone entries.
+CLAUDE.md updated the schema-domain list (availability, tags), the server/lib
+map (crons, burn-rate.ts, rawg), and `RAWG_API_KEY`. Deployment guide fixed
+issue #6 (generic clone URL + cross-platform `cd`) and issue #5 (PowerShell
+execution-policy callout). Docs-only; no code touched.
+
+Original notes:
 
 Audit result: docs are current through Phase 12; the gaps are specific:
 - `docs/ARCHITECTURE.md`: add **Tags** (`tags`/`game_tags`, migration 0004)
