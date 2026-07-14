@@ -23,6 +23,7 @@ import {
 	tabletopInfoLine,
 	type GameStatus,
 } from "../game-display";
+import { StatTiles, videoStatTiles } from "../stat-tiles";
 
 async function getGameDetail(gameId: string) {
 	const db = getDb();
@@ -108,11 +109,11 @@ export default async function GameDetailPage({
 		GameStatus,
 		string,
 	][];
+	// Reception/HLTB numbers render as stat tiles below; this line keeps the
+	// group's own numbers plus the tabletop-only BGG rating.
 	const meta = [
 		lengthLabel(game, tabletop),
 		game.difficulty ? `${isTabletop ? "Crunch" : "Difficulty"} ${game.difficulty}` : null,
-		metadata?.steamReviewScore != null ? `${metadata.steamReviewScore}% positive` : null,
-		metadata?.metacriticScore != null ? `Metacritic ${metadata.metacriticScore}` : null,
 		metadata?.bggRating != null ? `BGG ${Number(metadata.bggRating).toFixed(1)}` : null,
 		game.status === "backlog" ? `${voteTotal} vote${voteTotal === 1 ? "" : "s"}` : null,
 	].filter(Boolean);
@@ -147,7 +148,14 @@ export default async function GameDetailPage({
 						<div className="bg-muted h-full w-full" />
 					)}
 					<span className="absolute top-3 left-3 flex items-center gap-1">
-						<Badge variant={badge.variant}>{badge.label}</Badge>
+						{/* Outline badges are transparent — over art they need the same
+						    scrim as the type badge (see game-card.tsx). */}
+						<Badge
+							variant={badge.variant}
+							className={badge.variant === "outline" ? "bg-background/60 backdrop-blur" : undefined}
+						>
+							{badge.label}
+						</Badge>
 						{isTabletop && (
 							<Badge variant="outline" className="bg-background/60 backdrop-blur">
 								{GAME_TYPE_LABELS[game.gameType as keyof typeof GAME_TYPE_LABELS]}
@@ -175,6 +183,9 @@ export default async function GameDetailPage({
 					{meta.length > 0 && (
 						<p className="stat text-muted-foreground text-sm">{meta.join(" · ")}</p>
 					)}
+
+					{/* Decision strip (video only): HLTB times, reception, release year. */}
+					{!isTabletop && <StatTiles tiles={videoStatTiles(metadata)} />}
 
 					{tabletopInfo && <p className="text-muted-foreground text-sm">{tabletopInfo}</p>}
 

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
+import { HistoryIcon, RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 	lengthLabel as gameLengthLabel,
 	tabletopInfoLine,
 } from "./game-display";
+import { StatTiles, videoStatTiles } from "./stat-tiles";
 
 type Game = typeof schema.games.$inferSelect;
 type Metadata = typeof schema.gameMetadata.$inferSelect;
@@ -93,7 +94,16 @@ export function GameCard({
 					<div className="bg-muted h-full w-full" />
 				)}
 				<span className="absolute top-2 left-2 flex items-center gap-1">
-					<Badge variant={badge.variant}>{badge.label}</Badge>
+					{/* Outline badges are transparent — over key art the text lands on
+					    whatever the artwork is (unreadable "proposed"), so over-art
+					    outline badges get the same scrim as the type badge and EFFORT
+					    chip. Solid variants keep their own background. */}
+					<Badge
+						variant={badge.variant}
+						className={badge.variant === "outline" ? "bg-background/60 backdrop-blur" : undefined}
+					>
+						{badge.label}
+					</Badge>
 					{isTabletop && (
 						<Badge variant="outline" className="bg-background/60 backdrop-blur">
 							{GAME_TYPE_LABELS[game.gameType as keyof typeof GAME_TYPE_LABELS]}
@@ -116,7 +126,8 @@ export function GameCard({
 					</Link>
 				</h3>
 
-				{/* Nova: single mono meta row. */}
+				{/* Nova: single mono meta row. Review scores moved to the stat tiles
+				    below — this row is the group's own numbers (length/difficulty/votes). */}
 				<p className="stat text-muted-foreground text-xs">
 					{[
 						lengthLabel,
@@ -124,21 +135,18 @@ export function GameCard({
 					]
 						.filter(Boolean)
 						.join(" · ")}
-					{metadata?.steamReviewScore != null && (
-						<>
-							{(lengthLabel || game.difficulty) && " · "}
-							<span className="text-success font-medium">{metadata.steamReviewScore}%</span>
-						</>
-					)}
 					{voteTotal !== undefined && (
 						<>
-							{" · "}
+							{(lengthLabel || game.difficulty) && " · "}
 							<span className="text-foreground">
 								{voteTotal} vote{voteTotal === 1 ? "" : "s"}
 							</span>
 						</>
 					)}
 				</p>
+
+				{/* Decision strip (video only): HLTB times, reception, release year. */}
+				{!isTabletop && <StatTiles tiles={videoStatTiles(metadata)} />}
 
 				{tabletopInfo && <p className="text-muted-foreground text-xs">{tabletopInfo}</p>}
 
@@ -151,6 +159,16 @@ export function GameCard({
 								{" · "}next: <LocalTime date={sessions.nextAt} />
 							</span>
 						)}
+					</p>
+				)}
+
+				{/* "Have we played this?" — any game with completed linked sessions
+				    gets the receipt (the campaign strip already covers playing
+				    tabletop games). Big vote-time signal for re-proposals. */}
+				{!(isTabletop && game.status === "playing") && (sessions?.held ?? 0) > 0 && (
+					<p className="stat text-muted-foreground flex items-center gap-1 text-xs">
+						<HistoryIcon className="size-3" />
+						group has played this · {sessions!.held} session{sessions!.held === 1 ? "" : "s"}
 					</p>
 				)}
 
