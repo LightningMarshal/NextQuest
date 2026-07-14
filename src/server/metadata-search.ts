@@ -21,6 +21,13 @@ import { requireApprovedUser } from "@/server/session";
 
 const MAX_PER_PROVIDER = 8;
 
+// Same operator-visibility contract as fetchGameMetadata: users see graceful
+// degradation, `wrangler tail` sees the actual provider error.
+function logSearchFailure(provider: string, error: unknown) {
+	const message = error instanceof Error ? error.message : String(error);
+	console.warn(`[metadata] ${provider} search failed: ${message}`);
+}
+
 const querySchema = z.string().trim().min(2).max(100);
 
 export type SearchCandidatesResult = {
@@ -41,7 +48,8 @@ export async function searchGameCandidates(
 		try {
 			const results = await bggProvider.search(query);
 			return { candidates: results.slice(0, MAX_PER_PROVIDER * 2), failures: [] };
-		} catch {
+		} catch (error) {
+			logSearchFailure(bggProvider.id, error);
 			return { candidates: [], failures: [bggProvider.id] };
 		}
 	}
@@ -60,12 +68,21 @@ export async function searchGameCandidates(
 	const candidates: GameSearchResult[] = [];
 	const failures: string[] = [];
 	if (steam.status === "fulfilled") candidates.push(...steam.value.slice(0, MAX_PER_PROVIDER));
-	else failures.push(steamProvider.id);
+	else {
+		logSearchFailure(steamProvider.id, steam.reason);
+		failures.push(steamProvider.id);
+	}
 	if (hltb.status === "fulfilled") candidates.push(...hltb.value.slice(0, MAX_PER_PROVIDER));
-	else failures.push(hltbProvider.id);
+	else {
+		logSearchFailure(hltbProvider.id, hltb.reason);
+		failures.push(hltbProvider.id);
+	}
 	if (useRawg) {
 		if (rawg.status === "fulfilled") candidates.push(...rawg.value.slice(0, MAX_PER_PROVIDER));
-		else failures.push(rawgProvider.id);
+		else {
+			logSearchFailure(rawgProvider.id, rawg.reason);
+			failures.push(rawgProvider.id);
+		}
 	}
 
 	return { candidates, failures };
