@@ -322,13 +322,24 @@ export function ProposeForm() {
 												</Badge>
 											</button>
 										))}
-										{results.candidates.length === 0 && (
-											<p className="text-muted-foreground px-3 py-2 text-sm">No matches found.</p>
-										)}
+										{results.candidates.length === 0 &&
+											(results.unconfigured?.length ?? 0) === 0 && (
+												<p className="text-muted-foreground px-3 py-2 text-sm">No matches found.</p>
+											)}
 										{results.failures.length > 0 && (
 											<p className="text-destructive border-border border-t px-3 py-2 text-xs">
 												{results.failures.map((f) => PROVIDER_LABELS[f] ?? f).join(" and ")} search
 												failed — results may be incomplete.
+											</p>
+										)}
+										{/* Missing secret ≠ outage: name the fix instead of implying a retry
+										    will help (BGG search needs the BGG_API_TOKEN Worker secret). */}
+										{(results.unconfigured?.length ?? 0) > 0 && (
+											<p className="text-muted-foreground px-3 py-2 text-xs">
+												{results.unconfigured!.map((f) => PROVIDER_LABELS[f] ?? f).join(" and ")}{" "}
+												search is switched off on this deployment — an admin can enable it by
+												setting the <code className="stat">BGG_API_TOKEN</code> secret
+												(deployment guide, ch. 08). Manual entry below works fine meanwhile.
 											</p>
 										)}
 										<button

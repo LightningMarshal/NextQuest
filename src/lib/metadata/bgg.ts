@@ -20,16 +20,25 @@ const FETCH_TIMEOUT_MS = 8_000;
 // The thing endpoint answers 202 while it builds a response — retry once.
 const QUEUE_RETRY_DELAY_MS = 1_200;
 
-function apiToken(): string {
+function readToken(): string | undefined {
 	// Request-scoped env (CLAUDE.md #6); the cast mirrors src/lib/discord.ts
 	// for optional secrets that aren't in the generated env type.
-	let token: string | undefined;
 	try {
 		const { env } = getCloudflareContext();
-		token = (env as { BGG_API_TOKEN?: string }).BGG_API_TOKEN;
+		return (env as { BGG_API_TOKEN?: string }).BGG_API_TOKEN || undefined;
 	} catch {
-		token = undefined;
+		return undefined;
 	}
+}
+
+/** Mirrors rawgConfigured() — lets callers distinguish "no token set" from a
+ * provider outage instead of lumping both into a generic search failure. */
+export function bggConfigured(): boolean {
+	return readToken() !== undefined;
+}
+
+function apiToken(): string {
+	const token = readToken();
 	if (!token) {
 		throw new Error("BGG_API_TOKEN is not configured — BGG lookups are disabled.");
 	}
