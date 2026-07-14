@@ -38,7 +38,11 @@ What each step does and what to expect:
    shipped ([what's a migration? →](01-what-you-are-about-to-do.md#what-is-a-migration)).
    Safe to run every time: it skips everything already applied, and "no
    migrations to apply" is a normal outcome. Never skip this step — new
-   code that expects a new table will crash without it.
+   code that expects a new table or column will crash without it (a whole
+   page can go down over one missing column).
+   As a safety net, `npm run deploy` now runs this automatically before
+   deploying — but running it yourself first, before the `preview` dress
+   rehearsal, means you rehearse against the updated database.
 4. **`npm run preview`** — the dress rehearsal under Cloudflare's runtime
    ([chapter 07](07-run-it-on-your-computer.md#dress-rehearsal-under-the-real-runtime)).
    Check the local URL it prints renders, then <kbd>Ctrl</kbd>+<kbd>C</kbd>.

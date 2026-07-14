@@ -40,7 +40,17 @@ type HltbResult = {
 
 type HltbSearchResponse = { data?: HltbResult[] };
 
-/** The `/api/<seg>` search path, discovered from the current app bundle. */
+// Last-known search path — the reference lib's static fallback when bundle
+// discovery fails (howlongtobeatpy HTMLRequests.SEARCH_URL).
+const FALLBACK_ENDPOINT = "/api/s";
+
+/**
+ * The `/api/<seg>` search path, discovered from the current app bundle.
+ * Two passes like the reference lib: scripts whose src contains "_app-"
+ * first, then every script on the page (HLTB has moved code between bundles
+ * before — pages/_app may not exist at all after a router migration).
+ * Falls back to FALLBACK_ENDPOINT instead of failing outright.
+ */
 async function discoverSearchEndpoint(): Promise<string> {
 	const homepage = await fetch(BASE, {
 		headers: { "User-Agent": USER_AGENT },
@@ -49,13 +59,14 @@ async function discoverSearchEndpoint(): Promise<string> {
 	if (!homepage.ok) throw new Error(`HLTB homepage: ${homepage.status}`);
 	const html = await homepage.text();
 
-	// Hashes have grown to include - and . over time; scan all _app chunks.
-	const chunkPaths = [...html.matchAll(/_next\/static\/chunks\/pages\/_app-[\w.-]+\.js/g)].map(
-		(m) => m[0]
-	);
-	if (chunkPaths.length === 0) throw new Error("HLTB: _app chunk not found (layout changed)");
+	// All external scripts, resolved to paths (src may be absolute or relative).
+	const scriptPaths = [...html.matchAll(/<script[^>]+src=["']([^"']+\.js)[^"']*["']/g)]
+		.map((m) => m[1].replace(/^https?:\/\/[^/]+/, "").replace(/^\/?/, ""))
+		.filter((src) => src.includes("_next/"));
+	const appChunks = scriptPaths.filter((src) => src.includes("_app-"));
+	const rest = scriptPaths.filter((src) => !src.includes("_app-"));
 
-	for (const chunkPath of chunkPaths) {
+	for (const chunkPath of [...appChunks, ...rest]) {
 		const chunkRes = await fetch(`${BASE}/${chunkPath}`, {
 			headers: { "User-Agent": USER_AGENT },
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -72,7 +83,7 @@ async function discoverSearchEndpoint(): Promise<string> {
 			)?.[1] ?? js.match(/fetch\(\s*["']\/api\/([a-z0-9_/]+)/i)?.[1];
 		if (seg) return `/api/${seg.split("/")[0]}`;
 	}
-	throw new Error("HLTB: search endpoint pattern not found (API changed)");
+	return FALLBACK_ENDPOINT;
 }
 
 /**
@@ -82,7 +93,9 @@ async function discoverSearchEndpoint(): Promise<string> {
  * degrades like any other failure.
  */
 async function fetchAuthToken(apiPath: string): Promise<HltbAuth> {
-	const res = await fetch(`${BASE}${apiPath}/init`, {
+	// The ?t=<ms> cache-buster matches the site's own /init call (and the
+	// reference lib); without it the response can be a stale cached handshake.
+	const res = await fetch(`${BASE}${apiPath}/init?t=${Date.now()}`, {
 		headers: { "User-Agent": USER_AGENT, Accept: "*/*", Referer: `${BASE}/` },
 		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 	});
@@ -103,6 +116,17 @@ async function fetchAuthToken(apiPath: string): Promise<HltbAuth> {
 
 async function searchHltb(query: string): Promise<HltbResult[]> {
 	const apiPath = await discoverSearchEndpoint();
+	try {
+		return await postSearch(apiPath, query);
+	} catch (error) {
+		// A discovered endpoint the API rejects usually means the bundle regex
+		// grabbed the wrong path — retry once against the last-known static one.
+		if (apiPath === FALLBACK_ENDPOINT) throw error;
+		return await postSearch(FALLBACK_ENDPOINT, query);
+	}
+}
+
+async function postSearch(apiPath: string, query: string): Promise<HltbResult[]> {
 	const auth = await fetchAuthToken(apiPath);
 
 	const headers: Record<string, string> = {
@@ -127,8 +151,11 @@ async function searchHltb(query: string): Promise<HltbResult[]> {
 				platform: "",
 				sortCategory: "popular",
 				rangeCategory: "main",
-				rangeTime: { min: null, max: null },
-				gameplay: { perspective: "", flow: "", genre: "" },
+				// Field shapes mirror the site's own payload exactly (via the
+				// reference lib) — 0s not nulls, and the difficulty key present —
+				// deviations get rejected by their API validation.
+				rangeTime: { min: 0, max: 0 },
+				gameplay: { perspective: "", flow: "", genre: "", difficulty: "" },
 				rangeYear: { min: "", max: "" },
 				modifier: "",
 			},

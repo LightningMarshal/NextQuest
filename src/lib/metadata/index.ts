@@ -8,6 +8,13 @@ export type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } f
 export { manualMetadata } from "./manual";
 export { steamProvider, hltbProvider, bggProvider, rawgProvider };
 
+// Degradation stays silent for users but not for operators: `wrangler tail`
+// (or the dashboard's live logs) shows exactly which provider broke and why.
+function logProviderFailure(provider: string, error: unknown) {
+	const message = error instanceof Error ? error.message : String(error);
+	console.warn(`[metadata] ${provider} fetch failed: ${message}`);
+}
+
 export type FetchMetadataResult = {
 	metadata: NormalizedGameMetadata;
 	/** Provider ids that contributed data, e.g. ["steam", "hltb"]. */
@@ -43,7 +50,8 @@ export async function fetchGameMetadata(params: {
 			raw.bgg = (bgg.raw as Record<string, unknown> | undefined)?.bgg;
 			Object.assign(metadata, bgg, { raw: undefined });
 			sources.push(bggProvider.id);
-		} catch {
+		} catch (error) {
+			logProviderFailure(bggProvider.id, error);
 			failures.push(bggProvider.id);
 		}
 		metadata.raw = Object.keys(raw).length > 0 ? raw : undefined;
@@ -56,7 +64,8 @@ export async function fetchGameMetadata(params: {
 			raw.steam = steam.raw;
 			Object.assign(metadata, steam, { raw: undefined });
 			sources.push(steamProvider.id);
-		} catch {
+		} catch (error) {
+			logProviderFailure(steamProvider.id, error);
 			failures.push(steamProvider.id);
 		}
 	}
@@ -76,7 +85,8 @@ export async function fetchGameMetadata(params: {
 			raw.hltb = hltb.raw;
 			sources.push(hltbProvider.id);
 		}
-	} catch {
+	} catch (error) {
+		logProviderFailure(hltbProvider.id, error);
 		failures.push(hltbProvider.id);
 	}
 
@@ -103,7 +113,8 @@ export async function fetchGameMetadata(params: {
 				raw.rawg = (rawg.raw as Record<string, unknown> | undefined)?.rawg;
 				sources.push(rawgProvider.id);
 			}
-		} catch {
+		} catch (error) {
+			logProviderFailure(rawgProvider.id, error);
 			failures.push(rawgProvider.id);
 		}
 	}

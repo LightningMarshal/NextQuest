@@ -8,6 +8,11 @@ NEXTJS_ENV=development
 # Neon Postgres connection string (pooled HTTP endpoint)
 DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/next_quest?sslmode=require
 
+# Optional, local testing only: route the Neon driver's HTTP transport to a
+# local Neon-protocol proxy over plain Postgres (e.g. http://127.0.0.1:4445/sql)
+# instead of https://<host>/sql. Leave unset normally; never set in production.
+# NEON_HTTP_PROXY_ENDPOINT=
+
 # Better Auth — generate a secret with `npx @better-auth/cli secret`
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=http://localhost:3000
