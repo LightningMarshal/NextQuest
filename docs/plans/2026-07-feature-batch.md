@@ -65,9 +65,10 @@ link).
 
 ## WS1 — Bug fixes (small; ship first)
 
-**Status (2026-07-12): 1a, 1b, 1c ✅ done and pushed. 1d deferred (HLTB
-unreachable from the execution sandbox — needs an egress-open environment).
-1e skipped for now per owner.**
+**Status (2026-07-12): 1a, 1b, 1c ✅ done and pushed. 1d ✅ code done
+(HLTB endpoint + /init auth scheme ported from the maintained reference
+ScrappyCocco/HowLongToBeat-PythonAPI; unverifiable in-sandbox — needs an
+egress-open `npm run preview` to confirm). 1e skipped for now per owner.**
 
 ### 1a. Past-date event crash + validation — ✅ done
 There is currently **no past-date validation anywhere**, and the most
@@ -115,7 +116,19 @@ Today `transitionGameStatus` (`src/server/games.ts:321-370`) gates only on
   "Add to backlog" button for the proposer and show a muted hint instead.
   Server check is the source of truth; UI is a courtesy.
 
-### 1d. HLTB scraping broken — deferred (sandbox egress blocks HLTB)
+### 1d. HLTB scraping broken — ✅ code done (ported; needs egress-open verify)
+
+Fixed by porting HLTB's current scheme from the maintained reference
+`ScrappyCocco/HowLongToBeat-PythonAPI` (GitHub is reachable even though
+howlongtobeat.com is egress-blocked): `discoverSearchEndpoint` now finds the
+endpoint via a POST-`fetch` regex (+ loose fallback) and scans all `_app`
+chunks; a new `fetchAuthToken` performs the `/api/<seg>/init` handshake
+(token + key/val, dynamic field scan); `searchHltb` sends
+`x-auth-token`/`x-hp-key`/`x-hp-val` headers and injects the key/val into the
+payload. Dependency-free, Workers-safe, fail-safe (any miss → manual entry).
+Parsing logic unit-checked against synthetic bundle shapes; the live
+endpoint/handshake can't be exercised here — confirm in a real-internet
+`npm run preview`. Original diagnosis retained below:
 `src/lib/metadata/hltb.ts` reverse-engineers HLTB's Next.js bundle per
 request: regex 1 finds the `_app-*.js` chunk (`:43`), regex 2 extracts the
 rotating endpoint+key from a `fetch("/api/<path>/".concat(...))` pattern

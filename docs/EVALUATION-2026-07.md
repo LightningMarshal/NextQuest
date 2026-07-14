@@ -149,8 +149,12 @@ member stats.
 - **RAWG is unexercised.** Gated to a no-op without `RAWG_API_KEY`; the
   provider code mirrors the proven HLTB/BGG id-threading but has never hit
   the real API here. Verify against a keyed preview before relying on it.
-- **HLTB status unknown.** Assume-broken until confirmed in an
-  egress-capable environment (see #3 above).
+- **HLTB fix ported, unverified.** `hltb.ts` was updated to HLTB's current
+  endpoint-discovery + `/api/<seg>/init` auth handshake, ported from the
+  maintained `howlongtobeatpy` reference (the parsing is unit-checked against
+  synthetic bundles; the live handshake couldn't be exercised — howlongtobeat.com
+  is egress-blocked). Confirm in a real-internet `npm run preview`; if it fails,
+  the localized fix is `fetchAuthToken`'s field mapping.
 - **Preview/click-through verification pending.** Every UI change this batch
   passed typecheck/lint/build but was not exercised in a running app (the
   build environment has no database). A `npm run preview` pass against a real
