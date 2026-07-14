@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
 import { CalendarPlusIcon, Loader2Icon } from "lucide-react";
 
@@ -9,6 +9,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createEvent } from "@/server/events";
+
+/** Now rounded up to the next quarter hour, as a datetime-local string. */
+function nextQuarterHourLocal(): string {
+	const next = new Date(Math.ceil(Date.now() / 900_000) * 900_000);
+	return new Date(next.getTime() - next.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+const emptySubscribe = () => () => {};
+
+/**
+ * The picker's `min` floor is local-time-dependent, so the server (and
+ * hydration pass) renders no floor and the client snapshot supplies it —
+ * same useSyncExternalStore dance as LocalTime.
+ */
+export function useMinDatetimeLocal(): string | undefined {
+	return useSyncExternalStore(emptySubscribe, nextQuarterHourLocal, () => undefined);
+}
 
 function SubmitButton() {
 	const { pending } = useFormStatus();
@@ -26,13 +43,26 @@ export function CreateEventForm({
 	games: { id: string; title: string }[];
 }) {
 	const formRef = useRef<HTMLFormElement>(null);
+	const [error, setError] = useState<string | null>(null);
+	const minWhen = useMinDatetimeLocal();
 
 	async function handleAction(formData: FormData) {
+		setError(null);
 		// datetime-local is timezone-less; convert to ISO here, where we know
 		// the browser's timezone — the server runs in UTC.
 		const local = String(formData.get("scheduledAtLocal") ?? "");
-		if (local) formData.set("scheduledAt", new Date(local).toISOString());
-		await createEvent(formData);
+		const when = new Date(local);
+		if (Number.isNaN(when.getTime())) {
+			setError("That date and time couldn't be read — please re-pick it.");
+			return;
+		}
+		formData.set("scheduledAt", when.toISOString());
+		try {
+			await createEvent(formData);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Something went wrong — try again.");
+			return;
+		}
 		formRef.current?.reset();
 	}
 
@@ -67,7 +97,14 @@ export function CreateEventForm({
 						</div>
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="event-when">When</Label>
-							<Input id="event-when" name="scheduledAtLocal" type="datetime-local" required />
+							<Input
+								id="event-when"
+								name="scheduledAtLocal"
+								type="datetime-local"
+								required
+								min={minWhen}
+								step={900}
+							/>
 						</div>
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="event-duration">Duration (minutes, optional)</Label>
@@ -89,6 +126,7 @@ export function CreateEventForm({
 							className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 						/>
 					</div>
+					{error && <p className="text-destructive text-sm">{error}</p>}
 					<div>
 						<SubmitButton />
 					</div>

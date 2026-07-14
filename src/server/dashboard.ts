@@ -3,7 +3,9 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import {
 	buildBurnRateSeries,
+	PERIOD_CONFIG,
 	projectCompletionDate,
+	type BurnRatePeriod,
 	type BurnRatePoint,
 } from "@/lib/burn-rate";
 
@@ -73,7 +75,7 @@ export type ActivityItem =
 			scheduledAt: Date;
 	  };
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<DashboardData> {
 	const db = getDb();
 	const effectivePoints = sql<number | null>`coalesce(${schema.games.pointsOverride}, ${schema.games.points})`;
 
@@ -216,8 +218,13 @@ export async function getDashboardData(): Promise<DashboardData> {
 		}
 	}
 
-	const series = buildBurnRateSeries([...firstCompletion.values()]);
-	const projection = projectCompletionDate(series, totalPoints, completedPoints);
+	const events = [...firstCompletion.values()];
+	// The projection always runs on the weekly series — regressionSlope's
+	// last-12 window and points/week units assume weeks. The display series
+	// only changes the chart's x-axis bucketing.
+	const weeklySeries = buildBurnRateSeries(events, { bucket: "week" });
+	const series = buildBurnRateSeries(events, PERIOD_CONFIG[period]);
+	const projection = projectCompletionDate(weeklySeries, totalPoints, completedPoints);
 
 	return {
 		totals,

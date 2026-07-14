@@ -1,0 +1,1 @@
+ALTER TYPE "public"."metadata_source" ADD VALUE 'rawg' BEFORE 'manual';

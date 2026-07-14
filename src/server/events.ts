@@ -13,15 +13,29 @@ type Rsvp = (typeof schema.rsvpStatus.enumValues)[number];
 const createEventSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
 	gameId: z.string().uuid().optional(),
-	scheduledAt: z.coerce.date(),
-	durationMinutes: z.coerce.number().int().positive().max(24 * 60).optional(),
+	scheduledAt: z.coerce
+		.date()
+		.refine((d) => d.getTime() > Date.now(), "Pick a time in the future.")
+		// Every real UTC offset is a multiple of 15 min, so UTC alignment ⇔
+		// local alignment; datetime-local never carries seconds.
+		.refine(
+			(d) => d.getUTCMinutes() % 15 === 0 && d.getUTCSeconds() === 0,
+			"Start times use 15-minute increments."
+		),
+	durationMinutes: z.coerce
+		.number()
+		.int()
+		.positive()
+		.max(24 * 60)
+		.multipleOf(15, "Duration uses 15-minute increments.")
+		.optional(),
 	location: z.string().trim().max(300).optional(),
 	notes: z.string().trim().max(5000).optional(),
 });
 
 export async function createEvent(formData: FormData): Promise<void> {
 	const user = await requireApprovedUser();
-	const input = createEventSchema.parse({
+	const parsed = createEventSchema.safeParse({
 		title: formData.get("title"),
 		gameId: formData.get("gameId") || undefined,
 		// The client form converts datetime-local to ISO (browser timezone)
@@ -32,6 +46,10 @@ export async function createEvent(formData: FormData): Promise<void> {
 		location: formData.get("location") || undefined,
 		notes: formData.get("notes") || undefined,
 	});
+	// First issue as a plain Error so the form shows a readable message
+	// instead of a ZodError JSON blob.
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const input = parsed.data;
 
 	const db = getDb();
 	const [event] = await db
@@ -175,13 +193,33 @@ export async function cancelEvent(eventId: string): Promise<void> {
 	revalidatePath("/");
 }
 
+const wrapUpSchema = z.object({
+	// What was actually played — defaults to the planned game, editable when
+	// the night changed. "" clears the link.
+	gameId: z.string().uuid().optional(),
+	recap: z.string().trim().max(5000).optional(),
+	howItWent: z.coerce.number().int().min(1).max(5).optional(),
+	progressNote: z.string().trim().max(2000).optional(),
+});
+
 /**
  * Wrap up a session: record who actually showed up (checkbox per approved
- * member), optionally update the recap notes, and mark the event completed.
+ * member), capture the recap / rating / progress and what was played, and
+ * mark the event completed. Writes the recap to its own column — the planning
+ * notes are never overwritten.
  */
 export async function recordAttendance(eventId: string, formData: FormData): Promise<void> {
 	const user = await requireApprovedUser();
 	const db = getDb();
+
+	const parsed = wrapUpSchema.safeParse({
+		gameId: formData.get("gameId") || undefined,
+		recap: formData.get("recap") || undefined,
+		howItWent: formData.get("howItWent") || undefined,
+		progressNote: formData.get("progressNote") || undefined,
+	});
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const input = parsed.data;
 
 	const [event] = await db
 		.select({
@@ -216,19 +254,25 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			});
 	}
 
-	const notes = String(formData.get("notes") ?? "").trim();
+	// The wrap-up form always submits the game select, so treat it as
+	// authoritative (a blank selection clears the link). Planning notes are
+	// left untouched — the recap lives in its own column now.
 	await db
 		.update(schema.events)
 		.set({
 			status: "completed",
-			...(notes ? { notes } : {}),
+			gameId: input.gameId ?? null,
+			recap: input.recap ?? null,
+			howItWent: input.howItWent ?? null,
+			progressNote: input.progressNote ?? null,
 			updatedAt: new Date(),
 		})
 		.where(eq(schema.events.id, eventId));
 
 	// "Same time next week" checkbox on the wrap-up form — one round-trip.
+	// Clone from the confirmed game, not the originally-planned one.
 	if (formData.get("scheduleNext")) {
-		await cloneEventForward(db, user, event);
+		await cloneEventForward(db, user, { ...event, gameId: input.gameId ?? null });
 	}
 
 	revalidatePath("/events");

@@ -1,11 +1,12 @@
 import { bggProvider } from "./bgg";
 import { fetchHltbTimesById, fetchHltbTimesByTitle, hltbProvider } from "./hltb";
+import { fetchRawgByTitle, rawgConfigured, rawgProvider } from "./rawg";
 import { steamProvider } from "./steam";
 import type { NormalizedGameMetadata } from "./types";
 
 export type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } from "./types";
 export { manualMetadata } from "./manual";
-export { steamProvider, hltbProvider, bggProvider };
+export { steamProvider, hltbProvider, bggProvider, rawgProvider };
 
 export type FetchMetadataResult = {
 	metadata: NormalizedGameMetadata;
@@ -26,6 +27,8 @@ export async function fetchGameMetadata(params: {
 	hltbId?: string;
 	/** "<type>:<id>" from a bggProvider.search() pick — tabletop games only. */
 	bggId?: string;
+	/** From a prior rawgProvider.search() pick — pins the exact RAWG entry. */
+	rawgId?: number;
 }): Promise<FetchMetadataResult> {
 	const metadata: NormalizedGameMetadata = {};
 	const sources: string[] = [];
@@ -75,6 +78,34 @@ export async function fetchGameMetadata(params: {
 		}
 	} catch {
 		failures.push(hltbProvider.id);
+	}
+
+	// RAWG supplement: fills art / description / genres / release date /
+	// Metacritic that Steam left blank (Steam stays canonical). Only runs when
+	// a key is configured, so a keyless deployment never sees a rawg failure.
+	// A picked candidate (rawgId) always resolves; otherwise it's a title
+	// fallback, skipped when Steam already filled the visible fields.
+	const rawgFillNeeded =
+		!metadata.headerUrl || !metadata.description || !(metadata.genres && metadata.genres.length > 0);
+	if (rawgConfigured() && (params.rawgId !== undefined || rawgFillNeeded)) {
+		try {
+			const rawg = params.rawgId
+				? await rawgProvider.fetchByExternalId(String(params.rawgId))
+				: await fetchRawgByTitle(metadata.title ?? params.title);
+			if (rawg) {
+				metadata.title = metadata.title ?? rawg.title;
+				metadata.headerUrl = metadata.headerUrl ?? rawg.headerUrl;
+				metadata.coverUrl = metadata.coverUrl ?? rawg.coverUrl;
+				metadata.description = metadata.description ?? rawg.description;
+				if (!(metadata.genres && metadata.genres.length > 0)) metadata.genres = rawg.genres;
+				metadata.releaseDate = metadata.releaseDate ?? rawg.releaseDate;
+				metadata.metacriticScore = metadata.metacriticScore ?? rawg.metacriticScore;
+				raw.rawg = (rawg.raw as Record<string, unknown> | undefined)?.rawg;
+				sources.push(rawgProvider.id);
+			}
+		} catch {
+			failures.push(rawgProvider.id);
+		}
 	}
 
 	metadata.raw = Object.keys(raw).length > 0 ? raw : undefined;

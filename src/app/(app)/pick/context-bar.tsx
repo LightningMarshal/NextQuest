@@ -43,11 +43,21 @@ function contextHref(ctx: SessionContext): string {
 	if (ctx.together) params.set("together", "1");
 	if (ctx.players !== undefined) params.set("players", String(ctx.players));
 	if (ctx.kind !== "any") params.set("kind", ctx.kind);
+	if (ctx.genre !== undefined) params.set("genre", ctx.genre);
 	const query = params.toString();
 	return query ? `/pick?${query}` : "/pick";
 }
 
-export function ContextBar({ ctx, nextEvent }: { ctx: SessionContext; nextEvent: NextEventContext }) {
+export function ContextBar({
+	ctx,
+	genres,
+	nextEvent,
+}: {
+	ctx: SessionContext;
+	/** Distinct genres in the current backlog — chip vocabulary. */
+	genres: string[];
+	nextEvent: NextEventContext;
+}) {
 	const router = useRouter();
 	// Draft state only for the debounced numeric inputs; chips/toggles apply
 	// immediately. Handlers that change hours/players elsewhere (event
@@ -184,6 +194,41 @@ export function ContextBar({ ctx, nextEvent }: { ctx: SessionContext; nextEvent:
 						)}
 					</div>
 				</div>
+
+				{genres.length > 0 && (
+					<div className="flex flex-col gap-1.5">
+						<Label>Genre</Label>
+						<div className="flex flex-wrap items-center gap-1">
+							<button
+								type="button"
+								onClick={() => apply({ ...ctx, genre: undefined })}
+								className={cn(
+									"cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+									ctx.genre === undefined
+										? "bg-primary/12 text-primary"
+										: "text-muted-foreground hover:text-foreground"
+								)}
+							>
+								Any
+							</button>
+							{genres.map((genre) => (
+								<button
+									key={genre}
+									type="button"
+									onClick={() => apply({ ...ctx, genre })}
+									className={cn(
+										"cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+										genre === ctx.genre
+											? "bg-primary/12 text-primary"
+											: "text-muted-foreground hover:text-foreground"
+									)}
+								>
+									{genre}
+								</button>
+							))}
+						</div>
+					</div>
+				)}
 
 				{canUseEvent && (
 					<div className="flex flex-wrap items-center gap-2">

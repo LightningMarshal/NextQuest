@@ -8,7 +8,8 @@ Browser ──► Cloudflare Worker (Next.js via @opennextjs/cloudflare)
                  ├──► Neon Postgres (HTTP driver, per-request client)
                  ├──► Steam storefront API (metadata, unauthenticated)
                  ├──► HowLongToBeat (unofficial — expected to break, optional)
-                 └──► BGG XML API2 (BoardGameGeek + RPGGeek; bearer token, optional)
+                 ├──► BGG XML API2 (BoardGameGeek + RPGGeek; bearer token, optional)
+                 └──► RAWG API (supplemental video metadata; api key, optional)
 ```
 
 Single-tenant: one deployment is one gaming group. There is no `groups`
@@ -67,7 +68,11 @@ config change here (see CLAUDE.md invariant #4).
   derived from Steam appdetails categories — feeds the picker's party-fit
   component; null = never derived), and the `raw` provider payloads
   (re-derive fields later without refetching — the game-modes admin
-  backfill does exactly this). `fetched_at` enables staleness-based refresh.
+  backfill does exactly this). `source` (`steam`/`hltb`/`bgg`/`rawg`/
+  `manual`/`mixed`) records which providers contributed. `fetched_at`
+  enables staleness-based refresh; `last_refresh_attempt_at` is stamped on
+  every refresh try (even failed ones) so a permanently-broken provider
+  can't jam the stale queue.
 
 - **`game_status_history`** — append-only transition log (`from_status`,
   `to_status`, `changed_by`, `changed_at`). Burn rate = sum of points of
@@ -85,10 +90,28 @@ picker rather than the whole ranking; the ballot UI lives on `/pick`.
 aggregate to `{game_id, SUM(weight)}`; the only per-user read is the
 requesting member's own ballot.
 
+**`game_vote_milestones`** (`votes.ts`) — a dedup ledger, PK
+`(game_id, milestone)`, so a group-total crossing a configured
+`app_settings.vote_milestones` threshold fires its Discord ping exactly once
+ever (atomic `onConflictDoNothing`, since Neon HTTP has no transactions).
+
+### Tags (`tags.ts`)
+
+Member-defined shared vocabulary: **`tags`** (unique normalized `name`,
+`created_by`) and the **`game_tags`** join (`(game_id, tag_id)`, `added_by`).
+Free-form categorization alongside the structured `game_type` and provider
+genres; drives the backlog Tags filter. Zero-assignment tags are kept as
+filter/autocomplete vocabulary.
+
 ### Events (`events.ts`)
 
 - **`events`** — title, optional `game_id`, `scheduled_at`, duration,
-  free-form `location`, notes, status (`scheduled`/`completed`/`cancelled`).
+  free-form `location`, status (`scheduled`/`completed`/`cancelled`), and two
+  distinct text surfaces: `notes` (planning, set at creation) and the
+  session-capture fields written at wrap-up — `recap`, `how_it_went`
+  (1–5 rating), `progress_note` ("where we left off", for campaigns). Wrap-up
+  writes the recap to its own column so the plan is never overwritten.
+  Reminder sent-markers gate the cron.
 - **`event_attendance`** — PK `(event_id, user_id)`, `rsvp`
   (`yes`/`no`/`maybe`) before, `attended` boolean recorded after.
 
@@ -119,8 +142,9 @@ responses (yes→yes, if-need-be→maybe, no→no) and closes the poll.
 
 `src/lib/metadata/` defines `GameMetadataProvider` (`search`,
 `fetchByExternalId` → normalized partial). The orchestrator
-(`fetchGameMetadata`) branches on medium — video merges steam + hltb,
-tabletop (a `bggId` param) uses bgg alone — with per-provider try/catch:
+(`fetchGameMetadata`) branches on medium — video merges steam + hltb (+ rawg
+when keyed), tabletop (a `bggId` param) uses bgg alone — with per-provider
+try/catch:
 
 - **steam** — unauthenticated storefront endpoints (`storesearch`,
   `appdetails`, `appreviews`): art, description, genres, release date,
@@ -136,6 +160,10 @@ tabletop (a `bggId` param) uses bgg alone — with per-provider try/catch:
   exists). Structured fields prefill `tabletop_details` at propose time
   only — refresh never rewrites them (the tabletop analog of "refresh
   never touches `games.*`").
+- **rawg** — RAWG API (keyed by the optional `RAWG_API_KEY`), a *supplement*
+  to Steam: fills art/description/genres/release/Metacritic that Steam left
+  blank, never overriding it. Gated by `rawgConfigured()`, so a keyless
+  deployment skips it entirely (no requests, no surfaced failures).
 - **manual** — explicit pass-through fallback so "no provider data" is a
   supported state.
 
@@ -152,9 +180,12 @@ a size estimate for burn-rate, not a ranking. Tabletop games enter the same
 formula through hour-equivalents (`TTRPG_BAND_HOURS`, playtime ÷ 60) with
 crunch riding the difficulty parameter — see docs/DECISIONS.md 2026-07-05.
 
-Burn rate (Phase 4): weekly cumulative completed effort from
-`game_status_history`, with a linear projection to estimate backlog
-completion date.
+Burn rate (Phase 4): cumulative completed effort from `game_status_history`,
+with a linear projection to estimate the backlog completion date. Each viewer
+picks the x-axis period — weekly / monthly / yearly / all-time — via a
+`?period=` toggle backed by a `nq-burn-period` cookie (no per-user table); the
+projection always regresses over the weekly series so its points/week units
+stay honest regardless of the displayed bucket (`src/lib/burn-rate.ts`).
 
 ## The picker (`/pick`)
 
@@ -178,9 +209,23 @@ tabletop games score against their declared min/max player range, video
 games against the Steam-derived `game_modes`.
 
 Game input is search-first: `src/server/metadata-search.ts` exposes
-typeahead candidates (Steam storesearch + HLTB, in parallel) and an
-advisory metadata preview; proposals submit candidate ids and the server
-refetches authoritatively. `refreshGameMetadata` (per game, in the backlog
-card's Manage expander) is the retry path when a provider was down;
+typeahead candidates (Steam storesearch + HLTB, in parallel, + RAWG when
+keyed) and an advisory metadata preview; proposals submit candidate ids and
+the server refetches authoritatively. `refreshGameMetadata` (per game, in the
+backlog card's Manage expander) is the retry path when a provider was down;
 `src/server/metadata-write.ts` holds the shared only-overwrite-returned-
 fields merge used by both it and the refresh cron.
+
+## Backlog browse & game detail
+
+`/backlog` groups games by status and filters on four independent, composing
+dimensions carried in the URL — **type** (`game_type`), **genre** and
+**mode** (`game_metadata.genres`/`game_modes`), and member **tags** — each a
+chip row whose vocabulary is derived from the library itself. Cards link
+(art + title) through to **`/backlog/[gameId]`**, a read/detail surface with
+the full pitch, description, metadata, tabletop info line, and the game's
+**session history** (completed + upcoming events joined on `events.game_id`).
+Status transitions live on the detail page and behind each card's "Manage"
+expander — deliberately *not* on the card face, since `completed` is terminal
+with no undo. Shared card/detail display vocabulary lives in
+`src/app/(app)/backlog/game-display.ts`.

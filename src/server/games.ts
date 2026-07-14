@@ -46,6 +46,7 @@ const proposeSchema = z.object({
 		.regex(/^\d+$/)
 		.max(20)
 		.optional(),
+	rawgId: z.coerce.number().int().positive().optional(),
 });
 
 /** Accepts a bare app id ("1145360") or any store URL containing /app/<id>/. */
@@ -64,6 +65,7 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		pitch: formData.get("pitch") || undefined,
 		steamAppId: formData.get("steamAppId") || undefined,
 		hltbId: formData.get("hltbId") || undefined,
+		rawgId: formData.get("rawgId") || undefined,
 	});
 	const steamAppId = input.steamAppId ?? parseSteamAppId(input.steam);
 
@@ -87,6 +89,7 @@ export async function proposeGame(formData: FormData): Promise<void> {
 		title: input.title,
 		steamAppId,
 		hltbId: input.hltbId,
+		rawgId: input.rawgId,
 	});
 
 	const lengthHours = metadata.hltbMainExtra ?? metadata.hltbMain;
@@ -327,6 +330,7 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 			id: schema.games.id,
 			status: schema.games.status,
 			title: schema.games.title,
+			proposedBy: schema.games.proposedBy,
 		})
 		.from(schema.games)
 		.where(eq(schema.games.id, gameId));
@@ -334,6 +338,12 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 
 	if (!ALLOWED_TRANSITIONS[game.status].includes(toStatus)) {
 		throw new Error(`Can't move a ${game.status} game to ${toStatus}.`);
+	}
+
+	// A proposal needs a second: the proposer can't add their own game to the
+	// backlog. Every other transition stays open to any member.
+	if (game.status === "proposed" && toStatus === "backlog" && game.proposedBy === user.id) {
+		throw new Error("Someone else has to add your proposal to the backlog.");
 	}
 
 	await db
@@ -456,6 +466,54 @@ export async function updateGameScoring(gameId: string, formData: FormData): Pro
 		.where(eq(schema.games.id, gameId));
 
 	revalidatePath("/backlog");
+}
+
+// A valid https:// image URL, or "" to clear the field back to null.
+const imageUrlField = z
+	.union([
+		z.literal(""),
+		z.string().trim().url().max(2000).startsWith("https://", "Image URLs must start with https://."),
+	])
+	.optional();
+
+const artworkSchema = z.object({
+	coverUrl: imageUrlField,
+	headerUrl: imageUrlField,
+});
+
+// Lets a member fix a broken or oversized cover/header image after a game is
+// proposed (issue #14). updateGameScoring only writes the games table, so image
+// URLs — which live on game_metadata — had no editor before. Empty input clears.
+export async function updateGameArtwork(gameId: string, formData: FormData): Promise<void> {
+	await requireApprovedUser();
+	const input = artworkSchema.parse({
+		coverUrl: formData.get("coverUrl") ?? undefined,
+		headerUrl: formData.get("headerUrl") ?? undefined,
+	});
+	const coverUrl = input.coverUrl ? input.coverUrl : null;
+	const headerUrl = input.headerUrl ? input.headerUrl : null;
+
+	const db = getDb();
+	const [game] = await db
+		.select({ id: schema.games.id })
+		.from(schema.games)
+		.where(eq(schema.games.id, gameId));
+	if (!game) throw new Error("Game not found.");
+
+	// The metadata row is 1:1 and normally created in proposeGame; upsert keeps
+	// this safe if a game somehow lacks one (Neon HTTP has no transactions).
+	await db
+		.insert(schema.gameMetadata)
+		.values({ gameId, coverUrl, headerUrl })
+		.onConflictDoUpdate({
+			target: schema.gameMetadata.gameId,
+			set: { coverUrl, headerUrl },
+		});
+
+	// The vote page and dashboard also render cover art.
+	revalidatePath("/backlog");
+	revalidatePath("/vote");
+	revalidatePath("/");
 }
 
 /**

@@ -6,18 +6,26 @@ import type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } f
 // length_hours is manually editable on every game, and the orchestrator
 // swallows failures from this provider.
 //
-// Strategy (mirrors what the unofficial libraries do, dependency-free):
-// 1. Fetch the homepage, locate the current /_next/static/.../_app-*.js chunk
-// 2. Regex the chunk for the fetch("/api/<path>/".concat("<key>")...) call to
-//    recover the current endpoint + rotating key
-// 3. POST the documented search payload to that endpoint
-// Any change to their bundle layout breaks step 2 — that's the fragility.
+// Strategy (dependency-free; ported from the maintained reference
+// ScrappyCocco/HowLongToBeat-PythonAPI, which tracks HLTB's current scheme):
+// 1. Fetch the homepage, locate the current /_next/static/.../_app-*.js chunk.
+// 2. Regex the chunk for the POST `fetch("/api/<path>…", {…method:"POST"…})`
+//    call and take the endpoint's first path segment → /api/<seg>.
+// 3. GET /api/<seg>/init to obtain an auth handshake — a `token` plus a
+//    key/val pair (HLTB added this to lock out naive scrapers).
+// 4. POST the search payload to /api/<seg>, sending the handshake as the
+//    x-auth-token / x-hp-key / x-hp-val headers and injecting the key/val
+//    into the payload.
+// Any change to their bundle/endpoint/handshake breaks steps 2–3 — that's the
+// fragility, and every failure degrades to manual entry.
 
 const BASE = "https://howlongtobeat.com";
 const FETCH_TIMEOUT_MS = 8_000;
 // Plain fetch UAs get bot-blocked; a browser UA is what the unofficial libs use.
 const USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+type HltbAuth = { token?: string; hpKey?: string; hpVal?: string };
 
 type HltbResult = {
 	game_id: number;
@@ -32,6 +40,7 @@ type HltbResult = {
 
 type HltbSearchResponse = { data?: HltbResult[] };
 
+/** The `/api/<seg>` search path, discovered from the current app bundle. */
 async function discoverSearchEndpoint(): Promise<string> {
 	const homepage = await fetch(BASE, {
 		headers: { "User-Agent": USER_AGENT },
@@ -40,64 +49,105 @@ async function discoverSearchEndpoint(): Promise<string> {
 	if (!homepage.ok) throw new Error(`HLTB homepage: ${homepage.status}`);
 	const html = await homepage.text();
 
-	const chunkMatch = html.match(/_next\/static\/chunks\/pages\/_app-[a-zA-Z0-9]+\.js/);
-	if (!chunkMatch) throw new Error("HLTB: _app chunk not found (layout changed)");
+	// Hashes have grown to include - and . over time; scan all _app chunks.
+	const chunkPaths = [...html.matchAll(/_next\/static\/chunks\/pages\/_app-[\w.-]+\.js/g)].map(
+		(m) => m[0]
+	);
+	if (chunkPaths.length === 0) throw new Error("HLTB: _app chunk not found (layout changed)");
 
-	const chunkRes = await fetch(`${BASE}/${chunkMatch[0]}`, {
-		headers: { "User-Agent": USER_AGENT },
+	for (const chunkPath of chunkPaths) {
+		const chunkRes = await fetch(`${BASE}/${chunkPath}`, {
+			headers: { "User-Agent": USER_AGENT },
+			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+		});
+		if (!chunkRes.ok) continue;
+		const js = await chunkRes.text();
+
+		// Current scheme: a POST fetch to the search endpoint, e.g.
+		// fetch("/api/s/...", { method: "POST", … }). Fall back to any /api
+		// fetch if the strict form (with the method clause) doesn't match.
+		const seg =
+			js.match(
+				/fetch\(\s*["']\/api\/([a-zA-Z0-9_/]+)[^"']*["']\s*,\s*\{[^}]*method\s*:\s*["']POST["']/is
+			)?.[1] ?? js.match(/fetch\(\s*["']\/api\/([a-z0-9_/]+)/i)?.[1];
+		if (seg) return `/api/${seg.split("/")[0]}`;
+	}
+	throw new Error("HLTB: search endpoint pattern not found (API changed)");
+}
+
+/**
+ * HLTB's anti-scraper handshake: GET /api/<seg>/init returns a token plus a
+ * key/val pair (field names vary, so scan for them). Best-effort — a missing
+ * or reshaped response just yields undefined fields, and the search then
+ * degrades like any other failure.
+ */
+async function fetchAuthToken(apiPath: string): Promise<HltbAuth> {
+	const res = await fetch(`${BASE}${apiPath}/init`, {
+		headers: { "User-Agent": USER_AGENT, Accept: "*/*", Referer: `${BASE}/` },
 		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 	});
-	if (!chunkRes.ok) throw new Error(`HLTB chunk: ${chunkRes.status}`);
-	const js = await chunkRes.text();
+	if (!res.ok) return {};
+	const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+	if (!json) return {};
 
-	// fetch("/api/search/".concat("abc").concat("def"), …
-	const endpointMatch = js.match(
-		/fetch\(\s*["']\/api\/([a-z]+)\/["']((?:\.concat\(\s*["'][^"']*["']\s*\))+)/
-	);
-	if (!endpointMatch) throw new Error("HLTB: search endpoint pattern not found (API changed)");
-
-	const path = endpointMatch[1];
-	const key = [...endpointMatch[2].matchAll(/\.concat\(\s*["']([^"']*)["']\s*\)/g)]
-		.map((m) => m[1])
-		.join("");
-	return `${BASE}/api/${path}/${key}`;
+	const auth: HltbAuth = {};
+	if (typeof json.token === "string") auth.token = json.token;
+	for (const [name, value] of Object.entries(json)) {
+		if (typeof value !== "string" || name === "token") continue;
+		const lower = name.toLowerCase();
+		if (auth.hpKey === undefined && /key/.test(lower)) auth.hpKey = value;
+		else if (auth.hpVal === undefined && /val/.test(lower)) auth.hpVal = value;
+	}
+	return auth;
 }
 
 async function searchHltb(query: string): Promise<HltbResult[]> {
-	const endpoint = await discoverSearchEndpoint();
-	const res = await fetch(endpoint, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"User-Agent": USER_AGENT,
-			Origin: BASE,
-			Referer: `${BASE}/`,
-		},
-		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-		body: JSON.stringify({
-			searchType: "games",
-			searchTerms: query.split(/\s+/).filter(Boolean),
-			searchPage: 1,
-			size: 20,
-			searchOptions: {
-				games: {
-					userId: 0,
-					platform: "",
-					sortCategory: "popular",
-					rangeCategory: "main",
-					rangeTime: { min: null, max: null },
-					gameplay: { perspective: "", flow: "", genre: "" },
-					rangeYear: { min: "", max: "" },
-					modifier: "",
-				},
-				users: { sortCategory: "postcount" },
-				lists: { sortCategory: "follows" },
-				filter: "",
-				sort: 0,
-				randomizer: 0,
+	const apiPath = await discoverSearchEndpoint();
+	const auth = await fetchAuthToken(apiPath);
+
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+		Accept: "*/*",
+		"User-Agent": USER_AGENT,
+		Origin: BASE,
+		Referer: `${BASE}/`,
+	};
+	if (auth.token) headers["x-auth-token"] = auth.token;
+	if (auth.hpKey) headers["x-hp-key"] = auth.hpKey;
+	if (auth.hpVal) headers["x-hp-val"] = auth.hpVal;
+
+	const payload: Record<string, unknown> = {
+		searchType: "games",
+		searchTerms: query.split(/\s+/).filter(Boolean),
+		searchPage: 1,
+		size: 20,
+		searchOptions: {
+			games: {
+				userId: 0,
+				platform: "",
+				sortCategory: "popular",
+				rangeCategory: "main",
+				rangeTime: { min: null, max: null },
+				gameplay: { perspective: "", flow: "", genre: "" },
+				rangeYear: { min: "", max: "" },
+				modifier: "",
 			},
-			useCache: true,
-		}),
+			users: { sortCategory: "postcount" },
+			lists: { sortCategory: "follows" },
+			filter: "",
+			sort: 0,
+			randomizer: 0,
+		},
+		useCache: true,
+	};
+	// The handshake's key/val also ride in the body under the key's own value.
+	if (auth.hpKey && auth.hpVal) payload[auth.hpKey] = auth.hpVal;
+
+	const res = await fetch(`${BASE}${apiPath}`, {
+		method: "POST",
+		headers,
+		signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+		body: JSON.stringify(payload),
 	});
 	if (!res.ok) throw new Error(`HLTB search: ${res.status}`);
 	const data = (await res.json()) as HltbSearchResponse;

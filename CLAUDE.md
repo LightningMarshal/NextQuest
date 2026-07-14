@@ -50,7 +50,8 @@ Two files, two runtimes — keep `DATABASE_URL` in sync between them:
   `DISCORD_WEBHOOK_URL` (optional — notifications no-op without it),
   `CRON_SECRET` (optional — gates `/api/cron`; scheduled tasks no-op without it),
   `BGG_API_TOKEN` (optional — BGG XML API2 bearer token for tabletop
-  search/metadata; without it tabletop proposals degrade to manual entry)
+  search/metadata; without it tabletop proposals degrade to manual entry),
+  `RAWG_API_KEY` (optional — supplements Steam video metadata; no-op without it)
 - **`.env`** (from `.env.example`) — Node-side tooling only (drizzle-kit):
   `DATABASE_URL`
 
@@ -72,20 +73,23 @@ src/
 │   └── *.tsx            # theme-provider, theme-toggle, site-nav (user menu)
 ├── db/
 │   ├── index.ts         # getDb() — per-request Neon HTTP + Drizzle client
-│   └── schema/          # domain-split: auth, games, tabletop, votes, events, settings
+│   └── schema/          # domain-split: auth, games, tabletop, votes, events,
+│                        #   settings, availability (GAC), tags
 ├── lib/
 │   ├── auth.ts          # getAuth() — per-request Better Auth instance
 │   ├── auth-client.ts   # Better Auth React client
 │   ├── points.ts        # pure effort-formula functions (UI: "effort") +
 │   │                    #   tabletop hour-equivalents (TTRPG_BAND_HOURS)
 │   ├── pick.ts          # pure picker-scoring functions (read-time, never stored)
-│   └── metadata/        # pluggable game-metadata providers (steam, hltb, bgg, manual)
+│   ├── burn-rate.ts     # pure burn-rate bucketing (week/month/year) + projection
+│   └── metadata/        # pluggable providers (steam, hltb, bgg, rawg, manual)
 └── server/              # server actions + helpers per domain
     ├── session.ts       # getSessionUser / requireApprovedUser / requireAdmin
     ├── members.ts       # admin member management
     ├── pick.ts          # /pick data assembly (read helper, like dashboard.ts)
     ├── metadata-search.ts | metadata-write.ts  # propose typeahead / shared merge
-    └── games|votes|events.ts
+    ├── cron/            # metadata-refresh, event-reminders (via /api/cron)
+    └── games|votes|events|tags.ts
 ```
 
 **Auth gating:** there is no middleware/proxy file. Protection is server-side:

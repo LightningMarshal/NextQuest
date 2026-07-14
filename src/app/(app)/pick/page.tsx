@@ -17,6 +17,7 @@ export default async function PickPage({
 		players?: string;
 		together?: string;
 		kind?: string;
+		genre?: string;
 	}>;
 }) {
 	// Session context lives entirely in the URL: every change re-ranks
@@ -57,12 +58,12 @@ export default async function PickPage({
 				</p>
 			</div>
 
-			<ContextBar ctx={ctx} nextEvent={data.nextEvent} />
+			<ContextBar ctx={ctx} genres={data.genres} nextEvent={data.nextEvent} />
 
 			{games.length === 0 ? (
 				<p className="text-muted-foreground text-center text-sm">
-					{ctx.kind !== "any" ? (
-						<>No {ctx.kind === "video" ? "video games" : ctx.kind === "ttrpg" ? "TTRPGs" : "board games"} in the backlog — switch the night type or propose one.</>
+					{ctx.kind !== "any" || ctx.genre !== undefined ? (
+						<>Nothing in the backlog matches this night — loosen the type or genre, or propose something.</>
 					) : (
 						<>
 							Nothing in the backlog to rank yet — move a{" "}

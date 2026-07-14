@@ -11,10 +11,12 @@ import {
 	bggProvider,
 	fetchGameMetadata,
 	hltbProvider,
+	rawgProvider,
 	steamProvider,
 	type GameSearchResult,
 	type NormalizedGameMetadata,
 } from "@/lib/metadata";
+import { rawgConfigured } from "@/lib/metadata/rawg";
 import { requireApprovedUser } from "@/server/session";
 
 const MAX_PER_PROVIDER = 8;
@@ -44,12 +46,16 @@ export async function searchGameCandidates(
 		}
 	}
 
-	// Both providers in parallel; either failing just narrows the results
-	// (same degradation contract as fetchGameMetadata).
-	const [steam, hltb] = await Promise.allSettled([
+	// Providers in parallel; any failing just narrows the results (same
+	// degradation contract as fetchGameMetadata). RAWG only joins when a key
+	// is configured — it's a supplement, most useful when Steam search is down.
+	const useRawg = rawgConfigured();
+	const settled = await Promise.allSettled([
 		steamProvider.search(query),
 		hltbProvider.search(query),
+		useRawg ? rawgProvider.search(query) : Promise.resolve([]),
 	]);
+	const [steam, hltb, rawg] = settled;
 
 	const candidates: GameSearchResult[] = [];
 	const failures: string[] = [];
@@ -57,6 +63,10 @@ export async function searchGameCandidates(
 	else failures.push(steamProvider.id);
 	if (hltb.status === "fulfilled") candidates.push(...hltb.value.slice(0, MAX_PER_PROVIDER));
 	else failures.push(hltbProvider.id);
+	if (useRawg) {
+		if (rawg.status === "fulfilled") candidates.push(...rawg.value.slice(0, MAX_PER_PROVIDER));
+		else failures.push(rawgProvider.id);
+	}
 
 	return { candidates, failures };
 }
@@ -71,6 +81,7 @@ const previewSchema = z.object({
 		.regex(/^(boardgame|rpgitem):\d+$/)
 		.max(30)
 		.optional(),
+	rawgId: z.number().int().positive().optional(),
 });
 
 export type PreviewCandidateResult = {
@@ -89,6 +100,7 @@ export async function previewCandidate(input: {
 	steamAppId?: number;
 	hltbId?: string;
 	bggId?: string;
+	rawgId?: number;
 }): Promise<PreviewCandidateResult> {
 	await requireApprovedUser();
 	const parsed = previewSchema.parse(input);

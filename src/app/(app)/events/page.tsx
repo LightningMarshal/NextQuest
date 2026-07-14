@@ -44,6 +44,10 @@ export default async function EventsPage() {
 				durationMinutes: schema.events.durationMinutes,
 				location: schema.events.location,
 				notes: schema.events.notes,
+				recap: schema.events.recap,
+				howItWent: schema.events.howItWent,
+				progressNote: schema.events.progressNote,
+				gameId: schema.events.gameId,
 				gameTitle: schema.games.title,
 				creatorName: creator.name,
 			})
@@ -205,6 +209,7 @@ export default async function EventsPage() {
 							event={event}
 							currentUserId={user.id}
 							members={members}
+							candidateGames={candidateGames}
 							needsWrapUp
 						/>
 					))}
