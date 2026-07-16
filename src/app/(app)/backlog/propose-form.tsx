@@ -102,6 +102,9 @@ export function ProposeForm() {
 	const [results, setResults] = useState<SearchCandidatesResult | null>(null);
 	const [searching, setSearching] = useState(false);
 	const [listOpen, setListOpen] = useState(false);
+	// Keyboard-highlighted option (-1 = none); mouse hover keeps it in sync
+	// so the highlight never splits between pointer and arrow keys.
+	const [activeIndex, setActiveIndex] = useState(-1);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// Server-action responses can land out of order — only the latest
 	// request's result may render (debounce alone doesn't guarantee that).
@@ -124,6 +127,7 @@ export function ProposeForm() {
 		setSelected(null);
 		setPreview(null);
 		setPreviewFailed(false);
+		setActiveIndex(-1);
 		if (debounceRef.current) clearTimeout(debounceRef.current);
 		if (value.trim().length < 2) {
 			setResults(null);
@@ -176,6 +180,7 @@ export function ProposeForm() {
 		setSelected(candidate);
 		setQuery(candidate.title);
 		setListOpen(false);
+		setActiveIndex(-1);
 		setSubmitError(null);
 		void loadPreview(candidate);
 	}
@@ -261,9 +266,35 @@ export function ProposeForm() {
 											if (results && !selected) setListOpen(true);
 										}}
 										onKeyDown={(event) => {
-											if (event.key === "Escape") setListOpen(false);
-											// The search box is not the submit trigger.
-											if (event.key === "Enter") event.preventDefault();
+											const candidates = results?.candidates ?? [];
+											if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+												event.preventDefault();
+												if (candidates.length === 0) return;
+												if (!listOpen) {
+													setListOpen(true);
+													setActiveIndex(event.key === "ArrowDown" ? 0 : candidates.length - 1);
+													return;
+												}
+												// Wrap around — the list is short (≤ 3 providers × 8).
+												setActiveIndex(
+													event.key === "ArrowDown"
+														? (activeIndex + 1) % candidates.length
+														: (activeIndex - 1 + candidates.length) % candidates.length
+												);
+												return;
+											}
+											if (event.key === "Escape") {
+												setListOpen(false);
+												setActiveIndex(-1);
+											}
+											// The search box is not the submit trigger — Enter picks the
+											// highlighted candidate instead (no-op when nothing is active).
+											if (event.key === "Enter") {
+												event.preventDefault();
+												if (listOpen && activeIndex >= 0 && candidates[activeIndex]) {
+													selectCandidate(candidates[activeIndex]);
+												}
+											}
 										}}
 										placeholder={
 											kind === "video"
@@ -275,6 +306,9 @@ export function ProposeForm() {
 										maxLength={200}
 										autoComplete="off"
 										role="combobox"
+										aria-activedescendant={
+											listOpen && activeIndex >= 0 ? `propose-option-${activeIndex}` : undefined
+										}
 										aria-expanded={listOpen}
 										aria-controls="propose-search-results"
 										className="pl-9"
@@ -289,14 +323,25 @@ export function ProposeForm() {
 										role="listbox"
 										className="border-border bg-popover absolute top-full z-20 mt-1 flex max-h-80 w-full flex-col overflow-y-auto rounded-lg border shadow-md"
 									>
-										{results.candidates.map((candidate) => (
+										{results.candidates.map((candidate, index) => (
 											<button
 												key={`${candidate.providerId}-${candidate.externalId}`}
+												id={`propose-option-${index}`}
 												type="button"
 												role="option"
-												aria-selected="false"
+												aria-selected={index === activeIndex}
 												onClick={() => selectCandidate(candidate)}
-												className="hover:bg-accent/50 flex cursor-pointer items-center gap-3 px-3 py-2 text-left"
+												onMouseEnter={() => setActiveIndex(index)}
+												ref={(node) => {
+													// Keep the arrow-key highlight in view of the scrollable list.
+													if (node && index === activeIndex) {
+														node.scrollIntoView({ block: "nearest" });
+													}
+												}}
+												className={cn(
+													"flex cursor-pointer items-center gap-3 px-3 py-2 text-left",
+													index === activeIndex && "bg-accent/50"
+												)}
 											>
 												{candidate.coverUrl ? (
 													// Transient external thumbnails (Steam tiny_image / HLTB

@@ -195,6 +195,22 @@ theme system (dark/light), route + server-action stubs, docs.
   no-op without a key; joins the video typeahead and `fetchGameMetadata`
   (migration 0013 — `metadata_source` gains `rawg`)
 
+## Phase 17 — Onboarding & small cuts ✅ (done)
+
+- First-time user tutorial (issue #13): a five-step welcome tour modal
+  auto-opens once per member (`user.tutorial_seen_at`, migration 0014;
+  app-owned, not a Better Auth field), ends on a "propose your first game"
+  CTA, and stays replayable from the user menu (window-event handshake
+  between the two client islands — no context plumbing)
+- Keyboard navigation for the propose-form search dropdown: arrow keys with
+  wrap-around, Enter selects the highlighted candidate, Escape closes;
+  `aria-activedescendant`/`aria-selected` wired, hover and keyboard share
+  one highlight
+- A real `events.session_number` column (migration 0014 + 0015 backfill from
+  trailing title digits): seeded at creation, incremented by clone-forward
+  (column first, title digits as legacy fallback); dashboard activity gains
+  "wrapped up <session> playing <game> · n/5" rows from completed events
+
 ## Future ideas (unscheduled)
 
 - IGDB provider (needs a Twitch OAuth client-credentials exchange — deferred
@@ -203,7 +219,3 @@ theme system (dark/light), route + server-action stubs, docs.
   research 2026-07: page count is the best available crunch proxy)
 - Community crunch ratings (accumulate our own BGG-style weight over time)
 - A dedicated "mood" taxonomy for the picker (today mood rides genre/mode/tags)
-- Dashboard activity rows for completed sessions; a real `session_number`
-  column (today it lives in the title string)
-- First-time user tutorial (issue #13)
-- Keyboard navigation for the propose-form search dropdown

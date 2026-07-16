@@ -73,6 +73,16 @@ export type ActivityItem =
 			actor: string | null;
 			eventTitle: string;
 			scheduledAt: Date;
+	  }
+	| {
+			// A wrapped-up session: what was played and how it went. No actor —
+			// wrap-up doesn't record who filed it, and the session was everyone's.
+			kind: "session";
+			at: Date;
+			eventTitle: string;
+			sessionNumber: number | null;
+			gameTitle: string | null;
+			howItWent: number | null;
 	  };
 
 export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<DashboardData> {
@@ -134,7 +144,7 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 			.limit(3),
 	]);
 
-	const [statusActivity, eventActivity, memberStats, completedEvents] = await Promise.all([
+	const [statusActivity, eventActivity, sessionActivity, memberStats, completedEvents] = await Promise.all([
 		db
 			.select({
 				at: schema.gameStatusHistory.changedAt,
@@ -157,6 +167,21 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 			.from(schema.events)
 			.leftJoin(schema.user, eq(schema.events.createdBy, schema.user.id))
 			.orderBy(sql`${schema.events.createdAt} desc`)
+			.limit(5),
+		// Wrapped-up sessions. updated_at is stamped by the wrap-up write; a
+		// completed event is otherwise immutable, so it's the wrap-up time.
+		db
+			.select({
+				at: schema.events.updatedAt,
+				eventTitle: schema.events.title,
+				sessionNumber: schema.events.sessionNumber,
+				gameTitle: schema.games.title,
+				howItWent: schema.events.howItWent,
+			})
+			.from(schema.events)
+			.leftJoin(schema.games, eq(schema.events.gameId, schema.games.id))
+			.where(eq(schema.events.status, "completed"))
+			.orderBy(sql`${schema.events.updatedAt} desc`)
 			.limit(5),
 		db
 			.select({
@@ -186,6 +211,7 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 	const activity: ActivityItem[] = [
 		...statusActivity.map((row) => ({ kind: "status" as const, ...row })),
 		...eventActivity.map((row) => ({ kind: "event" as const, ...row })),
+		...sessionActivity.map((row) => ({ kind: "session" as const, ...row })),
 	]
 		.sort((a, b) => b.at.getTime() - a.at.getTime())
 		.slice(0, 12);

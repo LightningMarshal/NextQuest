@@ -28,6 +28,12 @@ export const events = pgTable("events", {
 	}),
 	scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
 	durationMinutes: integer("duration_minutes"),
+	// Campaign session ordinal. Set by clone-forward recurrence (source + 1,
+	// falling back to a trailing number in the source title) and backfilled
+	// once from title digits; manual one-off events stay null. The title keeps
+	// carrying "Session N" for humans — this column is for machines (activity
+	// rows, campaign strips) so nobody parses titles at read time.
+	sessionNumber: integer("session_number"),
 	// Free-form: a Discord channel, a URL, or "the couch".
 	location: text("location"),
 	// Planning notes, set when the session is created ("bring snacks"). Kept

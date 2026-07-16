@@ -61,6 +61,9 @@ export async function createEvent(formData: FormData): Promise<void> {
 			durationMinutes: input.durationMinutes,
 			location: input.location,
 			notes: input.notes,
+			// "Session 1" typed by hand seeds the ordinal chain the same way
+			// the backfill migration does for pre-column rows.
+			sessionNumber: parseTrailingNumber(input.title),
 			createdBy: user.id,
 		})
 		.returning({ id: schema.events.id });
@@ -109,6 +112,13 @@ function bumpSessionNumber(title: string): string {
 	return title.replace(/(\d+)\s*$/, (match) => String(Number(match) + 1));
 }
 
+/** The trailing number bumpSessionNumber operates on, as data — seeds the
+ * session_number column so machines never parse titles at read time. */
+function parseTrailingNumber(title: string): number | undefined {
+	const match = title.match(/(\d+)\s*$/);
+	return match ? Number(match[1]) : undefined;
+}
+
 type CloneSource = {
 	id: string;
 	title: string;
@@ -116,6 +126,7 @@ type CloneSource = {
 	scheduledAt: Date;
 	durationMinutes: number | null;
 	location: string | null;
+	sessionNumber: number | null;
 };
 
 // Clone-forward is the recurrence model (docs/DECISIONS.md): "same time next
@@ -131,6 +142,9 @@ async function cloneEventForward(
 	// in every viewer's timezone (DST shifts the wall-clock hour at most).
 	const scheduledAt = new Date(source.scheduledAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 	const title = bumpSessionNumber(source.title);
+	// Column first, title digits as the legacy fallback — pre-column clones
+	// only recorded the ordinal in the title.
+	const currentNumber = source.sessionNumber ?? parseTrailingNumber(source.title);
 
 	const [event] = await db
 		.insert(schema.events)
@@ -140,6 +154,7 @@ async function cloneEventForward(
 			scheduledAt,
 			durationMinutes: source.durationMinutes,
 			location: source.location,
+			sessionNumber: currentNumber !== undefined ? currentNumber + 1 : undefined,
 			createdBy: user.id,
 		})
 		.returning({ id: schema.events.id });
@@ -172,6 +187,7 @@ export async function scheduleNextSession(eventId: string): Promise<void> {
 			scheduledAt: schema.events.scheduledAt,
 			durationMinutes: schema.events.durationMinutes,
 			location: schema.events.location,
+			sessionNumber: schema.events.sessionNumber,
 		})
 		.from(schema.events)
 		.where(eq(schema.events.id, eventId));
@@ -229,6 +245,7 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			scheduledAt: schema.events.scheduledAt,
 			durationMinutes: schema.events.durationMinutes,
 			location: schema.events.location,
+			sessionNumber: schema.events.sessionNumber,
 			status: schema.events.status,
 		})
 		.from(schema.events)

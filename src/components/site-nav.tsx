@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOutIcon, ShieldIcon } from "lucide-react";
+import { LogOutIcon, ShieldIcon, SparklesIcon } from "lucide-react";
 
 import { ChevronMark } from "@/components/chevron-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { REPLAY_EVENT } from "@/components/welcome-tour";
 
 const links = [
 	{ href: "/", label: "Dashboard" },
@@ -78,6 +79,12 @@ function UserMenu({ user }: { user: NavUser }) {
 						</Link>
 					</DropdownMenuItem>
 				)}
+				<DropdownMenuItem
+					onClick={() => window.dispatchEvent(new CustomEvent(REPLAY_EVENT))}
+				>
+					<SparklesIcon />
+					Replay the tour
+				</DropdownMenuItem>
 				<DropdownMenuItem onClick={handleSignOut}>
 					<LogOutIcon />
 					Sign out

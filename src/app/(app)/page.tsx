@@ -53,6 +53,31 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 			</li>
 		);
 	}
+	if (item.kind === "session") {
+		// The title usually carries the ordinal ("Session 12") — only add the
+		// column's number when the title doesn't already end with it.
+		const showNumber =
+			item.sessionNumber !== null && !item.eventTitle.match(new RegExp(`${item.sessionNumber}\\s*$`));
+		return (
+			<li className="text-sm">
+				<span className="text-muted-foreground">The group wrapped up</span>{" "}
+				<span className="font-medium">{item.eventTitle}</span>
+				{showNumber && <span className="text-muted-foreground"> (session {item.sessionNumber})</span>}
+				{item.gameTitle && (
+					<>
+						<span className="text-muted-foreground"> playing</span>{" "}
+						<span className="font-medium">{item.gameTitle}</span>
+					</>
+				)}
+				{item.howItWent !== null && (
+					<span className="stat text-primary"> · {item.howItWent}/5</span>
+				)}
+				<span className="stat text-muted-foreground/70 block text-xs">
+					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
+				</span>
+			</li>
+		);
+	}
 	const verb = STATUS_VERB[item.toStatus] ?? STATUS_VERB.proposed;
 	return (
 		<li className="text-sm">
