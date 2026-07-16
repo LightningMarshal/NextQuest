@@ -211,6 +211,57 @@ theme system (dark/light), route + server-action stubs, docs.
   (column first, title digits as legacy fallback); dashboard activity gains
   "wrapped up <session> playing <game> · n/5" rows from completed events
 
+## Phase 18 (proposed) — Engineering foundation
+
+The app has shipped 17 phases with no safety net: no CI, no automated
+tests, no error pages. Every recent regression (the events 500, the HLTB
+breaks) was caught by a user, not a machine — this phase makes the machine
+catch them first.
+
+- GitHub Actions CI: `typecheck` + `lint` + `build` on every push and PR
+- Dependabot config + a one-time dependency-vulnerability remediation pass
+  (16 known advisories on the default branch as of 2026-07)
+- Vitest unit tests for the pure-logic core — `src/lib/points.ts`,
+  `src/lib/pick.ts`, `src/lib/burn-rate.ts` — and the provider parsers
+  (HLTB/BGG/Steam normalization, using fixtures captured from stored
+  `game_metadata.raw` payloads; parser drift is the app's most recurrent
+  breakage)
+- Error surfaces: `error.tsx` + `not-found.tsx` boundaries (uncaught action
+  errors currently show Next's raw error screen — issue #17's "404" was
+  this), plus a catch pattern for the admin forms that invoke throwing
+  actions bare
+- `loading.tsx` skeletons — every page is force-dynamic with DB queries,
+  so navigation feels dead until the server answers
+- Mobile navigation: the nav bar's four links don't collapse; add a
+  hamburger below `sm` (this app gets used on phones at the table)
+- `scripts/seed.ts` for local dev — a demo group with games in every
+  status, events, votes, and polls
+
+## Phase 19 (proposed) — Coordination polish
+
+- Wrap-up nudge: a Discord reminder when a session sits in "needs wrap-up"
+  (reuse the `src/server/cron/event-reminders.ts` claim-marker pattern with
+  a new sent-at column) — recaps rot without it
+- iCal subscription feed for events (token-gated route handler) so sessions
+  land in everyone's real calendar; higher leverage than an in-app month
+  grid
+- Structured event venue (virtual / in-person / hybrid + free-text detail):
+  today `format` lives on the tabletop *game*, so a session can't disagree
+  with its game
+- Avatar referrer fix (issue #7 — diagnosed, one line) and deployment-doc
+  fixes (issues #5, #6)
+
+## Phase 20 (proposed) — History & identity
+
+- Per-member history page: what I proposed / played / rated (member stats
+  are currently two numbers)
+- "Year in review": burn-rate + sessions + ratings already hold the data
+  for a fun periodic group artifact
+- Data export (JSON/CSV of games, history, events, recaps) — the group's
+  history is the app's most precious data and currently has no way out
+- Picker transparency: a "why this?" one-liner per ranked game so the
+  five-factor score never feels like a black box
+
 ## Future ideas (unscheduled)
 
 - IGDB provider (needs a Twitch OAuth client-credentials exchange — deferred
@@ -219,3 +270,7 @@ theme system (dark/light), route + server-action stubs, docs.
   research 2026-07: page count is the best available crunch proxy)
 - Community crunch ratings (accumulate our own BGG-style weight over time)
 - A dedicated "mood" taxonomy for the picker (today mood rides genre/mode/tags)
+- `user_preferences` table once a second per-user preference appears (the
+  burn-period cookie is fine alone; notification opt-outs or a default pick
+  context would justify it)
+- PWA/installability (manifest + icons) for home-screen access on phones
