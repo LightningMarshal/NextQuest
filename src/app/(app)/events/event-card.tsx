@@ -269,7 +269,7 @@ export function EventCard({
 							<input type="checkbox" name="scheduleNext" value="1" className="accent-primary size-4" />
 							Schedule the next session — same time next week
 						</label>
-						<div className="flex items-center gap-2">
+						<div className="flex flex-wrap items-center gap-2">
 							<Button size="sm">Save attendance & complete</Button>
 							<Button size="sm" variant="ghost" formAction={cancelEvent.bind(null, event.id)}>
 								It never happened
