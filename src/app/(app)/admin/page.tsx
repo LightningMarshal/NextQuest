@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getDb, schema } from "@/db";
 import { backfillGameModes, recomputeUnplayedPoints } from "@/server/games";
 import { approveMember, rejectMember, setMemberRole } from "@/server/members";
+import { ActionForm } from "@/components/action-form";
 import { requireAdmin } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
@@ -72,14 +73,14 @@ export default async function AdminPage() {
 					<CardContent className="divide-y">
 						{pending.map((member) => (
 							<MemberRow key={member.id} member={member} selfId={admin.id}>
-								<form action={approveMember.bind(null, member.id)}>
+								<ActionForm action={approveMember.bind(null, member.id)}>
 									<Button size="sm">Approve</Button>
-								</form>
-								<form action={rejectMember.bind(null, member.id)}>
+								</ActionForm>
+								<ActionForm action={rejectMember.bind(null, member.id)}>
 									<Button size="sm" variant="outline">
 										Reject
 									</Button>
-								</form>
+								</ActionForm>
 							</MemberRow>
 						))}
 					</CardContent>
@@ -96,7 +97,7 @@ export default async function AdminPage() {
 						<MemberRow key={member.id} member={member} selfId={admin.id}>
 							{member.id !== admin.id && (
 								<>
-									<form
+									<ActionForm
 										action={setMemberRole.bind(
 											null,
 											member.id,
@@ -106,12 +107,12 @@ export default async function AdminPage() {
 										<Button size="sm" variant="outline">
 											{member.role === "admin" ? "Remove admin" : "Make admin"}
 										</Button>
-									</form>
-									<form action={rejectMember.bind(null, member.id)}>
+									</ActionForm>
+									<ActionForm action={rejectMember.bind(null, member.id)}>
 										<Button size="sm" variant="ghost">
 											Revoke
 										</Button>
-									</form>
+									</ActionForm>
 								</>
 							)}
 						</MemberRow>
@@ -130,9 +131,9 @@ export default async function AdminPage() {
 				<CardContent className="flex flex-col gap-6">
 					<SettingsForm settings={settings} />
 					<div className="flex flex-col gap-1.5 border-t pt-4">
-						<form action={recomputeUnplayedPoints}>
+						<ActionForm action={recomputeUnplayedPoints}>
 							<Button variant="outline">Recompute proposed + backlog effort</Button>
-						</form>
+						</ActionForm>
 						<p className="text-muted-foreground text-xs">
 							Re-runs the formula with current settings for proposed and backlog games only.
 							Playing, completed, and abandoned games are never touched, and manual effort
@@ -140,9 +141,9 @@ export default async function AdminPage() {
 						</p>
 					</div>
 					<div className="flex flex-col gap-1.5 border-t pt-4">
-						<form action={backfillGameModes}>
+						<ActionForm action={backfillGameModes}>
 							<Button variant="outline">Derive game modes from stored Steam data</Button>
-						</form>
+						</ActionForm>
 						<p className="text-muted-foreground text-xs">
 							One-time backfill for the picker&rsquo;s party-fit signal: reads co-op/multiplayer
 							categories from already-fetched Steam payloads (no network). New proposals and
@@ -161,11 +162,11 @@ export default async function AdminPage() {
 					<CardContent className="divide-y">
 						{rejected.map((member) => (
 							<MemberRow key={member.id} member={member} selfId={admin.id}>
-								<form action={approveMember.bind(null, member.id)}>
+								<ActionForm action={approveMember.bind(null, member.id)}>
 									<Button size="sm" variant="outline">
 										Approve
 									</Button>
-								</form>
+								</ActionForm>
 							</MemberRow>
 						))}
 					</CardContent>
