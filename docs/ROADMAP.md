@@ -211,31 +211,32 @@ theme system (dark/light), route + server-action stubs, docs.
   (column first, title digits as legacy fallback); dashboard activity gains
   "wrapped up <session> playing <game> · n/5" rows from completed events
 
-## Phase 18 (proposed) — Engineering foundation
+## Phase 18 — Engineering foundation ✅ (done)
 
-The app has shipped 17 phases with no safety net: no CI, no automated
-tests, no error pages. Every recent regression (the events 500, the HLTB
-breaks) was caught by a user, not a machine — this phase makes the machine
-catch them first.
+The app shipped 17 phases with no safety net: no CI, no automated tests,
+no error pages. Every recent regression (the events 500, the HLTB breaks)
+was caught by a user, not a machine — this phase made the machine catch
+them first.
 
-- GitHub Actions CI: `typecheck` + `lint` + `build` on every push and PR
-- Dependabot config + a one-time dependency-vulnerability remediation pass
-  (16 known advisories on the default branch as of 2026-07)
-- Vitest unit tests for the pure-logic core — `src/lib/points.ts`,
-  `src/lib/pick.ts`, `src/lib/burn-rate.ts` — and the provider parsers
-  (HLTB/BGG/Steam normalization, using fixtures captured from stored
-  `game_metadata.raw` payloads; parser drift is the app's most recurrent
-  breakage)
-- Error surfaces: `error.tsx` + `not-found.tsx` boundaries (uncaught action
-  errors currently show Next's raw error screen — issue #17's "404" was
-  this), plus a catch pattern for the admin forms that invoke throwing
+- GitHub Actions CI (#19): `typecheck` + `lint` + `test` + `build` on every
+  push and PR, plus Dependabot (weekly, grouped minor/patch) and a
+  dependency-remediation pass — remaining advisories are unpatched-upstream
+  better-auth surface the app doesn't use, now watched by Dependabot
+- Vitest unit tests (#20) for the pure-logic core — `src/lib/points.ts`,
+  `src/lib/pick.ts`, `src/lib/burn-rate.ts`, `src/lib/ical.ts` — and the
+  provider parsers (HLTB/BGG/Steam normalization against mocked payloads;
+  parser drift is the app's most recurrent breakage)
+- Error surfaces (#21): root + `(app)` `error.tsx` (retry actually refetches
+  via `router.refresh()`), styled `not-found.tsx`, `loading.tsx` skeletons,
+  and `ActionForm` inline errors for the admin forms that invoke throwing
   actions bare
-- `loading.tsx` skeletons — every page is force-dynamic with DB queries,
-  so navigation feels dead until the server answers
-- Mobile navigation: the nav bar's four links don't collapse; add a
-  hamburger below `sm` (this app gets used on phones at the table)
-- `scripts/seed.ts` for local dev — a demo group with games in every
-  status, events, votes, and polls
+- Mobile navigation (#22): dropdown nav below `sm` (this app gets used on
+  phones at the table); Google avatar referrer fix (#7) shipped alongside
+- `npm run seed` (`scripts/seed.ts`): a demo group for local dev — 13 games
+  across every status with metadata/points/history, votes with milestone
+  markers, tags, 4 events with RSVPs and attendance, and an open
+  availability poll; refuses to touch a non-empty database unless run
+  with `--reset`
 
 ## Phase 19 — Coordination polish ✅ (done)
 
@@ -253,8 +254,8 @@ catch them first.
   migration 0016) alongside free-text location — sessions carry their own
   how-we-meet signal independent of the game's declared format; set at
   creation, copied by clone-forward, shown on cards and in the feed
-- Avatar referrer fix (#7) shipped with the mobile-nav work; deployment-doc
-  issues #5/#6 were already fixed by the WS6 docs refresh and closed
+- Deployment-doc issues #5/#6 were already fixed by the WS6 docs refresh
+  and closed
 
 ## Phase 20 (proposed) — History & identity
 
