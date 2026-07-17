@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { deriveCalendarToken } from "@/lib/ical";
 import { requireApprovedUser } from "@/server/session";
 
+import { CalendarSubscribe } from "./calendar-subscribe";
 import { CreateEventForm } from "./create-event-form";
 import { CreatePollForm } from "./create-poll-form";
 import { EventCard, type EventWithDetails } from "./event-card";
@@ -33,6 +36,17 @@ export default async function EventsPage() {
 	const user = await requireApprovedUser();
 	const db = getDb();
 
+	// iCal feed URL (issue #24): token derived from the auth secret, base from
+	// the canonical app URL. Both unset only in a broken deployment — the
+	// subscribe card simply doesn't render then.
+	const { env } = getCloudflareContext() as {
+		env: { BETTER_AUTH_SECRET?: string; BETTER_AUTH_URL?: string };
+	};
+	const calendarUrl =
+		env.BETTER_AUTH_SECRET && env.BETTER_AUTH_URL
+			? `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/api/calendar?token=${await deriveCalendarToken(env.BETTER_AUTH_SECRET)}`
+			: null;
+
 	const creator = schema.user;
 	const [eventRows, members, candidateGames] = await Promise.all([
 		db
@@ -42,6 +56,7 @@ export default async function EventsPage() {
 				status: schema.events.status,
 				scheduledAt: schema.events.scheduledAt,
 				durationMinutes: schema.events.durationMinutes,
+				venue: schema.events.venue,
 				location: schema.events.location,
 				notes: schema.events.notes,
 				recap: schema.events.recap,
@@ -242,6 +257,8 @@ export default async function EventsPage() {
 					</div>
 				</section>
 			)}
+
+			{calendarUrl && <CalendarSubscribe url={calendarUrl} />}
 		</div>
 	);
 }

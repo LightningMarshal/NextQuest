@@ -22,6 +22,7 @@ export type EventWithDetails = {
 	status: "scheduled" | "completed" | "cancelled";
 	scheduledAt: Date;
 	durationMinutes: number | null;
+	venue: "virtual" | "in_person" | "hybrid" | null;
 	location: string | null;
 	notes: string | null;
 	recap: string | null;
@@ -38,6 +39,12 @@ const RSVP_OPTIONS = [
 	{ value: "maybe", label: "Maybe" },
 	{ value: "no", label: "Can't" },
 ] as const;
+
+const VENUE_LABELS: Record<NonNullable<EventWithDetails["venue"]>, string> = {
+	virtual: "virtual",
+	in_person: "in person",
+	hybrid: "hybrid",
+};
 
 function rsvpNames(attendance: EventAttendee[], rsvp: "yes" | "maybe") {
 	return attendance.filter((a) => a.rsvp === rsvp).map((a) => a.name);
@@ -95,10 +102,12 @@ export function EventCard({
 									{event.gameTitle}
 								</span>
 							)}
-							{event.location && (
+							{(event.venue || event.location) && (
 								<span className="flex items-center gap-1">
 									<MapPinIcon className="size-3" />
-									{event.location}
+									{[event.venue ? VENUE_LABELS[event.venue] : null, event.location]
+										.filter(Boolean)
+										.join(" · ")}
 								</span>
 							)}
 							{event.creatorName && <span>by {event.creatorName}</span>}

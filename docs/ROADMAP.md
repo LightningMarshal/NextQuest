@@ -237,19 +237,24 @@ catch them first.
 - `scripts/seed.ts` for local dev — a demo group with games in every
   status, events, votes, and polls
 
-## Phase 19 (proposed) — Coordination polish
+## Phase 19 — Coordination polish ✅ (done)
 
-- Wrap-up nudge: a Discord reminder when a session sits in "needs wrap-up"
-  (reuse the `src/server/cron/event-reminders.ts` claim-marker pattern with
-  a new sent-at column) — recaps rot without it
-- iCal subscription feed for events (token-gated route handler) so sessions
-  land in everyone's real calendar; higher leverage than an in-app month
-  grid
-- Structured event venue (virtual / in-person / hybrid + free-text detail):
-  today `format` lives on the tabletop *game*, so a session can't disagree
-  with its game
-- Avatar referrer fix (issue #7 — diagnosed, one line) and deployment-doc
-  fixes (issues #5, #6)
+- Wrap-up nudge (#23): the hourly reminder cron also sends one Discord
+  nudge when a session has sat unwrapped ~12h past its start — same
+  claim-marker pattern (`events.wrap_up_nudge_sent_at`, migration 0016),
+  so a repeated tick can't double-send; wrapping up or cancelling first
+  prevents it
+- iCal subscription feed (#24): `/api/calendar?token=…` serves RFC 5545
+  (`src/lib/ical.ts`, unit-tested) — scheduled + recent events, cancelled
+  ones as STATUS:CANCELLED, stable UIDs so edits propagate. The token is
+  derived from `BETTER_AUTH_SECRET` (no new secret; rotate it to revoke),
+  and the events page shows a copyable subscribe URL
+- Structured event venue: `events.venue` (virtual / in-person / hybrid,
+  migration 0016) alongside free-text location — sessions carry their own
+  how-we-meet signal independent of the game's declared format; set at
+  creation, copied by clone-forward, shown on cards and in the feed
+- Avatar referrer fix (#7) shipped with the mobile-nav work; deployment-doc
+  issues #5/#6 were already fixed by the WS6 docs refresh and closed
 
 ## Phase 20 (proposed) — History & identity
 
