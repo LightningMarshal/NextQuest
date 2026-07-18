@@ -1,4 +1,8 @@
+import { eq } from "drizzle-orm";
+
 import { SiteNav } from "@/components/site-nav";
+import { WelcomeTour } from "@/components/welcome-tour";
+import { getDb, schema } from "@/db";
 import { requireApprovedUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
@@ -14,6 +18,12 @@ export default async function AppLayout({
 }>) {
 	const user = await requireApprovedUser();
 	const settings = await getAppSettings();
+	// tutorial_seen_at is app-owned, not a Better Auth field, so it isn't on
+	// the session — one indexed-PK lookup per request is fine at group scale.
+	const [tourRow] = await getDb()
+		.select({ tutorialSeenAt: schema.user.tutorialSeenAt })
+		.from(schema.user)
+		.where(eq(schema.user.id, user.id));
 
 	return (
 		<>
@@ -27,6 +37,9 @@ export default async function AppLayout({
 				groupName={settings.groupName}
 			/>
 			<main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+			{/* Auto-opens exactly once per member (issue #13); the user-menu
+			    "Replay the tour" re-opens it via a window event. */}
+			<WelcomeTour initialOpen={tourRow?.tutorialSeenAt == null} />
 		</>
 	);
 }

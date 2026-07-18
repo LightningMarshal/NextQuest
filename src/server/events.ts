@@ -29,6 +29,8 @@ const createEventSchema = z.object({
 		.max(24 * 60)
 		.multipleOf(15, "Duration uses 15-minute increments.")
 		.optional(),
+	// Structured how-we-meet signal; location stays the free-text detail.
+	venue: z.enum(schema.eventVenue.enumValues).optional(),
 	location: z.string().trim().max(300).optional(),
 	notes: z.string().trim().max(5000).optional(),
 });
@@ -43,6 +45,7 @@ export async function createEvent(formData: FormData): Promise<void> {
 		// server, where "local" means UTC.
 		scheduledAt: formData.get("scheduledAt"),
 		durationMinutes: formData.get("durationMinutes") || undefined,
+		venue: formData.get("venue") || undefined,
 		location: formData.get("location") || undefined,
 		notes: formData.get("notes") || undefined,
 	});
@@ -59,8 +62,12 @@ export async function createEvent(formData: FormData): Promise<void> {
 			gameId: input.gameId,
 			scheduledAt: input.scheduledAt,
 			durationMinutes: input.durationMinutes,
+			venue: input.venue,
 			location: input.location,
 			notes: input.notes,
+			// "Session 1" typed by hand seeds the ordinal chain the same way
+			// the backfill migration does for pre-column rows.
+			sessionNumber: parseTrailingNumber(input.title),
 			createdBy: user.id,
 		})
 		.returning({ id: schema.events.id });
@@ -109,13 +116,22 @@ function bumpSessionNumber(title: string): string {
 	return title.replace(/(\d+)\s*$/, (match) => String(Number(match) + 1));
 }
 
+/** The trailing number bumpSessionNumber operates on, as data — seeds the
+ * session_number column so machines never parse titles at read time. */
+function parseTrailingNumber(title: string): number | undefined {
+	const match = title.match(/(\d+)\s*$/);
+	return match ? Number(match[1]) : undefined;
+}
+
 type CloneSource = {
 	id: string;
 	title: string;
 	gameId: string | null;
 	scheduledAt: Date;
 	durationMinutes: number | null;
+	venue: (typeof schema.eventVenue.enumValues)[number] | null;
 	location: string | null;
+	sessionNumber: number | null;
 };
 
 // Clone-forward is the recurrence model (docs/DECISIONS.md): "same time next
@@ -131,6 +147,9 @@ async function cloneEventForward(
 	// in every viewer's timezone (DST shifts the wall-clock hour at most).
 	const scheduledAt = new Date(source.scheduledAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 	const title = bumpSessionNumber(source.title);
+	// Column first, title digits as the legacy fallback — pre-column clones
+	// only recorded the ordinal in the title.
+	const currentNumber = source.sessionNumber ?? parseTrailingNumber(source.title);
 
 	const [event] = await db
 		.insert(schema.events)
@@ -139,7 +158,9 @@ async function cloneEventForward(
 			gameId: source.gameId,
 			scheduledAt,
 			durationMinutes: source.durationMinutes,
+			venue: source.venue,
 			location: source.location,
+			sessionNumber: currentNumber !== undefined ? currentNumber + 1 : undefined,
 			createdBy: user.id,
 		})
 		.returning({ id: schema.events.id });
@@ -171,7 +192,9 @@ export async function scheduleNextSession(eventId: string): Promise<void> {
 			gameId: schema.events.gameId,
 			scheduledAt: schema.events.scheduledAt,
 			durationMinutes: schema.events.durationMinutes,
+			venue: schema.events.venue,
 			location: schema.events.location,
+			sessionNumber: schema.events.sessionNumber,
 		})
 		.from(schema.events)
 		.where(eq(schema.events.id, eventId));
@@ -228,7 +251,9 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			gameId: schema.events.gameId,
 			scheduledAt: schema.events.scheduledAt,
 			durationMinutes: schema.events.durationMinutes,
+			venue: schema.events.venue,
 			location: schema.events.location,
+			sessionNumber: schema.events.sessionNumber,
 			status: schema.events.status,
 		})
 		.from(schema.events)

@@ -16,6 +16,7 @@ import {
 	type GameSearchResult,
 	type NormalizedGameMetadata,
 } from "@/lib/metadata";
+import { bggConfigured } from "@/lib/metadata/bgg";
 import { rawgConfigured } from "@/lib/metadata/rawg";
 import { requireApprovedUser } from "@/server/session";
 
@@ -34,6 +35,12 @@ export type SearchCandidatesResult = {
 	candidates: GameSearchResult[];
 	/** Provider ids that errored — the UI offers retry / manual entry. */
 	failures: string[];
+	/**
+	 * Provider ids skipped because their secret isn't set (deployment
+	 * config, not an outage) — the UI points at the missing secret instead
+	 * of suggesting a retry.
+	 */
+	unconfigured?: string[];
 };
 
 export async function searchGameCandidates(
@@ -45,6 +52,11 @@ export async function searchGameCandidates(
 
 	// Tabletop searches BGG only — Steam/HLTB would match the wrong medium.
 	if (kind === "tabletop") {
+		// No token is a deployment-config state, not a failure — report it as
+		// such so the form can say "set BGG_API_TOKEN" instead of "try again".
+		if (!bggConfigured()) {
+			return { candidates: [], failures: [], unconfigured: [bggProvider.id] };
+		}
 		try {
 			const results = await bggProvider.search(query);
 			return { candidates: results.slice(0, MAX_PER_PROVIDER * 2), failures: [] };

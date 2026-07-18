@@ -22,6 +22,13 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	// esbuild's keepNames (Wrangler's default) injects a `__name` helper and
+	// wraps functions with it. next-themes serializes its pre-hydration
+	// anti-flash script to a string that carries `__name` calls, but that
+	// inline <script> runs with no `__name` in scope → "__name is not defined"
+	// on every page. Disabling keepNames drops the helper.
+	// https://opennext.js.org/cloudflare/howtos/keep_names
+	"keep_names": false,
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"

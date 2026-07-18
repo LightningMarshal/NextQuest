@@ -7,6 +7,7 @@ import {
 	CheckCircle2Icon,
 	LibraryIcon,
 	PlayIcon,
+	SparklesIcon,
 	StarIcon,
 	TrendingUpIcon,
 	UsersIcon,
@@ -47,6 +48,31 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 				<span className="font-medium">{item.eventTitle}</span>{" "}
 				<span className="text-muted-foreground">for</span>{" "}
 				<LocalTime date={item.scheduledAt} withWeekday />
+				<span className="stat text-muted-foreground/70 block text-xs">
+					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
+				</span>
+			</li>
+		);
+	}
+	if (item.kind === "session") {
+		// The title usually carries the ordinal ("Session 12") — only add the
+		// column's number when the title doesn't already end with it.
+		const showNumber =
+			item.sessionNumber !== null && !item.eventTitle.match(new RegExp(`${item.sessionNumber}\\s*$`));
+		return (
+			<li className="text-sm">
+				<span className="text-muted-foreground">The group wrapped up</span>{" "}
+				<span className="font-medium">{item.eventTitle}</span>
+				{showNumber && <span className="text-muted-foreground"> (session {item.sessionNumber})</span>}
+				{item.gameTitle && (
+					<>
+						<span className="text-muted-foreground"> playing</span>{" "}
+						<span className="font-medium">{item.gameTitle}</span>
+					</>
+				)}
+				{item.howItWent !== null && (
+					<span className="stat text-primary"> · {item.howItWent}/5</span>
+				)}
 				<span className="stat text-muted-foreground/70 block text-xs">
 					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 				</span>
@@ -328,7 +354,12 @@ export default async function DashboardPage({
 					<ul className="divide-y">
 						{memberStats.map((member) => (
 							<li key={member.id} className="flex items-center gap-3 py-2 text-sm">
-								<span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
+								<Link
+									href={`/members/${member.id}`}
+									className="hover:text-primary min-w-0 flex-1 truncate font-medium"
+								>
+									{member.name}
+								</Link>
 								<span className="stat text-muted-foreground text-xs">
 									{member.proposals} proposed
 								</span>
@@ -342,6 +373,17 @@ export default async function DashboardPage({
 					</ul>
 				</CardContent>
 			</Card>
+
+			<Link
+				href="/review"
+				className="border-border hover:border-primary/40 hover:text-primary text-muted-foreground flex items-center justify-between rounded-xl border border-dashed px-4 py-3 text-sm transition-colors"
+			>
+				<span className="flex items-center gap-2">
+					<SparklesIcon className="size-4" />
+					{new Date().getUTCFullYear()} in review — what the group actually got through
+				</span>
+				<span aria-hidden>→</span>
+			</Link>
 		</div>
 	);
 }

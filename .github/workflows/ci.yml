@@ -1,0 +1,38 @@
+# CI: the same gates run locally (typecheck, lint, tests, build), on every
+# push to main and every PR. No secrets needed — the build never touches a
+# database (all pages are per-request dynamic), and tests stub all network.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

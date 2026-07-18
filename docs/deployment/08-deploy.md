@@ -12,6 +12,8 @@ Have your scratch note ready. You'll need:
 - ✅ Your `ADMIN_EMAILS` value — your own email(s)! (ch. 07)
 - ◻️ Discord webhook URL (ch. 06, optional)
 - ◻️ Your `CRON_SECRET` (ch. 07, optional but recommended)
+- ◻️ BGG API token (optional — needed for board game / TTRPG search)
+- ◻️ RAWG API key (optional — supplemental video-game metadata)
 
 ## Stage 1: put the secrets into Cloudflare
 
@@ -35,6 +37,8 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put ADMIN_EMAILS
 npx wrangler secret put DISCORD_WEBHOOK_URL
 npx wrangler secret put CRON_SECRET
+npx wrangler secret put BGG_API_TOKEN
+npx wrangler secret put RAWG_API_KEY
 ```
 
 | Secret | Value to paste |
@@ -47,6 +51,8 @@ npx wrangler secret put CRON_SECRET
 | `ADMIN_EMAILS` | Your email(s), comma-separated, no spaces |
 | `DISCORD_WEBHOOK_URL` | The webhook URL — *skip this command entirely if you skipped chapter 06* |
 | `CRON_SECRET` | Your random string from chapter 07 — *skippable, but then reminders and metadata refresh never run* ([why →](01-what-you-are-about-to-do.md#what-is-a-cron-job)) |
+| `BGG_API_TOKEN` | A BoardGameGeek API token from [boardgamegeek.com/applications/create](https://boardgamegeek.com/applications/create) (free registration; BGG and RPGGeek share it) — *skip it and board game / TTRPG proposals lose search & auto-fill; members type the details in manually instead* |
+| `RAWG_API_KEY` | A RAWG key from [rawg.io/apidocs](https://rawg.io/apidocs) (free tier is plenty) — *skippable; it only fills in video-game art/genres/scores when Steam is missing or down* |
 
 > [!NOTE]
 > The first `secret put` may say it can't find the Worker and ask whether

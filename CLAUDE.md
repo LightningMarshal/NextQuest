@@ -35,6 +35,7 @@ Google and are approved by an admin.
 | `npm run preview` | OpenNext build + `wrangler dev` — run before shipping; catches workerd-only breakage |
 | `npm run deploy` | OpenNext build + deploy to Cloudflare |
 | `npm run cf-typegen` | Regenerate `cloudflare-env.d.ts` from `wrangler.jsonc` |
+| `npm run seed` | Seed a demo group into the DB (`--reset` wipes app data first; needs `DATABASE_URL` in `.env`) |
 | `npm run db:generate` | Generate SQL migration from schema changes |
 | `npm run db:migrate` | Apply migrations (needs `DATABASE_URL` in `.env`) |
 | `npm run db:studio` | Drizzle Studio against the DB |

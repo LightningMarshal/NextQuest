@@ -53,6 +53,15 @@ What each step does and what to expect:
 > **Secrets persist across deploys.** You do not re-enter anything from
 > chapter 08 — deploying replaces the code, not the configuration.
 
+> [!TIP]
+> **Updates can introduce new (usually optional) secrets** — for example
+> `BGG_API_TOKEN` (board game / TTRPG search) and `RAWG_API_KEY`
+> (supplemental video metadata) arrived after the first release. After
+> `git pull`, skim `.dev.vars.example` for names you've never set; the
+> current full list with values lives in [chapter 08](08-deploy.md). A
+> missing optional secret never breaks the app — the matching feature
+> just quietly stays off.
+
 ## Occasional maintenance
 
 - **Rotating a leaked secret**: re-run the matching

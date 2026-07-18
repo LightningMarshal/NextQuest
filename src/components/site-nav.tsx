@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOutIcon, ShieldIcon } from "lucide-react";
+import { LogOutIcon, MenuIcon, ShieldIcon, SparklesIcon } from "lucide-react";
 
 import { ChevronMark } from "@/components/chevron-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { REPLAY_EVENT } from "@/components/welcome-tour";
 
 const links = [
 	{ href: "/", label: "Dashboard" },
@@ -33,8 +35,39 @@ export type NavUser = {
 	isAdmin: boolean;
 };
 
+/** Below `sm` the four links collapse behind this menu (issue #22) — the
+ * bar otherwise overflows on phones, where a session app actually lives. */
+function MobileNav({ pathname }: { pathname: string }) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open navigation">
+					<MenuIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="min-w-44 sm:hidden">
+				{links.map((link) => (
+					<DropdownMenuItem key={link.href} asChild>
+						<Link
+							href={link.href}
+							className={cn(pathname === link.href && "bg-primary/12 text-primary font-medium")}
+						>
+							{link.label}
+						</Link>
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
 function UserMenu({ user }: { user: NavUser }) {
 	const router = useRouter();
+	// Issue #7: Google's avatar host rejects requests carrying a Referer
+	// (429/403), so the image must be fetched with no referrer — and if it
+	// still fails (stale URL), fall back to the initial instead of showing
+	// the browser's broken-image icon.
+	const [imageFailed, setImageFailed] = useState(false);
 
 	async function handleSignOut() {
 		await authClient.signOut();
@@ -46,13 +79,15 @@ function UserMenu({ user }: { user: NavUser }) {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
-					{user.image ? (
+					{user.image && !imageFailed ? (
 						<Image
 							src={user.image}
 							alt={user.name}
 							width={28}
 							height={28}
 							className="size-7 rounded-full"
+							referrerPolicy="no-referrer"
+							onError={() => setImageFailed(true)}
 							unoptimized
 						/>
 					) : (
@@ -78,6 +113,12 @@ function UserMenu({ user }: { user: NavUser }) {
 						</Link>
 					</DropdownMenuItem>
 				)}
+				<DropdownMenuItem
+					onClick={() => window.dispatchEvent(new CustomEvent(REPLAY_EVENT))}
+				>
+					<SparklesIcon />
+					Replay the tour
+				</DropdownMenuItem>
 				<DropdownMenuItem onClick={handleSignOut}>
 					<LogOutIcon />
 					Sign out
@@ -92,7 +133,8 @@ export function SiteNav({ user, groupName }: { user: NavUser; groupName: string 
 
 	return (
 		<header className="border-b sticky top-0 z-40 bg-background/80 backdrop-blur">
-			<div className="mx-auto flex h-14 max-w-5xl items-center gap-6 px-4">
+			<div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 sm:gap-6">
+				<MobileNav pathname={pathname} />
 				<Link href="/" className="flex items-center gap-2.5">
 					<ChevronMark className="text-foreground size-6" />
 					<span className="font-display text-base font-semibold tracking-tight">NextQuest</span>
@@ -100,7 +142,7 @@ export function SiteNav({ user, groupName }: { user: NavUser; groupName: string 
 						{groupName}
 					</span>
 				</Link>
-				<nav className="flex items-center gap-1 text-sm">
+				<nav className="hidden items-center gap-1 text-sm sm:flex">
 					{links.map((link) => {
 						const active = pathname === link.href;
 						return (

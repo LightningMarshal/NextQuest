@@ -111,9 +111,25 @@ export function CreateEventForm({
 							<Input id="event-duration" name="durationMinutes" type="number" min="15" step="15" placeholder="120" />
 						</div>
 					</div>
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="event-location">Where (optional)</Label>
-						<Input id="event-location" name="location" maxLength={300} placeholder="Discord / the couch / a URL" />
+					<div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="event-venue">How (optional)</Label>
+							<select
+								id="event-venue"
+								name="venue"
+								defaultValue=""
+								className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+							>
+								<option value="">unspecified</option>
+								<option value="virtual">virtual</option>
+								<option value="in_person">in person</option>
+								<option value="hybrid">hybrid</option>
+							</select>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="event-location">Where (optional)</Label>
+							<Input id="event-location" name="location" maxLength={300} placeholder="Discord / the couch / a URL" />
+						</div>
 					</div>
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="event-notes">Notes (optional)</Label>

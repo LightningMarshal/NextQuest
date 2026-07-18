@@ -19,6 +19,9 @@ export const user = pgTable("user", {
 	image: text("image"),
 	role: userRole("role").notNull().default("member"),
 	status: userStatus("status").notNull().default("pending"),
+	// App-owned (NOT a Better Auth additionalField — auth ignores it): when
+	// the member finished/skipped the welcome tour (issue #13). Null = show it.
+	tutorialSeenAt: timestamp("tutorial_seen_at", { withTimezone: true }),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -16,6 +16,11 @@ import { games } from "./games";
 
 export const eventStatus = pgEnum("event_status", ["scheduled", "completed", "cancelled"]);
 
+// Structured how-we-meet signal for a SESSION (tabletop_details.format is the
+// game's declared format — a virtual-friendly game can still have an
+// in-person night, so the session carries its own).
+export const eventVenue = pgEnum("event_venue", ["virtual", "in_person", "hybrid"]);
+
 export const rsvpStatus = pgEnum("rsvp_status", ["yes", "no", "maybe"]);
 
 export const events = pgTable("events", {
@@ -28,7 +33,15 @@ export const events = pgTable("events", {
 	}),
 	scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
 	durationMinutes: integer("duration_minutes"),
-	// Free-form: a Discord channel, a URL, or "the couch".
+	// Campaign session ordinal. Set by clone-forward recurrence (source + 1,
+	// falling back to a trailing number in the source title) and backfilled
+	// once from title digits; manual one-off events stay null. The title keeps
+	// carrying "Session N" for humans — this column is for machines (activity
+	// rows, campaign strips) so nobody parses titles at read time.
+	sessionNumber: integer("session_number"),
+	// Structured venue; null = unspecified (older rows, GAC-created events).
+	venue: eventVenue("venue"),
+	// Free-form detail: a Discord channel, a URL, or "the couch".
 	location: text("location"),
 	// Planning notes, set when the session is created ("bring snacks"). Kept
 	// distinct from the post-session recap below so wrapping up never destroys
@@ -45,6 +58,8 @@ export const events = pgTable("events", {
 	// double-send without transactions.
 	reminder24hSentAt: timestamp("reminder_24h_sent_at", { withTimezone: true }),
 	reminder1hSentAt: timestamp("reminder_1h_sent_at", { withTimezone: true }),
+	// Post-event "needs wrap-up" nudge marker (issue #23), claimed the same way.
+	wrapUpNudgeSentAt: timestamp("wrap_up_nudge_sent_at", { withTimezone: true }),
 	createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

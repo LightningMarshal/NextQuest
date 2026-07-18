@@ -20,6 +20,7 @@ the cause, the fix, and the chapter that prevents it next time.
 | [13](#13-npm-install-or-npm-run-dev-fails-with-strange-syntax-errors) | `npm install` / `npm run dev` fails with strange syntax errors |
 | [14](#14-npm-run-preview-behaves-differently-from-npm-run-dev) | `npm run preview` behaves differently from `npm run dev` |
 | [15](#15-when-all-else-fails-reading-the-live-logs) | When all else fails: reading the live logs |
+| [16](#16-board-game--ttrpg-search-never-finds-anything) | Board game / TTRPG search never finds anything |
 
 ---
 
@@ -221,6 +222,26 @@ which maps to a chapter of this guide.
 Still stuck? File an issue on the repository with: what you did, what you
 saw (exact error text), and what the live log showed. Never paste your
 secrets or connection string into an issue.
+
+## 16. Board game / TTRPG search never finds anything
+
+Typing into the tabletop search box turns up nothing (or the dropdown
+says search is switched off), while video-game search works fine.
+
+**Cause**: the `BGG_API_TOKEN` production secret was never set.
+BoardGameGeek requires a registered token for its API; without one the
+app deliberately skips BGG and falls back to manual entry — video search
+is unaffected because Steam and HowLongToBeat need no keys.
+
+**Fix**: create a (free) token at
+[boardgamegeek.com/applications/create](https://boardgamegeek.com/applications/create),
+then run `npx wrangler secret put BGG_API_TOKEN` and paste it. Add it to
+your local `.dev.vars` too so `npm run dev`/`preview` match production.
+Takes effect on the next search — no redeploy needed. Games proposed
+manually in the meantime keep whatever you typed; there's no BGG refresh
+for them unless they were proposed from a BGG search pick.
+
+**Prevented in**: [chapter 08](08-deploy.md).
 
 ---
 

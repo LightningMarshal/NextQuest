@@ -195,15 +195,181 @@ theme system (dark/light), route + server-action stubs, docs.
   no-op without a key; joins the video typeahead and `fetchGameMetadata`
   (migration 0013 — `metadata_source` gains `rawg`)
 
+## Phase 17 — Onboarding & small cuts ✅ (done)
+
+- First-time user tutorial (issue #13): a five-step welcome tour modal
+  auto-opens once per member (`user.tutorial_seen_at`, migration 0014;
+  app-owned, not a Better Auth field), ends on a "propose your first game"
+  CTA, and stays replayable from the user menu (window-event handshake
+  between the two client islands — no context plumbing)
+- Keyboard navigation for the propose-form search dropdown: arrow keys with
+  wrap-around, Enter selects the highlighted candidate, Escape closes;
+  `aria-activedescendant`/`aria-selected` wired, hover and keyboard share
+  one highlight
+- A real `events.session_number` column (migration 0014 + 0015 backfill from
+  trailing title digits): seeded at creation, incremented by clone-forward
+  (column first, title digits as legacy fallback); dashboard activity gains
+  "wrapped up <session> playing <game> · n/5" rows from completed events
+
+## Phase 18 — Engineering foundation ✅ (done)
+
+The app shipped 17 phases with no safety net: no CI, no automated tests,
+no error pages. Every recent regression (the events 500, the HLTB breaks)
+was caught by a user, not a machine — this phase made the machine catch
+them first.
+
+- GitHub Actions CI (#19): `typecheck` + `lint` + `test` + `build` on every
+  push and PR, plus Dependabot (weekly, grouped minor/patch) and a
+  dependency-remediation pass — remaining advisories are unpatched-upstream
+  better-auth surface the app doesn't use, now watched by Dependabot
+- Vitest unit tests (#20) for the pure-logic core — `src/lib/points.ts`,
+  `src/lib/pick.ts`, `src/lib/burn-rate.ts`, `src/lib/ical.ts` — and the
+  provider parsers (HLTB/BGG/Steam normalization against mocked payloads;
+  parser drift is the app's most recurrent breakage)
+- Error surfaces (#21): root + `(app)` `error.tsx` (retry actually refetches
+  via `router.refresh()`), styled `not-found.tsx`, `loading.tsx` skeletons,
+  and `ActionForm` inline errors for the admin forms that invoke throwing
+  actions bare
+- Mobile navigation (#22): dropdown nav below `sm` (this app gets used on
+  phones at the table); Google avatar referrer fix (#7) shipped alongside
+- `npm run seed` (`scripts/seed.ts`): a demo group for local dev — 13 games
+  across every status with metadata/points/history, votes with milestone
+  markers, tags, 4 events with RSVPs and attendance, and an open
+  availability poll; refuses to touch a non-empty database unless run
+  with `--reset`
+
+## Phase 19 — Coordination polish ✅ (done)
+
+- Wrap-up nudge (#23): the hourly reminder cron also sends one Discord
+  nudge when a session has sat unwrapped ~12h past its start — same
+  claim-marker pattern (`events.wrap_up_nudge_sent_at`, migration 0016),
+  so a repeated tick can't double-send; wrapping up or cancelling first
+  prevents it
+- iCal subscription feed (#24): `/api/calendar?token=…` serves RFC 5545
+  (`src/lib/ical.ts`, unit-tested) — scheduled + recent events, cancelled
+  ones as STATUS:CANCELLED, stable UIDs so edits propagate. The token is
+  derived from `BETTER_AUTH_SECRET` (no new secret; rotate it to revoke),
+  and the events page shows a copyable subscribe URL
+- Structured event venue: `events.venue` (virtual / in-person / hybrid,
+  migration 0016) alongside free-text location — sessions carry their own
+  how-we-meet signal independent of the game's declared format; set at
+  creation, copied by clone-forward, shown on cards and in the feed
+- Deployment-doc issues #5/#6 were already fixed by the WS6 docs refresh
+  and closed
+
+## Phase 20 — History & identity ✅ (done)
+
+- Per-member history page (`/members/[userId]`, linked from the dashboard
+  members card): what they proposed (with outcomes), sessions attended,
+  upcoming RSVPs, and tables they GM — deliberately vote-free (ballots are
+  anonymous, including from admins)
+- "Year in review" (`/review`, linked from the dashboard): games finished
+  with effort burned, sessions held and hours at the table, session of the
+  year with its recap, most-played games, and the attendance leaderboard —
+  assembled entirely from already-stored data, with year picker chips
+- Data export: admin-gated `/api/export` — a full JSON snapshot (metadata
+  `raw` payloads excluded as refetchable bulk) plus per-table CSVs
+  (games/history/events/attendance) via download buttons on /admin. Votes
+  leave only as `{gameId, totalWeight}` aggregates — the anonymity
+  invariant applies to exports too
+- Picker transparency: `explainPick` (src/lib/pick.ts, unit-tested) writes
+  a "why this?" line for every ranked game — the strongest weighted
+  contributor leads, standout factors follow, and drags are admitted
+  ("no votes yet", "single-player only"), so a low rank explains itself
+  as clearly as a high one
+
+## Phase 21 (proposed) — Player voice
+
+Everything the app records today is a group aggregate: votes are summed,
+`how_it_went` rates the session for everyone, quality signals come from
+strangers on Steam/BGG. The one voice the app never captures is an
+individual member's opinion — which is why "what I rated" from the
+original member-history pitch was quietly impossible to build.
+
+- Per-member game ratings: a 1–5 rating (+ optional one-line take) a
+  member can leave once a game is `completed`/`abandoned` — new
+  `game_ratings` table (game_id, user_id, rating, note), prompted from the
+  game detail page and the wrap-up flow. Ratings are group-public (like
+  RSVPs, unlike votes). Feeds: member history ("what I rated"), year in
+  review (a real group GOTY instead of best session only), and the
+  backlog card for re-proposed games ("the group gave this 4.2 last time")
+- Per-game discussion: a lightweight comment thread on the game detail
+  page (game_comments: game_id, user_id, body, created_at) — today the
+  pitch is single-author and the actual argument about it happens in
+  Discord, invisible to the person deciding a year later. No editing
+  wars: plain append, author-delete only
+- Group GOTY in /review once ratings exist: highest average member
+  rating with a minimum-raters floor; show the per-member spread
+- Discord nudge when a game completes with no ratings after a few days
+  (reuse the wrap-up-nudge claim-marker pattern)
+
+## Phase 22 (proposed) — Production confidence
+
+The app now has CI, tests, and error pages — but production is still a
+black box: a crashed cron logs to a console nobody retains, and the only
+backup is an admin remembering to click "Everything (JSON)".
+
+- Error visibility: ship Worker logs somewhere durable (Workers Logs /
+  Logpush or a lightweight Sentry via `@sentry/cloudflare`); at minimum,
+  cron task failures should post to the existing Discord webhook — the
+  plumbing is already there (`console.warn` today = silent in prod)
+- Automated backups: a weekly cron task that writes the /api/export
+  snapshot to an R2 bucket with a retention window — the export route
+  already builds the payload; this schedules it. Document Neon PITR
+  alongside as the point-in-time layer
+- E2E smoke suite in CI: `npm run seed` + local Postgres + the Neon-HTTP
+  shim + Playwright against `next dev` — sign in via a test-only session
+  seam, walk propose → vote → schedule → wrap-up. Every verification
+  session so far has hand-rebuilt exactly this harness; commit it
+  (the shim itself is the missing piece — see Phase 23's local dev item)
+- Migration check in CI: apply `drizzle/` from zero against a scratch
+  Postgres service so a broken generated migration fails the PR, not the
+  deploy (the deploy script runs migrations first — today that's where
+  you'd find out)
+- PR preview deploys via `wrangler versions upload` — review a change on
+  a real workerd runtime instead of trusting `npm run dev`
+
+## Phase 23 (proposed) — Comfort at scale
+
+Nothing here is broken today at 13 games and 5 members; all of it starts
+to hurt at 100 games and year three.
+
+- Backlog text search: the filter row has tag/type/genre/mode/sort but no
+  free-text title search — fine now, not at 100 games
+- Admin data hygiene: hard-delete for spam/typo proposals and a merge
+  tool for duplicates (today the only exit is `rejected`, which keeps the
+  row forever; merge must reconcile votes, tags, history, and events)
+- Local dev without a Neon account: commit the Neon-HTTP→Postgres shim
+  (`NEON_HTTP_PROXY_ENDPOINT` support already shipped in src/db/index.ts,
+  but the shim it points to lives in no repo) + a documented
+  Postgres-in-Docker path; pairs with `npm run seed`
+- PWA/installability: manifest + icons + a home-screen-worthy offline
+  shell for the events page — promoted from future ideas now that the
+  mobile nav works and the app gets used at the table
+- Accessibility pass: focus management in the mobile nav and propose
+  dropdown shipped, but nothing has audited the vote steppers, chart
+  alt-surfaces, dialog focus traps, or contrast tokens end to end —
+  run axe across the six main pages and fix what it finds
+- Query consolidation for Neon HTTP: the events page issues ~6 sequential
+  round-trips (each query is an HTTP fetch on this driver); batch the
+  independent ones with `Promise.all` where not already, and collapse the
+  rest into fewer statements — measurable TTFB win on Workers
+
 ## Future ideas (unscheduled)
 
 - IGDB provider (needs a Twitch OAuth client-credentials exchange — deferred
   behind RAWG, similar coverage)
 - DriveThruRPG page-count crunch heuristic for TTRPGs (undocumented API —
   research 2026-07: page count is the best available crunch proxy)
-- Community crunch ratings (accumulate our own BGG-style weight over time)
+- Community crunch ratings (accumulate our own BGG-style weight over time —
+  Phase 21's `game_ratings` table is the natural foundation)
 - A dedicated "mood" taxonomy for the picker (today mood rides genre/mode/tags)
-- Dashboard activity rows for completed sessions; a real `session_number`
-  column (today it lives in the title string)
-- First-time user tutorial (issue #13)
-- Keyboard navigation for the propose-form search dropdown
+- `user_preferences` table once a second per-user preference appears (the
+  burn-period cookie is fine alone; notification opt-outs or a default pick
+  context would justify it)
+- Steam wishlist/library import: bulk-propose from a member's public Steam
+  profile instead of one title at a time
+- Auto-post the year in review to Discord every January 1st (cron +
+  webhook already exist; /review already assembles the content)
+- Notification opt-outs per member (would trigger the user_preferences
+  table above)
