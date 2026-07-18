@@ -153,6 +153,33 @@ export default async function AdminPage() {
 				</CardContent>
 			</Card>
 
+			<Card>
+				<CardHeader>
+					<CardTitle>Data export</CardTitle>
+					<CardDescription>
+						The group&rsquo;s history, out of the app: a full JSON snapshot (games, events,
+						history, polls — votes as anonymous totals only), or per-table CSVs for
+						spreadsheets. Downloads are admin-only.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="flex flex-wrap gap-2">
+					<Button asChild size="sm">
+						{/* Plain links, not fetch: the route sets Content-Disposition, so
+						    the browser downloads without any client JS. */}
+						<a href="/api/export" download>
+							Everything (JSON)
+						</a>
+					</Button>
+					{(["games", "history", "events", "attendance"] as const).map((table) => (
+						<Button key={table} asChild size="sm" variant="outline">
+							<a href={`/api/export?format=csv&table=${table}`} download>
+								{table}.csv
+							</a>
+						</Button>
+					))}
+				</CardContent>
+			</Card>
+
 			{rejected.length > 0 && (
 				<Card>
 					<CardHeader>

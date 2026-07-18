@@ -7,6 +7,7 @@ import {
 	CheckCircle2Icon,
 	LibraryIcon,
 	PlayIcon,
+	SparklesIcon,
 	StarIcon,
 	TrendingUpIcon,
 	UsersIcon,
@@ -353,7 +354,12 @@ export default async function DashboardPage({
 					<ul className="divide-y">
 						{memberStats.map((member) => (
 							<li key={member.id} className="flex items-center gap-3 py-2 text-sm">
-								<span className="min-w-0 flex-1 truncate font-medium">{member.name}</span>
+								<Link
+									href={`/members/${member.id}`}
+									className="hover:text-primary min-w-0 flex-1 truncate font-medium"
+								>
+									{member.name}
+								</Link>
 								<span className="stat text-muted-foreground text-xs">
 									{member.proposals} proposed
 								</span>
@@ -367,6 +373,17 @@ export default async function DashboardPage({
 					</ul>
 				</CardContent>
 			</Card>
+
+			<Link
+				href="/review"
+				className="border-border hover:border-primary/40 hover:text-primary text-muted-foreground flex items-center justify-between rounded-xl border border-dashed px-4 py-3 text-sm transition-colors"
+			>
+				<span className="flex items-center gap-2">
+					<SparklesIcon className="size-4" />
+					{new Date().getUTCFullYear()} in review — what the group actually got through
+				</span>
+				<span aria-hidden>→</span>
+			</Link>
 		</div>
 	);
 }

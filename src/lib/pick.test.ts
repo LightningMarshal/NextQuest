@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
 	DEFAULT_PICK_WEIGHTS,
+	explainPick,
 	interestComponent,
 	partyFitComponent,
 	qualityComponent,
 	scoreBacklog,
 	stalenessComponent,
 	timeFitComponent,
+	type PickComponent,
+	type PickComponentKey,
+	type PickExplanationInput,
 	type PickableGame,
 	type SessionContext,
 } from "./pick";
@@ -144,5 +148,114 @@ describe("scoreBacklog", () => {
 		);
 		expect(Number.isFinite(ranked[0].score)).toBe(true);
 		expect(ranked[0].components.every((c) => c.weight === 0.25)).toBe(true);
+	});
+});
+
+describe("explainPick", () => {
+	function component(key: PickComponentKey, value: number, weight = 0.25): PickComponent {
+		return { key, value, weight };
+	}
+	function input(
+		components: PickComponent[],
+		overrides: Partial<PickExplanationInput> = {}
+	): PickExplanationInput {
+		return {
+			components,
+			tally: 5,
+			backlogSince: null,
+			gameType: "video",
+			hasSessionHours: false,
+			...overrides,
+		};
+	}
+
+	it("leads with the strongest weighted contributor", () => {
+		const line = explainPick(
+			input([
+				component("interest", 1, 0.4),
+				component("quality", 0.9, 0.2),
+				component("timeFit", 0.5, 0.2),
+				component("staleness", 0.1, 0.2),
+			])
+		);
+		expect(line.startsWith("the group's votes put it here")).toBe(true);
+		expect(line).toContain("acclaimed");
+	});
+
+	it("admits what drags a low-ranked game down", () => {
+		const line = explainPick(
+			input(
+				[
+					component("interest", 0, 0.35),
+					component("quality", 0.9, 0.15),
+					component("timeFit", 0.1, 0.25),
+					component("staleness", 0, 0.15),
+				],
+				{ tally: 0 }
+			)
+		);
+		expect(line).toContain("no votes yet");
+		expect(line).toContain("the length doesn't fit the plan");
+	});
+
+	it("never phrases staleness or unknown signals as a drag", () => {
+		// Fresh arrival (staleness 0) + unknown quality/partyFit (0.5 neutral).
+		const line = explainPick(
+			input([
+				component("interest", 1, 0.4),
+				component("quality", 0.5, 0.2),
+				component("staleness", 0, 0.2),
+				component("partyFit", 0.5, 0.2),
+			])
+		);
+		expect(line).not.toContain("middling");
+		expect(line).not.toContain("shelf");
+		expect(line).not.toContain("player count");
+	});
+
+	it("counts waiting time in months from backlogSince", () => {
+		const now = new Date("2026-07-16T12:00:00Z");
+		const line = explainPick(
+			input([component("staleness", 0.9, 0.5), component("interest", 0.4, 0.5)], {
+				backlogSince: new Date("2026-02-01T00:00:00Z"),
+			}),
+			now
+		);
+		expect(line).toContain("waiting 5 months");
+	});
+
+	it("says finishable tonight only when session hours were given", () => {
+		const components = [component("timeFit", 1, 0.6), component("interest", 0.2, 0.4)];
+		expect(explainPick(input(components, { hasSessionHours: true }))).toContain(
+			"finishable tonight"
+		);
+		expect(explainPick(input(components, { hasSessionHours: false }))).toContain(
+			"the length fits the plan"
+		);
+	});
+
+	it("always says something", () => {
+		const line = explainPick(
+			input([
+				component("interest", 0.4),
+				component("quality", 0.45),
+				component("timeFit", 0.4),
+				component("staleness", 0.3),
+			])
+		);
+		expect(line).toBe("middle of the pack on every factor");
+	});
+
+	it("caps the line at three positive phrases plus drags", () => {
+		const line = explainPick(
+			input([
+				component("interest", 1, 0.2),
+				component("quality", 1, 0.2),
+				component("timeFit", 1, 0.2),
+				component("staleness", 1, 0.2),
+				component("partyFit", 1, 0.2),
+			])
+		);
+		expect(line.split(" · ")).toHaveLength(3);
 	});
 });

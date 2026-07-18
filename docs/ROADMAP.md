@@ -257,16 +257,26 @@ them first.
 - Deployment-doc issues #5/#6 were already fixed by the WS6 docs refresh
   and closed
 
-## Phase 20 (proposed) — History & identity
+## Phase 20 — History & identity ✅ (done)
 
-- Per-member history page: what I proposed / played / rated (member stats
-  are currently two numbers)
-- "Year in review": burn-rate + sessions + ratings already hold the data
-  for a fun periodic group artifact
-- Data export (JSON/CSV of games, history, events, recaps) — the group's
-  history is the app's most precious data and currently has no way out
-- Picker transparency: a "why this?" one-liner per ranked game so the
-  five-factor score never feels like a black box
+- Per-member history page (`/members/[userId]`, linked from the dashboard
+  members card): what they proposed (with outcomes), sessions attended,
+  upcoming RSVPs, and tables they GM — deliberately vote-free (ballots are
+  anonymous, including from admins)
+- "Year in review" (`/review`, linked from the dashboard): games finished
+  with effort burned, sessions held and hours at the table, session of the
+  year with its recap, most-played games, and the attendance leaderboard —
+  assembled entirely from already-stored data, with year picker chips
+- Data export: admin-gated `/api/export` — a full JSON snapshot (metadata
+  `raw` payloads excluded as refetchable bulk) plus per-table CSVs
+  (games/history/events/attendance) via download buttons on /admin. Votes
+  leave only as `{gameId, totalWeight}` aggregates — the anonymity
+  invariant applies to exports too
+- Picker transparency: `explainPick` (src/lib/pick.ts, unit-tested) writes
+  a "why this?" line for every ranked game — the strongest weighted
+  contributor leads, standout factors follow, and drags are admitted
+  ("no votes yet", "single-player only"), so a low rank explains itself
+  as clearly as a high one
 
 ## Future ideas (unscheduled)
 

@@ -190,6 +190,104 @@ function isPartyFitActive(ctx: SessionContext): boolean {
 	return ctx.together && (ctx.players ?? 0) >= 2;
 }
 
+// --- "Why this?" ------------------------------------------------------------
+// A one-liner per ranked game so the composite score never reads as a black
+// box: name the strongest contributor, back it with standout factors, and
+// admit what drags the score down. Pure and read-time like the score itself.
+
+export type PickExplanationInput = {
+	/** The ranked game's components — only the active ones, as scored. */
+	components: PickComponent[];
+	/** Aggregate vote total — distinguishes "no votes yet" from "low share". */
+	tally: number;
+	backlogSince: Date | null;
+	gameType: PickableGame["gameType"];
+	/** Whether tonight's hours were given — phrasing only. */
+	hasSessionHours: boolean;
+};
+
+const DRIVER_MIN_VALUE = 0.5;
+const STANDOUT_MIN_VALUE = 0.8;
+const DRAG_MAX_VALUE = 0.25;
+
+function waitingPhrase(backlogSince: Date | null, now: Date): string {
+	if (!backlogSince) return "been on the shelf a while";
+	const months = Math.floor(
+		(now.getTime() - backlogSince.getTime()) / (30 * 24 * 60 * 60 * 1000)
+	);
+	return months >= 2 ? `waiting ${months} months` : "been on the shelf a while";
+}
+
+/**
+ * Explain one ranked game as a short " · "-joined line. Always returns a
+ * non-empty string — a game with nothing remarkable says so explicitly.
+ */
+export function explainPick(input: PickExplanationInput, now: Date = new Date()): string {
+	const byKey = new Map(input.components.map((component) => [component.key, component]));
+	const get = (key: PickComponentKey) => byKey.get(key);
+
+	// The driver: largest weighted contribution, provided the component is
+	// actually good — a "best of a bad lot" factor shouldn't lead the line.
+	const driver = [...input.components]
+		.filter((component) => component.value >= DRIVER_MIN_VALUE && component.weight > 0)
+		.sort((a, b) => b.weight * b.value - a.weight * a.value)[0];
+
+	const driverPhrases: Record<PickComponentKey, () => string> = {
+		interest: () => "the group's votes put it here",
+		quality: () => "reviews carry it",
+		timeFit: () =>
+			input.hasSessionHours && (get("timeFit")?.value ?? 0) >= 0.95
+				? "finishable tonight"
+				: "the length fits the plan",
+		staleness: () => waitingPhrase(input.backlogSince, now),
+		partyFit: () =>
+			input.gameType === "video" ? "built for playing together" : "fits your player count",
+	};
+
+	const standoutPhrases: Record<PickComponentKey, () => string> = {
+		interest: () => "strong group votes",
+		quality: () => "acclaimed",
+		timeFit: () => (input.hasSessionHours ? "fits tonight's window" : "right length"),
+		staleness: () => waitingPhrase(input.backlogSince, now),
+		partyFit: () => (input.gameType === "video" ? "plays together" : "fits your player count"),
+	};
+
+	// Staleness is never a drag — arriving recently isn't a flaw. A missing
+	// quality/timeFit/partyFit signal scores 0.5 (neutral), so "we don't
+	// know" can never be phrased as a defect either.
+	const dragPhrases: Partial<Record<PickComponentKey, () => string>> = {
+		interest: () => (input.tally === 0 ? "no votes yet" : "few votes so far"),
+		quality: () => "middling reviews",
+		timeFit: () => "the length doesn't fit the plan",
+		partyFit: () =>
+			input.gameType === "video" ? "single-player only" : "awkward player count",
+	};
+
+	const phrases: string[] = [];
+	if (driver) phrases.push(driverPhrases[driver.key]());
+	for (const component of input.components) {
+		if (phrases.length >= 3) break;
+		if (component.key === driver?.key) continue;
+		if (component.value >= STANDOUT_MIN_VALUE) {
+			phrases.push(standoutPhrases[component.key]());
+		}
+	}
+	const drags = input.components
+		.filter(
+			(component) =>
+				component.key !== driver?.key &&
+				component.value <= DRAG_MAX_VALUE &&
+				component.weight > 0 &&
+				dragPhrases[component.key]
+		)
+		.slice(0, 2)
+		.map((component) => dragPhrases[component.key]!());
+	phrases.push(...drags);
+
+	if (phrases.length === 0) return "middle of the pack on every factor";
+	return phrases.join(" · ");
+}
+
 /**
  * Rank the backlog for a session context. The sort is stable, so equal
  * scores keep the input order — pre-sort the input by title for a

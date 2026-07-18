@@ -8,7 +8,7 @@ import { MinusIcon, PlusIcon, StarIcon, TrophyIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { PickComponent, PickComponentKey } from "@/lib/pick";
+import { explainPick, type PickComponent, type PickComponentKey } from "@/lib/pick";
 import { setVote } from "@/server/votes";
 import { cn } from "@/lib/utils";
 
@@ -65,30 +65,15 @@ const COMPONENT_LABELS: Record<PickComponentKey, string> = {
 	partyFit: "party fit",
 };
 
-function componentValue(game: PickListGame, key: PickComponentKey): number | undefined {
-	return game.components.find((component) => component.key === key)?.value;
-}
-
-/** Short human line about why a game ranks where it does. */
+/** "Why this?" line — the shared pure explainer (src/lib/pick.ts, tested). */
 function explanation(game: PickListGame, hasSessionHours: boolean): string {
-	const phrases: string[] = [];
-	if ((componentValue(game, "interest") ?? 0) >= 0.8 && game.groupTotal > 0) {
-		phrases.push("group favorite");
-	}
-	if ((componentValue(game, "quality") ?? 0) >= 0.8) phrases.push("acclaimed");
-	const timeFit = componentValue(game, "timeFit") ?? 0;
-	if (timeFit >= 0.95) phrases.push(hasSessionHours ? "fits tonight's window" : "right length");
-	if ((componentValue(game, "staleness") ?? 0) >= 0.5 && game.backlogSince) {
-		const months = Math.floor(
-			(Date.now() - new Date(game.backlogSince).getTime()) / (30 * 24 * 60 * 60 * 1000)
-		);
-		if (months >= 2) phrases.push(`waiting ${months} months`);
-		else phrases.push("been waiting a while");
-	}
-	if (componentValue(game, "partyFit") === 1) {
-		phrases.push(game.gameType === "video" ? "plays together" : "fits your player count");
-	}
-	return phrases.join(" · ");
+	return explainPick({
+		components: game.components,
+		tally: game.groupTotal,
+		backlogSince: game.backlogSince ? new Date(game.backlogSince) : null,
+		gameType: game.gameType,
+		hasSessionHours,
+	});
 }
 
 function ComponentBars({ game, compact }: { game: PickListGame; compact?: boolean }) {
