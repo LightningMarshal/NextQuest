@@ -278,15 +278,98 @@ them first.
   ("no votes yet", "single-player only"), so a low rank explains itself
   as clearly as a high one
 
+## Phase 21 (proposed) — Player voice
+
+Everything the app records today is a group aggregate: votes are summed,
+`how_it_went` rates the session for everyone, quality signals come from
+strangers on Steam/BGG. The one voice the app never captures is an
+individual member's opinion — which is why "what I rated" from the
+original member-history pitch was quietly impossible to build.
+
+- Per-member game ratings: a 1–5 rating (+ optional one-line take) a
+  member can leave once a game is `completed`/`abandoned` — new
+  `game_ratings` table (game_id, user_id, rating, note), prompted from the
+  game detail page and the wrap-up flow. Ratings are group-public (like
+  RSVPs, unlike votes). Feeds: member history ("what I rated"), year in
+  review (a real group GOTY instead of best session only), and the
+  backlog card for re-proposed games ("the group gave this 4.2 last time")
+- Per-game discussion: a lightweight comment thread on the game detail
+  page (game_comments: game_id, user_id, body, created_at) — today the
+  pitch is single-author and the actual argument about it happens in
+  Discord, invisible to the person deciding a year later. No editing
+  wars: plain append, author-delete only
+- Group GOTY in /review once ratings exist: highest average member
+  rating with a minimum-raters floor; show the per-member spread
+- Discord nudge when a game completes with no ratings after a few days
+  (reuse the wrap-up-nudge claim-marker pattern)
+
+## Phase 22 (proposed) — Production confidence
+
+The app now has CI, tests, and error pages — but production is still a
+black box: a crashed cron logs to a console nobody retains, and the only
+backup is an admin remembering to click "Everything (JSON)".
+
+- Error visibility: ship Worker logs somewhere durable (Workers Logs /
+  Logpush or a lightweight Sentry via `@sentry/cloudflare`); at minimum,
+  cron task failures should post to the existing Discord webhook — the
+  plumbing is already there (`console.warn` today = silent in prod)
+- Automated backups: a weekly cron task that writes the /api/export
+  snapshot to an R2 bucket with a retention window — the export route
+  already builds the payload; this schedules it. Document Neon PITR
+  alongside as the point-in-time layer
+- E2E smoke suite in CI: `npm run seed` + local Postgres + the Neon-HTTP
+  shim + Playwright against `next dev` — sign in via a test-only session
+  seam, walk propose → vote → schedule → wrap-up. Every verification
+  session so far has hand-rebuilt exactly this harness; commit it
+  (the shim itself is the missing piece — see Phase 23's local dev item)
+- Migration check in CI: apply `drizzle/` from zero against a scratch
+  Postgres service so a broken generated migration fails the PR, not the
+  deploy (the deploy script runs migrations first — today that's where
+  you'd find out)
+- PR preview deploys via `wrangler versions upload` — review a change on
+  a real workerd runtime instead of trusting `npm run dev`
+
+## Phase 23 (proposed) — Comfort at scale
+
+Nothing here is broken today at 13 games and 5 members; all of it starts
+to hurt at 100 games and year three.
+
+- Backlog text search: the filter row has tag/type/genre/mode/sort but no
+  free-text title search — fine now, not at 100 games
+- Admin data hygiene: hard-delete for spam/typo proposals and a merge
+  tool for duplicates (today the only exit is `rejected`, which keeps the
+  row forever; merge must reconcile votes, tags, history, and events)
+- Local dev without a Neon account: commit the Neon-HTTP→Postgres shim
+  (`NEON_HTTP_PROXY_ENDPOINT` support already shipped in src/db/index.ts,
+  but the shim it points to lives in no repo) + a documented
+  Postgres-in-Docker path; pairs with `npm run seed`
+- PWA/installability: manifest + icons + a home-screen-worthy offline
+  shell for the events page — promoted from future ideas now that the
+  mobile nav works and the app gets used at the table
+- Accessibility pass: focus management in the mobile nav and propose
+  dropdown shipped, but nothing has audited the vote steppers, chart
+  alt-surfaces, dialog focus traps, or contrast tokens end to end —
+  run axe across the six main pages and fix what it finds
+- Query consolidation for Neon HTTP: the events page issues ~6 sequential
+  round-trips (each query is an HTTP fetch on this driver); batch the
+  independent ones with `Promise.all` where not already, and collapse the
+  rest into fewer statements — measurable TTFB win on Workers
+
 ## Future ideas (unscheduled)
 
 - IGDB provider (needs a Twitch OAuth client-credentials exchange — deferred
   behind RAWG, similar coverage)
 - DriveThruRPG page-count crunch heuristic for TTRPGs (undocumented API —
   research 2026-07: page count is the best available crunch proxy)
-- Community crunch ratings (accumulate our own BGG-style weight over time)
+- Community crunch ratings (accumulate our own BGG-style weight over time —
+  Phase 21's `game_ratings` table is the natural foundation)
 - A dedicated "mood" taxonomy for the picker (today mood rides genre/mode/tags)
 - `user_preferences` table once a second per-user preference appears (the
   burn-period cookie is fine alone; notification opt-outs or a default pick
   context would justify it)
-- PWA/installability (manifest + icons) for home-screen access on phones
+- Steam wishlist/library import: bulk-propose from a member's public Steam
+  profile instead of one title at a time
+- Auto-post the year in review to Discord every January 1st (cron +
+  webhook already exist; /review already assembles the content)
+- Notification opt-outs per member (would trigger the user_preferences
+  table above)
