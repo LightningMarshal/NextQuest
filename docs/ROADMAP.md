@@ -278,6 +278,31 @@ them first.
   ("no votes yet", "single-player only"), so a low rank explains itself
   as clearly as a high one
 
+## Field feedback round (2026-07) ✅ (done)
+
+First batch of issues filed from real group use, shipped together:
+
+- Wrap-up plays anything (#32): the "What did you play?" select offers every
+  game grouped by lifecycle stage, and a typed-in title links an existing
+  game by name or creates a minimal proposed one on the spot (no metadata
+  fetch — wrap-up stays fast; "Refresh metadata" fills it in later)
+- Availability grid (#33): "Find a time" is now whenisgood-style — the
+  creator picks candidate days + a window per day, members paint the
+  15-minute blocks that work (drag on desktop and mobile, auto-saved),
+  everyone's overlap renders as a heatmap, and the best fully-covered
+  spans get one-click "Schedule this" with RSVPs seeded from the paint
+  (full cover → yes, partial → maybe). New `availability_marks` table +
+  poll `kind` (migration 0018); old slot polls still render. Interval
+  math is pure and unit-tested (`src/lib/availability-grid.ts`)
+- Game card/page quick actions (#34): "Add to backlog" / "Start playing"
+  on the card face (terminal moves stay behind Manage), "Plan session"
+  deep links that preselect the game on the events form, and the detail
+  page gains inline effort inputs
+- Dashboard rebalance (#35): a "together" tile row (sessions held, hours
+  together, average session rating, next session) always shows, and a new
+  admin setting hides the completion %/burn-rate surfaces entirely for
+  groups living in service games (migration 0017)
+
 ## Phase 21 (proposed) — Player voice
 
 Everything the app records today is a group aggregate: votes are summed,

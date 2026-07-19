@@ -8,60 +8,119 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createAvailabilityPoll } from "@/server/availability";
+import { createGridPoll } from "@/server/availability";
 
-import { useMinDatetimeLocal } from "./create-event-form";
+// Grid-poll creation (issue #33): pick the candidate DAYS and a daily time
+// window; members then paint the 15-minute blocks that work on the grid.
+// Times use 15-minute steps, and the end time follows the start by default.
 
 function SubmitButton() {
 	const { pending } = useFormStatus();
 	return (
 		<Button disabled={pending}>
 			{pending ? <Loader2Icon className="animate-spin" /> : <CalendarSearchIcon />}
-			Start poll
+			Open the grid
 		</Button>
 	);
 }
 
+type DayRow = { key: number; date: string; start: string; end: string };
+
+function isoDate(date: Date): string {
+	return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function addDays(dateIso: string, days: number): string {
+	const date = new Date(`${dateIso}T12:00:00`);
+	date.setDate(date.getDate() + days);
+	return isoDate(date);
+}
+
+/** "18:00" + 120min → "20:00" (wraps within the day). */
+function shiftTime(time: string, minutes: number): string {
+	const [h, m] = time.split(":").map(Number);
+	const total = (h * 60 + m + minutes) % (24 * 60);
+	return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function CreatePollForm() {
 	const formRef = useRef<HTMLFormElement>(null);
-	const [slotKeys, setSlotKeys] = useState<number[]>([0, 1]);
+	// Lazy initializer: "now" is impure, so it runs once, not per render.
+	const [anchor] = useState(() => {
+		const today = isoDate(new Date());
+		return { today, tomorrow: addDays(today, 1) };
+	});
+	const { today, tomorrow } = anchor;
+	const [days, setDays] = useState<DayRow[]>(() => [
+		{ key: 0, date: tomorrow, start: "18:00", end: "23:00" },
+		{ key: 1, date: addDays(tomorrow, 1), start: "18:00", end: "23:00" },
+	]);
 	const nextKey = useRef(2);
+	const [sessionMinutes, setSessionMinutes] = useState(120);
 	const [error, setError] = useState<string | null>(null);
-	const minSlot = useMinDatetimeLocal();
 
-	function addSlot() {
-		setSlotKeys((keys) => [...keys, nextKey.current++]);
+	function addDay() {
+		setDays((rows) => {
+			const last = rows[rows.length - 1];
+			return [
+				...rows,
+				{
+					key: nextKey.current++,
+					date: last ? addDays(last.date, 1) : tomorrow,
+					start: last?.start ?? "18:00",
+					end: last?.end ?? "23:00",
+				},
+			];
+		});
 	}
 
-	function removeSlot(key: number) {
-		setSlotKeys((keys) => (keys.length > 1 ? keys.filter((k) => k !== key) : keys));
+	function update(key: number, patch: Partial<DayRow>) {
+		setDays((rows) =>
+			rows.map((row) => {
+				if (row.key !== key) return row;
+				const next = { ...row, ...patch };
+				// The end time follows the start: keep it after the start by at
+				// least the session length unless the user has set it themselves.
+				if (patch.start && next.end <= patch.start) {
+					next.end = shiftTime(patch.start, sessionMinutes);
+				}
+				return next;
+			})
+		);
 	}
 
 	async function handleAction(formData: FormData) {
 		setError(null);
-		// datetime-local is timezone-less; convert in the browser (see
-		// create-event-form.tsx for the same dance).
-		const isoSlots: string[] = [];
-		for (const local of formData.getAll("slotLocal")) {
-			const value = String(local);
-			if (!value) continue;
-			const date = new Date(value);
-			if (Number.isNaN(date.getTime())) {
-				setError("One of the slots couldn't be read — please re-pick it.");
+		// datetime pieces are timezone-less; combine in the browser where local
+		// means local, then ship ISO instants (same dance as the event form).
+		const windows: { start: string; end: string }[] = [];
+		for (const row of days) {
+			if (!row.date || !row.start || !row.end) continue;
+			const start = new Date(`${row.date}T${row.start}`);
+			// An end at/before the start means the window crosses midnight.
+			let end = new Date(`${row.date}T${row.end}`);
+			if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60_000);
+			if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+				setError("One of the days couldn't be read — please re-pick it.");
 				return;
 			}
-			isoSlots.push(date.toISOString());
+			windows.push({ start: start.toISOString(), end: end.toISOString() });
 		}
-		formData.delete("slotLocal");
-		for (const iso of isoSlots) formData.append("slotStart", iso);
 		try {
-			await createAvailabilityPoll(formData);
+			await createGridPoll({
+				title: String(formData.get("title") ?? ""),
+				sessionMinutes,
+				windows,
+			});
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong — try again.");
 			return;
 		}
 		formRef.current?.reset();
-		setSlotKeys([0, 1]);
+		setDays([
+			{ key: nextKey.current++, date: tomorrow, start: "18:00", end: "23:00" },
+			{ key: nextKey.current++, date: addDays(tomorrow, 1), start: "18:00", end: "23:00" },
+		]);
 	}
 
 	return (
@@ -69,8 +128,8 @@ export function CreatePollForm() {
 			<CardHeader>
 				<CardTitle>Find a time (GAC)</CardTitle>
 				<CardDescription>
-					Propose a few slots, everyone marks what works, then schedule the winner. You&apos;re
-					marked available for every slot you propose.
+					Pick candidate days and a window for each; everyone paints the 15-minute blocks that
+					work for them, and the best-covered stretch becomes the session.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -84,8 +143,8 @@ export function CreatePollForm() {
 							<Label htmlFor="poll-duration">Session length</Label>
 							<select
 								id="poll-duration"
-								name="durationMinutes"
-								defaultValue="120"
+								value={sessionMinutes}
+								onChange={(event) => setSessionMinutes(Number(event.target.value))}
 								className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 							>
 								<option value="60">1 hour</option>
@@ -97,25 +156,42 @@ export function CreatePollForm() {
 						</div>
 					</div>
 					<div className="flex flex-col gap-2">
-						<Label>Candidate slots</Label>
-						{slotKeys.map((key) => (
-							<div key={key} className="flex items-center gap-2">
+						<Label>Candidate days</Label>
+						{days.map((row) => (
+							<div key={row.key} className="flex flex-wrap items-center gap-2">
 								<Input
-									name="slotLocal"
-									type="datetime-local"
-									required
-									min={minSlot}
+									type="date"
+									value={row.date}
+									min={today}
+									onChange={(event) => update(row.key, { date: event.target.value })}
+									aria-label="Day"
+									className="w-40"
+								/>
+								<Input
+									type="time"
+									value={row.start}
 									step={900}
-									className="max-w-xs"
+									onChange={(event) => update(row.key, { start: event.target.value })}
+									aria-label="Window start"
+									className="w-28"
+								/>
+								<span className="text-muted-foreground text-sm">to</span>
+								<Input
+									type="time"
+									value={row.end}
+									step={900}
+									onChange={(event) => update(row.key, { end: event.target.value })}
+									aria-label="Window end"
+									className="w-28"
 								/>
 								<Button
 									type="button"
 									variant="ghost"
 									size="icon"
 									className="size-8"
-									aria-label="Remove slot"
-									disabled={slotKeys.length <= 1}
-									onClick={() => removeSlot(key)}
+									aria-label="Remove day"
+									disabled={days.length <= 1}
+									onClick={() => setDays((rows) => rows.filter((r) => r.key !== row.key))}
 								>
 									<XIcon />
 								</Button>
@@ -126,12 +202,15 @@ export function CreatePollForm() {
 							variant="outline"
 							size="sm"
 							className="w-fit"
-							disabled={slotKeys.length >= 20}
-							onClick={addSlot}
+							disabled={days.length >= 14}
+							onClick={addDay}
 						>
 							<PlusIcon />
-							Add a slot
+							Add a day
 						</Button>
+						<p className="text-muted-foreground text-xs">
+							An end time at or before the start means the window runs overnight.
+						</p>
 					</div>
 					{error && <p className="text-destructive text-sm">{error}</p>}
 					<div>
