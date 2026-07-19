@@ -1,0 +1,1 @@
+ALTER TABLE "app_settings" ADD COLUMN "show_completion_stats" boolean DEFAULT true NOT NULL;

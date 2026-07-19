@@ -14,6 +14,8 @@ export type AppSettings = {
 	qualityWeight: number;
 	voteMilestones: number[];
 	pickWeights: PickWeights;
+	/** Off = hide completion %/burn rate on the dashboard (issue #35). */
+	showCompletionStats: boolean;
 };
 
 const DEFAULTS: AppSettings = {
@@ -24,6 +26,7 @@ const DEFAULTS: AppSettings = {
 	qualityWeight: DEFAULT_QUALITY_WEIGHT,
 	voteMilestones: [5, 10, 15],
 	pickWeights: DEFAULT_PICK_WEIGHTS,
+	showCompletionStats: true,
 };
 
 // The single settings row is created lazily by the first admin edit
@@ -44,5 +47,6 @@ export async function getAppSettings(): Promise<AppSettings> {
 		// Rows written before the pick_weights migration may predate the column
 		// default reaching this deployment.
 		pickWeights: row.pickWeights ?? DEFAULT_PICK_WEIGHTS,
+		showCompletionStats: row.showCompletionStats ?? true,
 	};
 }

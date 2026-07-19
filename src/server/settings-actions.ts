@@ -96,6 +96,8 @@ export async function updateAppSettings(formData: FormData): Promise<void> {
 		partyFit: input.pickPartyFit,
 	};
 	const values = {
+		// Unchecked checkboxes are absent from FormData — no zod field needed.
+		showCompletionStats: formData.get("showCompletionStats") === "1",
 		groupName: input.groupName,
 		voteBudget: input.voteBudget,
 		voteMaxPerGame: input.voteMaxPerGame,
