@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { cancelEvent, recordAttendance, scheduleNextSession, setRsvp } from "@/server/events";
 
 import { DateChip } from "./date-chip";
+import { GameSelectOptions, type SelectableGame } from "./game-select-options";
 
 export type EventAttendee = {
 	userId: string;
@@ -62,7 +63,7 @@ export function EventCard({
 	/** Approved members, for the wrap-up checklist. */
 	members: { id: string; name: string }[];
 	/** Games to pick from for "what did you play" — only wrap-up cards use it. */
-	candidateGames?: { id: string; title: string }[];
+	candidateGames?: SelectableGame[];
 	needsWrapUp?: boolean;
 }) {
 	const myRsvp = event.attendance.find((a) => a.userId === currentUserId)?.rsvp ?? null;
@@ -70,12 +71,6 @@ export function EventCard({
 	const maybe = rsvpNames(event.attendance, "maybe");
 	const noCount = event.attendance.filter((a) => a.rsvp === "no").length;
 	const attendees = event.attendance.filter((a) => a.attended === true).map((a) => a.name);
-	// The wrap-up game picker offers the current candidates plus the event's
-	// own game if it has since left the playing/backlog list.
-	const wrapUpGames =
-		event.gameId && !candidateGames.some((game) => game.id === event.gameId)
-			? [{ id: event.gameId, title: event.gameTitle ?? "current game" }, ...candidateGames]
-			: candidateGames;
 
 	return (
 		<Card className="h-full">
@@ -235,11 +230,7 @@ export function EventCard({
 									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 								>
 									<option value="">none / undecided</option>
-									{wrapUpGames.map((game) => (
-										<option key={game.id} value={game.id}>
-											{game.title}
-										</option>
-									))}
+									<GameSelectOptions games={candidateGames} />
 								</select>
 							</label>
 							<label className="flex flex-col gap-1.5 text-sm">
@@ -258,6 +249,21 @@ export function EventCard({
 								</select>
 							</label>
 						</div>
+						{/* Issue #32: the night went off-script — a typed title wins over
+						    the select, linking an existing game by name or creating a
+						    minimal proposed one (metadata refreshable later). */}
+						<label className="flex flex-col gap-1.5 text-sm">
+							<span className="text-muted-foreground">
+								Played something not in the list? Type it and we&apos;ll add it.
+							</span>
+							<input
+								type="text"
+								name="newGameTitle"
+								maxLength={200}
+								placeholder="e.g. Jackbox Party Pack 9"
+								className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+							/>
+						</label>
 						<textarea
 							name="recap"
 							rows={2}

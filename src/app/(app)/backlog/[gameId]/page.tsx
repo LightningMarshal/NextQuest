@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { ArrowLeftIcon, CalendarIcon } from "lucide-react";
+import { ArrowLeftIcon, CalendarIcon, CalendarPlusIcon } from "lucide-react";
 
 import { LocalTime } from "@/components/local-time";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
 	tabletopInfoLine,
 	type GameStatus,
 } from "../game-display";
+import { ScoringForm } from "../scoring-form";
 import { StatTiles, videoStatTiles } from "../stat-tiles";
 
 async function getGameDetail(gameId: string) {
@@ -192,8 +193,18 @@ export default async function GameDetailPage({
 					{/* The loop's payoff lives here in the open, not behind an
 					    expander: "Mark completed" is a primary button for playing
 					    games. transitionGameStatus stays the only status writer. */}
-					{transitions.length > 0 && (
+					{(transitions.length > 0 || game.status !== "rejected") && (
 						<div className="flex flex-wrap items-center gap-2">
+							{/* Issue #34: jump straight to scheduling with this game
+							    preselected — the events form reads ?game=. */}
+							{game.status !== "rejected" && game.status !== "abandoned" && (
+								<Button size="sm" variant="outline" asChild>
+									<Link href={`/events?game=${game.id}`}>
+										<CalendarPlusIcon className="size-3.5" />
+										Plan a session
+									</Link>
+								</Button>
+							)}
 							{transitions.map(([toStatus, label]) => {
 								if (
 									game.status === "proposed" &&
@@ -241,6 +252,20 @@ export default async function GameDetailPage({
 							<h2 className="text-sm font-medium tracking-wide uppercase">About</h2>
 							<p className="text-muted-foreground text-sm leading-relaxed">
 								{metadata.description}
+							</p>
+						</div>
+					)}
+
+					{/* Issue #34: effort inputs editable right here, not only from the
+					    backlog card's Manage expander. Same action, same recompute
+					    rules (stored points, CLAUDE.md #2). */}
+					{game.status !== "completed" && game.status !== "abandoned" && (
+						<div className="flex flex-col gap-2 border-t pt-4">
+							<h2 className="text-sm font-medium tracking-wide uppercase">Effort inputs</h2>
+							<ScoringForm game={game} tabletop={tabletop} idPrefix="page-" />
+							<p className="text-muted-foreground text-xs">
+								Effort recomputes from these on save; an override always wins. Played and
+								finished games keep their historical value.
 							</p>
 						</div>
 					)}
