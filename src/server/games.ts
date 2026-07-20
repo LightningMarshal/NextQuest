@@ -369,7 +369,8 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 	}
 
 	if (toStatus === "completed") {
-		notifyDiscord(`🏆 The group finished **${game.title}**!`);
+		// Phase 21: point at the rating prompt while the win is fresh.
+		notifyDiscord(`🏆 The group finished **${game.title}**! Rate it on the game page.`);
 	} else if (toStatus === "playing") {
 		notifyDiscord(`▶️ Now playing: **${game.title}**`);
 	}

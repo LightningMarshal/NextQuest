@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { covers, mergeIntervals, overlaps, type Interval } from "@/lib/availability-grid";
 import { discordTimestamp, notifyDiscord } from "@/lib/discord";
+import { resolveOrCreateGame } from "@/server/game-linking";
 import { requireApprovedUser } from "@/server/session";
 
 type AvailabilityResponse = (typeof schema.availabilityResponseValue.enumValues)[number];
@@ -80,6 +81,10 @@ const quarterAligned = (d: Date) => d.getUTCMinutes() % 15 === 0 && d.getUTCSeco
 
 const createGridPollSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
+	// What the poll is trying to schedule (#37): an existing game, or a typed
+	// title that links/creates one (same rule as the wrap-up, issue #32).
+	gameId: z.string().uuid().optional(),
+	newGameTitle: z.string().trim().min(1).max(200).optional(),
 	sessionMinutes: z.coerce
 		.number()
 		.int()
@@ -107,6 +112,8 @@ const createGridPollSchema = z.object({
 /** Create a paint-the-grid poll: title + day-windows (options rows). */
 export async function createGridPoll(input: {
 	title: string;
+	gameId?: string;
+	newGameTitle?: string;
 	sessionMinutes: number;
 	windows: { start: string; end: string }[];
 }): Promise<void> {
@@ -122,17 +129,55 @@ export async function createGridPoll(input: {
 	}
 
 	const db = getDb();
+	// Typed title wins over the select, mirroring the wrap-up (#32).
+	const gameId = parsed.data.newGameTitle
+		? await resolveOrCreateGame(db, user, parsed.data.newGameTitle, `the “${title}” poll`)
+		: (parsed.data.gameId ?? null);
+	let gameTitle: string | null = null;
+	if (gameId) {
+		const [game] = await db
+			.select({ title: schema.games.title })
+			.from(schema.games)
+			.where(eq(schema.games.id, gameId));
+		if (!game) throw new Error("Game not found.");
+		gameTitle = game.title;
+	}
+
 	const [poll] = await db
 		.insert(schema.availabilityPolls)
-		.values({ title, kind: "grid", gridSessionMinutes: sessionMinutes, createdBy: user.id })
+		.values({ title, kind: "grid", gridSessionMinutes: sessionMinutes, gameId, createdBy: user.id })
 		.returning({ id: schema.availabilityPolls.id });
 	await db.insert(schema.availabilityOptions).values(
 		windows.map((window) => ({ pollId: poll.id, startsAt: window.start, endsAt: window.end }))
 	);
 
 	notifyDiscord(
-		`🗓️ ${user.name} opened **${title}** — paint the times that work on the events page`
+		`🗓️ ${user.name} opened **${title}**${gameTitle ? ` (${gameTitle})` : ""} — paint the times that work on the events page`
 	);
+	revalidatePath("/events");
+}
+
+/**
+ * Delete a closed poll outright (#37) — the creator or an admin, once it's
+ * closed. Marks/options/responses cascade; a scheduled event just loses its
+ * poll back-reference (set null).
+ */
+export async function deletePoll(pollId: string): Promise<void> {
+	const user = await requireApprovedUser();
+	const db = getDb();
+	const [poll] = await db
+		.select({
+			status: schema.availabilityPolls.status,
+			createdBy: schema.availabilityPolls.createdBy,
+		})
+		.from(schema.availabilityPolls)
+		.where(eq(schema.availabilityPolls.id, pollId));
+	if (!poll) throw new Error("Poll not found.");
+	if (poll.status !== "closed") throw new Error("Close the poll before deleting it.");
+	if (poll.createdBy !== user.id && user.role !== "admin") {
+		throw new Error("Only the poll's creator or an admin can delete it.");
+	}
+	await db.delete(schema.availabilityPolls).where(eq(schema.availabilityPolls.id, pollId));
 	revalidatePath("/events");
 }
 
@@ -235,6 +280,7 @@ export async function scheduleGridWindow(
 			title: schema.availabilityPolls.title,
 			status: schema.availabilityPolls.status,
 			kind: schema.availabilityPolls.kind,
+			gameId: schema.availabilityPolls.gameId,
 		})
 		.from(schema.availabilityPolls)
 		.where(eq(schema.availabilityPolls.id, pollId));
@@ -253,6 +299,8 @@ export async function scheduleGridWindow(
 		.insert(schema.events)
 		.values({
 			title: poll.title,
+			// The poll's game rides along onto the session (#37).
+			gameId: poll.gameId,
 			scheduledAt: start,
 			durationMinutes: Math.round((end.getTime() - start.getTime()) / 60_000),
 			availabilityPollId: pollId,
@@ -290,7 +338,7 @@ export async function scheduleGridWindow(
 
 	await db
 		.update(schema.availabilityPolls)
-		.set({ status: "closed" })
+		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, pollId));
 
 	notifyDiscord(
@@ -338,7 +386,7 @@ export async function closePoll(pollId: string): Promise<void> {
 	const db = getDb();
 	await db
 		.update(schema.availabilityPolls)
-		.set({ status: "closed" })
+		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, pollId));
 	revalidatePath("/events");
 }
@@ -401,7 +449,7 @@ export async function createEventFromSlot(optionId: string): Promise<void> {
 
 	await db
 		.update(schema.availabilityPolls)
-		.set({ status: "closed" })
+		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, slot.pollId));
 
 	notifyDiscord(

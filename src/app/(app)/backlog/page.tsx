@@ -63,7 +63,7 @@ export default async function BacklogPage({
 	const db = getDb();
 	// games.proposedBy already joins user; the GM ref needs its own alias.
 	const gmUser = alias(schema.user, "gm_user");
-	const [allRows, tally, taggings, gameEvents] = await Promise.all([
+	const [allRows, tally, taggings, gameEvents, ratingRows] = await Promise.all([
 		db
 			.select({
 				game: schema.games,
@@ -98,8 +98,18 @@ export default async function BacklogPage({
 			})
 			.from(schema.events)
 			.where(isNotNull(schema.events.gameId)),
+		// Phase 21: member ratings — "the group gave this 4.2 last time" is a
+		// big vote-time signal for re-proposals.
+		db
+			.select({ gameId: schema.gameRatings.gameId, rating: schema.gameRatings.rating })
+			.from(schema.gameRatings),
 	]);
 	const tallyByGame = new Map(tally.map((entry) => [entry.gameId, entry.totalWeight]));
+
+	const ratingsByGame = new Map<string, number[]>();
+	for (const row of ratingRows) {
+		ratingsByGame.set(row.gameId, [...(ratingsByGame.get(row.gameId) ?? []), row.rating]);
+	}
 
 	const now = new Date();
 	const sessionsByGame = new Map<string, { held: number; nextAt: Date | null }>();
@@ -332,6 +342,7 @@ export default async function BacklogPage({
 									voteTotal={
 										status === "backlog" ? (tallyByGame.get(row.game.id) ?? 0) : undefined
 									}
+									memberRatings={ratingsByGame.get(row.game.id)}
 								/>
 							))}
 						</div>

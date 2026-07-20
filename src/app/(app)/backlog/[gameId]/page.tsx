@@ -25,6 +25,7 @@ import {
 } from "../game-display";
 import { ScoringForm } from "../scoring-form";
 import { StatTiles, videoStatTiles } from "../stat-tiles";
+import { DiscussionCard, RatingsCard } from "./player-voice";
 
 async function getGameDetail(gameId: string) {
 	const db = getDb();
@@ -69,7 +70,7 @@ export default async function GameDetailPage({
 
 	const { game, metadata, tabletop, gmName, proposerName } = row;
 	const db = getDb();
-	const [taggings, tally, linkedEvents] = await Promise.all([
+	const [taggings, tally, linkedEvents, ratings, comments] = await Promise.all([
 		db
 			.select({ id: schema.tags.id, name: schema.tags.name })
 			.from(schema.gameTags)
@@ -98,6 +99,30 @@ export default async function GameDetailPage({
 			.where(eq(schema.events.gameId, gameId))
 			.orderBy(desc(schema.events.scheduledAt))
 			.limit(20),
+		// Phase 21: member ratings and the discussion thread — public, unlike votes.
+		db
+			.select({
+				userId: schema.gameRatings.userId,
+				name: schema.user.name,
+				rating: schema.gameRatings.rating,
+				note: schema.gameRatings.note,
+			})
+			.from(schema.gameRatings)
+			.innerJoin(schema.user, eq(schema.gameRatings.userId, schema.user.id))
+			.where(eq(schema.gameRatings.gameId, gameId))
+			.orderBy(desc(schema.gameRatings.rating), asc(schema.user.name)),
+		db
+			.select({
+				id: schema.gameComments.id,
+				userId: schema.gameComments.userId,
+				name: schema.user.name,
+				body: schema.gameComments.body,
+				createdAt: schema.gameComments.createdAt,
+			})
+			.from(schema.gameComments)
+			.leftJoin(schema.user, eq(schema.gameComments.userId, schema.user.id))
+			.where(eq(schema.gameComments.gameId, gameId))
+			.orderBy(asc(schema.gameComments.createdAt)),
 	]);
 	const voteTotal = tally.find((t) => t.gameId === gameId)?.totalWeight ?? 0;
 
@@ -293,6 +318,20 @@ export default async function GameDetailPage({
 					)}
 				</div>
 			</Card>
+
+			<RatingsCard
+				gameId={game.id}
+				gameStatus={game.status}
+				ratings={ratings}
+				viewerId={viewer.id}
+			/>
+
+			<DiscussionCard
+				gameId={game.id}
+				comments={comments}
+				viewerId={viewer.id}
+				viewerIsAdmin={viewer.role === "admin"}
+			/>
 
 			{(sessionsHeld.length > 0 || upcomingSessions.length > 0) && (
 				<Card className="flex flex-col gap-3 p-6">

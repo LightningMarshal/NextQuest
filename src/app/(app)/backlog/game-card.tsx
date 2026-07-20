@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LocalTime } from "@/components/local-time";
 import type { schema } from "@/db";
+import { averageRating } from "@/lib/ratings";
 import { refreshGameMetadata, transitionGameStatus, updateGameArtwork } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
 
@@ -37,6 +38,7 @@ export function GameCard({
 	currentUserId,
 	tags,
 	voteTotal,
+	memberRatings,
 }: {
 	game: Game;
 	metadata: Metadata | null;
@@ -50,8 +52,11 @@ export function GameCard({
 	tags: { id: string; name: string }[];
 	/** Aggregate group votes — only passed for backlog-status games. */
 	voteTotal?: number;
+	/** Member ratings (Phase 21) — shown as "group N/5" wherever they exist. */
+	memberRatings?: number[];
 }) {
 	const badge = STATUS_BADGE[game.status];
+	const groupRating = memberRatings ? averageRating(memberRatings) : null;
 	const transitions = Object.entries(TRANSITION_LABELS[game.status] ?? {}) as [
 		GameStatus,
 		string,
@@ -122,7 +127,8 @@ export function GameCard({
 				</h3>
 
 				{/* Nova: single mono meta row. Review scores moved to the stat tiles
-				    below — this row is the group's own numbers (length/difficulty/votes). */}
+				    below — this row is the group's own numbers (length/difficulty/
+				    votes/member rating). */}
 				<p className="stat text-muted-foreground text-xs">
 					{[
 						lengthLabel,
@@ -135,6 +141,15 @@ export function GameCard({
 							{(lengthLabel || game.difficulty) && " · "}
 							<span className="text-foreground">
 								{voteTotal} vote{voteTotal === 1 ? "" : "s"}
+							</span>
+						</>
+					)}
+					{groupRating !== null && (
+						<>
+							{(lengthLabel || game.difficulty || voteTotal !== undefined) && " · "}
+							{/* Phase 21: what the group actually thought of it. */}
+							<span className="text-foreground">
+								group {groupRating}/5 ({memberRatings!.length})
 							</span>
 						</>
 					)}

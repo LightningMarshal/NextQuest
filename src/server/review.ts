@@ -3,9 +3,10 @@
 // (the append-only record, same source as burn rate), sessions from
 // completed events, presence from attendance. Vote data appears nowhere.
 
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { averageRating, pickGoty } from "@/lib/ratings";
 
 export type YearInReview = {
 	year: number;
@@ -40,6 +41,16 @@ export type YearInReview = {
 	mostPlayed: { title: string; sessions: number }[];
 	/** Attendance leaderboard for the year (public data, like RSVPs). */
 	presence: { id: string; name: string; attended: number }[];
+	// Phase 21: group game of the year — best average MEMBER rating among the
+	// year's finished games (min-raters floor via pickGoty). Null until
+	// enough people have rated something.
+	goty: {
+		id: string;
+		title: string;
+		art: string | null;
+		average: number;
+		spread: { name: string; rating: number; note: string | null }[];
+	} | null;
 };
 
 export async function getYearInReview(year: number): Promise<YearInReview> {
@@ -159,6 +170,48 @@ export async function getYearInReview(year: number): Promise<YearInReview> {
 		}))
 		.sort((a, b) => a.completedAt.getTime() - b.completedAt.getTime());
 
+	// Group GOTY (Phase 21): member ratings for this year's finished games.
+	const ratingRows =
+		finished.length === 0
+			? []
+			: await db
+					.select({
+						gameId: schema.gameRatings.gameId,
+						rating: schema.gameRatings.rating,
+						note: schema.gameRatings.note,
+						name: schema.user.name,
+					})
+					.from(schema.gameRatings)
+					.innerJoin(schema.user, eq(schema.gameRatings.userId, schema.user.id))
+					.where(
+						inArray(
+							schema.gameRatings.gameId,
+							finished.map((game) => game.id)
+						)
+					);
+	const gotyPick = pickGoty(
+		finished.map((game) => ({
+			gameId: game.id,
+			ratings: ratingRows.filter((row) => row.gameId === game.id).map((row) => row.rating),
+		}))
+	);
+	const gotyGame = gotyPick ? finished.find((game) => game.id === gotyPick.gameId) : undefined;
+	const goty =
+		gotyPick && gotyGame
+			? {
+					id: gotyGame.id,
+					title: gotyGame.title,
+					art: gotyGame.art,
+					average: averageRating(
+						ratingRows.filter((row) => row.gameId === gotyGame.id).map((row) => row.rating)
+					) as number,
+					spread: ratingRows
+						.filter((row) => row.gameId === gotyGame.id)
+						.sort((a, b) => b.rating - a.rating)
+						.map(({ name, rating, note }) => ({ name, rating, note })),
+				}
+			: null;
+
 	const rated = sessionRows.filter(
 		(row): row is typeof row & { howItWent: number } => row.howItWent !== null
 	);
@@ -208,5 +261,6 @@ export async function getYearInReview(year: number): Promise<YearInReview> {
 			: null,
 		mostPlayed,
 		presence,
+		goty,
 	};
 }

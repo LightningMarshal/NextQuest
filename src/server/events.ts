@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { discordTimestamp, notifyDiscord } from "@/lib/discord";
+import { resolveOrCreateGame } from "@/server/game-linking";
 import { requireApprovedUser } from "@/server/session";
 
 type Rsvp = (typeof schema.rsvpStatus.enumValues)[number];
@@ -228,44 +229,8 @@ const wrapUpSchema = z.object({
 	progressNote: z.string().trim().max(2000).optional(),
 });
 
-/**
- * Resolve a typed-in game title to a game id: reuse an existing row on a
- * case-insensitive title match (wrap-up shouldn't mint duplicates), else
- * create a minimal proposed game. No metadata fetch — wrap-up stays fast and
- * offline-tolerant; "Refresh metadata" on the card fills it in later.
- */
-async function resolvePlayedGame(
-	db: ReturnType<typeof getDb>,
-	user: { id: string; name: string },
-	title: string,
-	eventTitle: string
-): Promise<string> {
-	const [existing] = await db
-		.select({ id: schema.games.id })
-		.from(schema.games)
-		.where(sql`lower(${schema.games.title}) = lower(${title})`);
-	if (existing) return existing.id;
-
-	const [game] = await db
-		.insert(schema.games)
-		.values({
-			title,
-			status: "proposed",
-			proposedBy: user.id,
-			pitch: `Played at “${eventTitle}” — added from the wrap-up.`,
-		})
-		.returning({ id: schema.games.id });
-	await db.insert(schema.gameMetadata).values({ gameId: game.id, source: "manual" });
-	await db.insert(schema.gameStatusHistory).values({
-		gameId: game.id,
-		fromStatus: null,
-		toStatus: "proposed",
-		changedBy: user.id,
-	});
-	notifyDiscord(`🎮 ${user.name} added **${title}** from the wrap-up of “${eventTitle}”`);
-	revalidatePath("/backlog");
-	return game.id;
-}
+// (Typed-title → game id resolution lives in game-linking.ts, shared with
+// grid-poll creation.)
 
 /**
  * Wrap up a session: record who actually showed up (checkbox per approved
@@ -325,7 +290,7 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 	// A typed-in title wins over the select (issue #32) — it links an existing
 	// game by name or creates a minimal proposed one.
 	const playedGameId = input.newGameTitle
-		? await resolvePlayedGame(db, user, input.newGameTitle, event.title)
+		? await resolveOrCreateGame(db, user, input.newGameTitle, `the wrap-up of “${event.title}”`)
 		: (input.gameId ?? null);
 
 	// The wrap-up form always submits the game select, so treat it as

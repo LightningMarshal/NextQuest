@@ -63,6 +63,9 @@ export const games = pgTable(
 		pointsOverride: smallint("points_override"),
 		startedAt: timestamp("started_at", { withTimezone: true }),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
+		// Claim marker for the "nobody rated this yet" Discord nudge (Phase 21) —
+		// same single-statement-update pattern as the event reminder columns.
+		ratingNudgeSentAt: timestamp("rating_nudge_sent_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},

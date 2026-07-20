@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { getDb, schema } from "@/db";
 import { bestWindows, type Interval } from "@/lib/availability-grid";
@@ -15,6 +16,27 @@ import { EventCard, type EventWithDetails } from "./event-card";
 import { PollCard, type PollWithSlots } from "./poll-card";
 
 export const metadata: Metadata = { title: "Events" };
+
+// Closed polls drop from view a week after closing (#37) — history stays in
+// the database, the page just stops carrying it. Plain helper (not a
+// component) so Date.now() keeps render pure per the react-hooks rules.
+const CLOSED_POLL_VISIBLE_MS = 7 * 24 * 60 * 60 * 1000;
+function selectVisiblePolls<T extends { status: "open" | "closed"; closedAt: Date | null }>(
+	polls: T[]
+): T[] {
+	const now = Date.now();
+	return [
+		...polls.filter((poll) => poll.status === "open"),
+		...polls
+			.filter(
+				(poll) =>
+					poll.status === "closed" &&
+					poll.closedAt !== null &&
+					now - poll.closedAt.getTime() < CLOSED_POLL_VISIBLE_MS
+			)
+			.slice(0, 3),
+	];
+}
 
 // Plain helper, not a component: Date.now() here keeps render pure per the
 // react-hooks purity rules (this is an RSC, evaluated once per request).
@@ -130,8 +152,9 @@ export default async function EventsPage({
 
 	const { upcoming, needsWrapUp, past } = partitionEvents(events);
 
-	// GAC polls: all open ones plus a few recently closed for context.
+	// GAC polls: all open ones plus recently closed for context.
 	const pollCreator = schema.user;
+	const pollGame = alias(schema.games, "poll_game");
 	const pollRows = await db
 		.select({
 			id: schema.availabilityPolls.id,
@@ -140,15 +163,18 @@ export default async function EventsPage({
 			gridSessionMinutes: schema.availabilityPolls.gridSessionMinutes,
 			status: schema.availabilityPolls.status,
 			createdAt: schema.availabilityPolls.createdAt,
+			closedAt: schema.availabilityPolls.closedAt,
+			createdBy: schema.availabilityPolls.createdBy,
+			gameTitle: pollGame.title,
 			creatorName: pollCreator.name,
 		})
 		.from(schema.availabilityPolls)
 		.leftJoin(pollCreator, eq(schema.availabilityPolls.createdBy, pollCreator.id))
+		.leftJoin(pollGame, eq(schema.availabilityPolls.gameId, pollGame.id))
 		.orderBy(asc(schema.availabilityPolls.status), desc(schema.availabilityPolls.createdAt));
-	const visiblePolls = [
-		...pollRows.filter((poll) => poll.status === "open"),
-		...pollRows.filter((poll) => poll.status === "closed").slice(0, 3),
-	];
+	const canDeletePoll = (poll: { createdBy: string | null }) =>
+		poll.createdBy === user.id || user.role === "admin";
+	const visiblePolls = selectVisiblePolls(pollRows);
 
 	const pollIds = visiblePolls.map((poll) => poll.id);
 	const [optionRows, scheduledFromPoll] = await Promise.all([
@@ -223,6 +249,7 @@ export default async function EventsPage({
 			status: poll.status,
 			creatorName: poll.creatorName,
 			scheduled: scheduledPollIds.has(poll.id),
+			canDelete: canDeletePoll(poll),
 			slots: optionRows
 				.filter((option) => option.pollId === poll.id)
 				.map((option) => ({
@@ -260,9 +287,11 @@ export default async function EventsPage({
 			return {
 				id: poll.id,
 				title: poll.title,
+				gameTitle: poll.gameTitle,
 				creatorName: poll.creatorName,
 				open: poll.status === "open",
 				scheduled: scheduledPollIds.has(poll.id),
+				canDelete: canDeletePoll(poll),
 				sessionMinutes: poll.gridSessionMinutes ?? 120,
 				windows,
 				marks: marks.map(({ userId, name, startsAt, endsAt }) => ({
@@ -300,9 +329,11 @@ export default async function EventsPage({
 						key={poll.id}
 						pollId={poll.id}
 						title={poll.title}
+						gameTitle={poll.gameTitle}
 						creatorName={poll.creatorName}
 						open={poll.open}
 						scheduled={poll.scheduled}
+						canDelete={poll.canDelete}
 						sessionMinutes={poll.sessionMinutes}
 						windows={poll.windows}
 						marks={poll.marks}
@@ -315,7 +346,7 @@ export default async function EventsPage({
 				{polls.map((poll) => (
 					<PollCard key={poll.id} poll={poll} currentUserId={user.id} />
 				))}
-				<CreatePollForm />
+				<CreatePollForm games={candidateGames} />
 			</section>
 
 			{needsWrapUp.length > 0 && (

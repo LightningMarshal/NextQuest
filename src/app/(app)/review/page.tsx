@@ -42,7 +42,7 @@ export default async function ReviewPage({
 		Number.isInteger(parsed) && parsed >= 2000 && parsed <= currentYear ? parsed : currentYear;
 
 	const review = await getYearInReview(year);
-	const { totals, finished, bestSession, mostPlayed, presence } = review;
+	const { totals, finished, bestSession, mostPlayed, presence, goty } = review;
 	const years = review.availableYears.includes(currentYear)
 		? review.availableYears
 		: [currentYear, ...review.availableYears];
@@ -97,6 +97,45 @@ export default async function ReviewPage({
 							label="at the table"
 						/>
 					</div>
+
+					{/* Phase 21: game of the year = the group's own ratings, not
+					    strangers' review scores. Appears once 2+ members rate. */}
+					{goty && (
+						<Card className="border-primary/40 overflow-hidden py-0">
+							<div className="flex flex-col sm:flex-row">
+								{goty.art ? (
+									<div className="relative h-36 w-full shrink-0 sm:h-auto sm:w-56">
+										<Image src={goty.art} alt="" fill className="object-cover" sizes="224px" />
+									</div>
+								) : (
+									<div className="bg-muted h-36 w-full shrink-0 sm:h-auto sm:w-56" />
+								)}
+								<div className="flex min-w-0 flex-1 flex-col gap-2 p-5">
+									<Badge className="w-fit gap-1">
+										<TrophyIcon className="size-3" />
+										Game of the year
+									</Badge>
+									<p className="font-display text-xl font-semibold">
+										<Link href={`/backlog/${goty.id}`} className="hover:text-primary">
+											{goty.title}
+										</Link>
+										<span className="stat from-primary to-chart-2 ml-3 bg-gradient-to-r bg-clip-text text-transparent">
+											{goty.average}/5
+										</span>
+									</p>
+									<ul className="text-muted-foreground flex flex-col gap-0.5 text-sm">
+										{goty.spread.map((entry) => (
+											<li key={entry.name} className="truncate">
+												<span className="stat text-foreground">{entry.rating}/5</span>{" "}
+												{entry.name}
+												{entry.note && ` — “${entry.note}”`}
+											</li>
+										))}
+									</ul>
+								</div>
+							</div>
+						</Card>
+					)}
 
 					{finished.length > 0 && (
 						<Card>

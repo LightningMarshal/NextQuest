@@ -34,7 +34,7 @@ export default async function MemberPage({
 	const { userId } = await params;
 	const history = await getMemberHistory(userId);
 	if (!history) notFound();
-	const { profile, stats, proposals, sessions, upcoming, runs } = history;
+	const { profile, stats, proposals, sessions, upcoming, runs, rated } = history;
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -114,6 +114,38 @@ export default async function MemberPage({
 					)}
 				</CardContent>
 			</Card>
+
+			{/* Phase 21: "what I rated" — ratings are public, unlike votes. */}
+			{rated.length > 0 && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<StarIcon className="size-4" />
+							Rated
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<ul className="divide-y">
+							{rated.map((entry) => (
+								<li key={entry.id} className="flex items-baseline gap-3 py-2 text-sm">
+									<span className="stat text-primary shrink-0 font-semibold">
+										{entry.rating}/5
+									</span>
+									<Link
+										href={`/backlog/${entry.id}`}
+										className="hover:text-primary shrink-0 font-medium"
+									>
+										{entry.title}
+									</Link>
+									{entry.note && (
+										<span className="text-muted-foreground truncate">“{entry.note}”</span>
+									)}
+								</li>
+							))}
+						</ul>
+					</CardContent>
+				</Card>
+			)}
 
 			{runs.length > 0 && (
 				<Card>
