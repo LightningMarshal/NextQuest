@@ -5,6 +5,7 @@ import {
 	ActivityIcon,
 	CalendarIcon,
 	CheckCircle2Icon,
+	ClockIcon,
 	LibraryIcon,
 	PlayIcon,
 	SparklesIcon,
@@ -18,6 +19,7 @@ import { cookies } from "next/headers";
 import { LocalTime } from "@/components/local-time";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardData, type ActivityItem } from "@/server/dashboard";
+import { getAppSettings } from "@/server/settings";
 import { BURN_RATE_PERIODS, type BurnRatePeriod } from "@/lib/burn-rate";
 import { cn } from "@/lib/utils";
 
@@ -153,11 +155,16 @@ export default async function DashboardPage({
 		: isBurnPeriod(cookiePeriod)
 			? cookiePeriod
 			: "all";
-	const { totals, burnRate, playing, upcomingEvents, activity, memberStats, completedEventCount } =
-		await getDashboardData(period);
+	const [
+		{ totals, burnRate, playing, upcomingEvents, activity, memberStats, completedEventCount, together },
+		settings,
+	] = await Promise.all([getDashboardData(period), getAppSettings()]);
 	const projection = burnRate.projectedCompletionDate
 		? { label: format(new Date(burnRate.projectedCompletionDate), "MMM d") }
 		: null;
+	// Issue #35: completion-centric metrics are optional — a group living in
+	// service games can turn them off in admin settings. Session stats stay.
+	const showCompletion = settings.showCompletionStats;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -178,43 +185,82 @@ export default async function DashboardPage({
 				</p>
 			</div>
 
+			{showCompletion && (
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					<StatCard
+						icon={TrendingUpIcon}
+						label="Completion"
+						value={`${totals.completionPct}%`}
+						detail={`${totals.completedPoints} of ${totals.totalPoints} effort`}
+						highlight
+						progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
+					/>
+					<StatCard
+						icon={CheckCircle2Icon}
+						label="Games finished"
+						value={String(totals.gamesCompleted)}
+						detail={`of ${totals.gamesTotal} accepted`}
+					/>
+					<StatCard
+						icon={LibraryIcon}
+						label="In the backlog"
+						value={String(totals.backlogCount)}
+						detail={
+							totals.unscoredCount > 0
+								? `${totals.unscoredCount} still need scoring`
+								: undefined
+						}
+					/>
+					<StatCard
+						icon={StarIcon}
+						label="Burn rate"
+						value={burnRate.weeklyRate !== null ? `${burnRate.weeklyRate}/wk` : "—"}
+						detail={
+							burnRate.projectedCompletionDate
+								? `done ~${format(new Date(burnRate.projectedCompletionDate), "MMM d, yyyy")}`
+								: "needs more completions"
+						}
+					/>
+				</div>
+			)}
+
+			{/* Issue #35: the together axis — sessions, not checkboxes. Always
+			    shown; it IS the headline row when completion stats are off. */}
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCard
-					icon={TrendingUpIcon}
-					label="Completion"
-					value={`${totals.completionPct}%`}
-					detail={`${totals.completedPoints} of ${totals.totalPoints} effort`}
-					highlight
-					progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
-				/>
-				<StatCard
-					icon={CheckCircle2Icon}
-					label="Games finished"
-					value={String(totals.gamesCompleted)}
-					detail={`of ${totals.gamesTotal} accepted`}
-				/>
-				<StatCard
-					icon={LibraryIcon}
-					label="In the backlog"
-					value={String(totals.backlogCount)}
+					icon={UsersIcon}
+					label="Sessions held"
+					value={String(together.sessionsHeld)}
 					detail={
-						totals.unscoredCount > 0
-							? `${totals.unscoredCount} still need scoring`
+						together.sessionsThisYear > 0
+							? `${together.sessionsThisYear} this year`
 							: undefined
 					}
+					highlight={!showCompletion}
+				/>
+				<StatCard
+					icon={ClockIcon}
+					label="Hours together"
+					value={together.hoursTogether > 0 ? `${together.hoursTogether}h` : "—"}
+					detail={together.hoursTogether === 0 ? "record durations at wrap-up" : undefined}
 				/>
 				<StatCard
 					icon={StarIcon}
-					label="Burn rate"
-					value={burnRate.weeklyRate !== null ? `${burnRate.weeklyRate}/wk` : "—"}
-					detail={
-						burnRate.projectedCompletionDate
-							? `done ~${format(new Date(burnRate.projectedCompletionDate), "MMM d, yyyy")}`
-							: "needs more completions"
+					label="Session rating"
+					value={together.averageRating !== null ? `${together.averageRating}/5` : "—"}
+					detail={together.averageRating === null ? "rate sessions at wrap-up" : "average"}
+				/>
+				<StatCard
+					icon={CalendarIcon}
+					label="Next session"
+					value={
+						upcomingEvents[0] ? format(upcomingEvents[0].scheduledAt, "MMM d") : "—"
 					}
+					detail={upcomingEvents[0] ? upcomingEvents[0].title : "nothing scheduled"}
 				/>
 			</div>
 
+			{showCompletion && (
 			<Card>
 				<CardHeader>
 					<div className="flex flex-wrap items-start justify-between gap-3">
@@ -242,6 +288,7 @@ export default async function DashboardPage({
 					)}
 				</CardContent>
 			</Card>
+			)}
 
 			{upcomingEvents.length > 0 && (
 				<section className="flex flex-col gap-3">

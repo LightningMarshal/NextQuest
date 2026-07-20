@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createEvent } from "@/server/events";
 
+import { GameSelectOptions, type SelectableGame } from "./game-select-options";
+
 /** Now rounded up to the next quarter hour, as a datetime-local string. */
 function nextQuarterHourLocal(): string {
 	const next = new Date(Math.ceil(Date.now() / 900_000) * 900_000);
@@ -39,8 +41,11 @@ function SubmitButton() {
 
 export function CreateEventForm({
 	games,
+	defaultGameId,
 }: {
-	games: { id: string; title: string }[];
+	games: SelectableGame[];
+	/** Preselects the game — "plan a session with this" deep link (#34). */
+	defaultGameId?: string;
 }) {
 	const formRef = useRef<HTMLFormElement>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -84,15 +89,11 @@ export function CreateEventForm({
 							<select
 								id="event-game"
 								name="gameId"
-								defaultValue=""
+								defaultValue={defaultGameId ?? ""}
 								className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
 							>
 								<option value="">none / undecided</option>
-								{games.map((game) => (
-									<option key={game.id} value={game.id}>
-										{game.title}
-									</option>
-								))}
+								<GameSelectOptions games={games} />
 							</select>
 						</div>
 						<div className="flex flex-col gap-1.5">

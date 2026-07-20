@@ -3,9 +3,11 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
+import { bestWindows, type Interval } from "@/lib/availability-grid";
 import { deriveCalendarToken } from "@/lib/ical";
 import { requireApprovedUser } from "@/server/session";
 
+import { AvailabilityGridCard } from "./availability-grid-card";
 import { CalendarSubscribe } from "./calendar-subscribe";
 import { CreateEventForm } from "./create-event-form";
 import { CreatePollForm } from "./create-poll-form";
@@ -32,9 +34,15 @@ function partitionEvents(events: EventWithDetails[]) {
 	};
 }
 
-export default async function EventsPage() {
+export default async function EventsPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ game?: string }>;
+}) {
 	const user = await requireApprovedUser();
 	const db = getDb();
+	// "Plan a session with this game" deep link from a game card/page (#34).
+	const { game: preselectedGameId } = await searchParams;
 
 	// iCal feed URL (issue #24): token derived from the auth secret, base from
 	// the canonical app URL. Both unset only in a broken deployment — the
@@ -75,12 +83,21 @@ export default async function EventsPage() {
 			.from(schema.user)
 			.where(eq(schema.user.status, "approved"))
 			.orderBy(asc(schema.user.name)),
-		// Sessions are usually for what's being played or queued next.
+		// Every game, in-rotation first — planning usually wants playing/backlog,
+		// but wrap-ups can point at anything the group actually played (#32).
 		db
-			.select({ id: schema.games.id, title: schema.games.title })
+			.select({
+				id: schema.games.id,
+				title: schema.games.title,
+				status: schema.games.status,
+			})
 			.from(schema.games)
-			.where(inArray(schema.games.status, ["playing", "backlog"]))
-			.orderBy(sql`${schema.games.status} = 'playing' desc`, asc(schema.games.title)),
+			.orderBy(
+				sql`case ${schema.games.status}
+					when 'playing' then 0 when 'backlog' then 1 when 'proposed' then 2
+					when 'completed' then 3 when 'abandoned' then 4 else 5 end`,
+				asc(schema.games.title)
+			),
 	]);
 
 	// Attendance is public within the group (unlike votes) — names and all.
@@ -119,6 +136,8 @@ export default async function EventsPage() {
 		.select({
 			id: schema.availabilityPolls.id,
 			title: schema.availabilityPolls.title,
+			kind: schema.availabilityPolls.kind,
+			gridSessionMinutes: schema.availabilityPolls.gridSessionMinutes,
 			status: schema.availabilityPolls.status,
 			createdAt: schema.availabilityPolls.createdAt,
 			creatorName: pollCreator.name,
@@ -177,24 +196,84 @@ export default async function EventsPage() {
 						)
 					);
 
+	// Grid polls (issue #33): painted marks with names, for the heatmap and
+	// the server-computed best-window suggestions. Availability is public.
+	const gridPollIds = visiblePolls.filter((poll) => poll.kind === "grid").map((poll) => poll.id);
+	const markRows =
+		gridPollIds.length === 0
+			? []
+			: await db
+					.select({
+						pollId: schema.availabilityMarks.pollId,
+						userId: schema.availabilityMarks.userId,
+						startsAt: schema.availabilityMarks.startsAt,
+						endsAt: schema.availabilityMarks.endsAt,
+						name: schema.user.name,
+					})
+					.from(schema.availabilityMarks)
+					.innerJoin(schema.user, eq(schema.availabilityMarks.userId, schema.user.id))
+					.where(inArray(schema.availabilityMarks.pollId, gridPollIds));
+
 	const scheduledPollIds = new Set(scheduledFromPoll.map((row) => row.pollId));
-	const polls: PollWithSlots[] = visiblePolls.map((poll) => ({
-		id: poll.id,
-		title: poll.title,
-		status: poll.status,
-		creatorName: poll.creatorName,
-		scheduled: scheduledPollIds.has(poll.id),
-		slots: optionRows
-			.filter((option) => option.pollId === poll.id)
-			.map((option) => ({
-				id: option.id,
-				startsAt: option.startsAt,
-				endsAt: option.endsAt,
-				responses: responseRows
-					.filter((row) => row.optionId === option.id)
-					.map(({ userId, name, response }) => ({ userId, name, response })),
-			})),
-	}));
+	const polls: PollWithSlots[] = visiblePolls
+		.filter((poll) => poll.kind === "slots")
+		.map((poll) => ({
+			id: poll.id,
+			title: poll.title,
+			status: poll.status,
+			creatorName: poll.creatorName,
+			scheduled: scheduledPollIds.has(poll.id),
+			slots: optionRows
+				.filter((option) => option.pollId === poll.id)
+				.map((option) => ({
+					id: option.id,
+					startsAt: option.startsAt,
+					endsAt: option.endsAt,
+					responses: responseRows
+						.filter((row) => row.optionId === option.id)
+						.map(({ userId, name, response }) => ({ userId, name, response })),
+				})),
+		}));
+
+	const gridPolls = visiblePolls
+		.filter((poll) => poll.kind === "grid")
+		.map((poll) => {
+			const windows = optionRows
+				.filter((option) => option.pollId === poll.id)
+				.map((option) => ({ startsAt: option.startsAt, endsAt: option.endsAt }));
+			const marks = markRows.filter((mark) => mark.pollId === poll.id);
+			const byUser = new Map<string, { name: string; intervals: Interval[] }>();
+			for (const mark of marks) {
+				const entry = byUser.get(mark.userId) ?? { name: mark.name, intervals: [] };
+				entry.intervals.push({ startsAt: mark.startsAt, endsAt: mark.endsAt });
+				byUser.set(mark.userId, entry);
+			}
+			const suggestions = bestWindows(
+				windows,
+				[...byUser.entries()].map(([userId, entry]) => ({ userId, intervals: entry.intervals })),
+				poll.gridSessionMinutes ?? 120
+			).map((suggestion) => ({
+				startIso: suggestion.startsAt.toISOString(),
+				endIso: suggestion.endsAt.toISOString(),
+				names: suggestion.available.map((userId) => byUser.get(userId)?.name ?? "?"),
+			}));
+			return {
+				id: poll.id,
+				title: poll.title,
+				creatorName: poll.creatorName,
+				open: poll.status === "open",
+				scheduled: scheduledPollIds.has(poll.id),
+				sessionMinutes: poll.gridSessionMinutes ?? 120,
+				windows,
+				marks: marks.map(({ userId, name, startsAt, endsAt }) => ({
+					userId,
+					name,
+					startsAt,
+					endsAt,
+				})),
+				suggestions,
+			};
+		});
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -205,10 +284,34 @@ export default async function EventsPage() {
 				</p>
 			</div>
 
-			<CreateEventForm games={candidateGames} />
+			<CreateEventForm
+				games={candidateGames}
+				defaultGameId={
+					candidateGames.some((game) => game.id === preselectedGameId)
+						? preselectedGameId
+						: undefined
+				}
+			/>
 
 			<section className="flex flex-col gap-3">
 				<h2 className="text-sm font-medium tracking-wide uppercase">Find a time</h2>
+				{gridPolls.map((poll) => (
+					<AvailabilityGridCard
+						key={poll.id}
+						pollId={poll.id}
+						title={poll.title}
+						creatorName={poll.creatorName}
+						open={poll.open}
+						scheduled={poll.scheduled}
+						sessionMinutes={poll.sessionMinutes}
+						windows={poll.windows}
+						marks={poll.marks}
+						currentUserId={user.id}
+						memberCount={members.length}
+						suggestions={poll.suggestions}
+					/>
+				))}
+				{/* Pre-grid slot polls (and their history) still render. */}
 				{polls.map((poll) => (
 					<PollCard key={poll.id} poll={poll} currentUserId={user.id} />
 				))}

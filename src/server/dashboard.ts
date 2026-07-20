@@ -57,6 +57,15 @@ export type DashboardData = {
 		sessionsAttended: number;
 	}[];
 	completedEventCount: number;
+	// Issue #35: what the group did TOGETHER, independent of finishing
+	// anything — the dashboard's other axis for groups on service games.
+	together: {
+		sessionsHeld: number;
+		sessionsThisYear: number;
+		/** Sum of recorded durations of completed sessions, in hours. */
+		hoursTogether: number;
+		averageRating: number | null;
+	};
 };
 
 export type ActivityItem =
@@ -203,7 +212,14 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 			.where(eq(schema.user.status, "approved"))
 			.orderBy(schema.user.name),
 		db
-			.select({ count: sql<number>`count(*)::int` })
+			.select({
+				count: sql<number>`count(*)::int`,
+				thisYear: sql<number>`count(*) filter (
+					where ${schema.events.scheduledAt} >= date_trunc('year', now())
+				)::int`,
+				minutes: sql<number>`coalesce(sum(${schema.events.durationMinutes}), 0)::int`,
+				averageRating: sql<number | null>`round(avg(${schema.events.howItWent}), 1)::float`,
+			})
 			.from(schema.events)
 			.where(eq(schema.events.status, "completed")),
 	]);
@@ -270,5 +286,11 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 		activity,
 		memberStats,
 		completedEventCount: completedEvents[0]?.count ?? 0,
+		together: {
+			sessionsHeld: completedEvents[0]?.count ?? 0,
+			sessionsThisYear: completedEvents[0]?.thisYear ?? 0,
+			hoursTogether: Math.round((completedEvents[0]?.minutes ?? 0) / 60),
+			averageRating: completedEvents[0]?.averageRating ?? null,
+		},
 	};
 }

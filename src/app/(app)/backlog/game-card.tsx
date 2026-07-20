@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { HistoryIcon, RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
+import { CalendarPlusIcon, HistoryIcon, RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LocalTime } from "@/components/local-time";
 import type { schema } from "@/db";
-import { TTRPG_BAND_LABELS } from "@/lib/points";
-import {
-	refreshGameMetadata,
-	transitionGameStatus,
-	updateGameArtwork,
-	updateGameScoring,
-} from "@/server/games";
+import { refreshGameMetadata, transitionGameStatus, updateGameArtwork } from "@/server/games";
 import { addTagToGame, removeTagFromGame } from "@/server/tags";
 
 import {
@@ -25,6 +19,7 @@ import {
 	lengthLabel as gameLengthLabel,
 	tabletopInfoLine,
 } from "./game-display";
+import { ScoringForm } from "./scoring-form";
 import { StatTiles, videoStatTiles } from "./stat-tiles";
 
 type Game = typeof schema.games.$inferSelect;
@@ -234,6 +229,39 @@ export function GameCard({
 					</div>
 				)}
 
+				{/* Issue #34: the everyday forward motion lives on the card face —
+				    "Add to backlog" / "Start playing" (both reversible) and a
+				    plan-a-session deep link. Terminal moves stay behind Manage. */}
+				{(() => {
+					const quick =
+						game.status === "proposed" &&
+						currentUserId !== undefined &&
+						game.proposedBy !== currentUserId
+							? { to: "backlog" as const, label: "Add to backlog" }
+							: game.status === "backlog"
+								? { to: "playing" as const, label: "Start playing" }
+								: null;
+					const planSession = game.status === "backlog" || game.status === "playing";
+					if (!quick && !planSession) return null;
+					return (
+						<div className="flex flex-wrap items-center gap-2 pt-1">
+							{quick && (
+								<form action={transitionGameStatus.bind(null, game.id, quick.to)}>
+									<Button size="sm">{quick.label}</Button>
+								</form>
+							)}
+							{planSession && (
+								<Button size="sm" variant="outline" asChild>
+									<Link href={`/events?game=${game.id}`}>
+										<CalendarPlusIcon className="size-3.5" />
+										Plan session
+									</Link>
+								</Button>
+							)}
+						</div>
+					);
+				})()}
+
 				{/* All admin/curation controls live behind the expander so the card
 				    itself stays a Nova display card. Same server actions as before.
 				    Completion lives here (and on the game page), not on the card
@@ -284,117 +312,7 @@ export function GameCard({
 								<TagIcon className="size-3.5" />
 							</Button>
 						</form>
-						<form
-							action={updateGameScoring.bind(null, game.id)}
-							className="flex flex-wrap items-end gap-3"
-						>
-							{/* Length input per type: raw hours for video, band for TTRPGs,
-							    minutes for board games — the server derives the stored
-							    hour-equivalent (src/lib/points.ts tabletopLengthHours). */}
-							{game.gameType === "video" && (
-								<div className="flex flex-col gap-1.5">
-									<Label htmlFor={`length-${game.id}`} className="text-xs">
-										Length (h)
-									</Label>
-									<Input
-										id={`length-${game.id}`}
-										name="lengthHours"
-										type="number"
-										step="0.1"
-										min="0.1"
-										defaultValue={game.lengthHours ?? undefined}
-										className="h-8 w-24"
-									/>
-								</div>
-							)}
-							{game.gameType === "ttrpg" && (
-								<div className="flex flex-col gap-1.5">
-									<Label htmlFor={`length-${game.id}`} className="text-xs">
-										Length
-									</Label>
-									<select
-										id={`length-${game.id}`}
-										name="lengthBand"
-										defaultValue={tabletop?.lengthBand ?? ""}
-										className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-52 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-									>
-										<option value="">unset</option>
-										{(
-											Object.entries(TTRPG_BAND_LABELS) as [
-												keyof typeof TTRPG_BAND_LABELS,
-												string,
-											][]
-										).map(([band, label]) => (
-											<option key={band} value={band}>
-												{label}
-											</option>
-										))}
-									</select>
-								</div>
-							)}
-							{game.gameType === "boardgame" && (
-								<div className="flex flex-col gap-1.5">
-									<Label htmlFor={`length-${game.id}`} className="text-xs">
-										Playtime (min)
-									</Label>
-									<Input
-										id={`length-${game.id}`}
-										name="playtimeMinutes"
-										type="number"
-										step="5"
-										min="5"
-										max="1440"
-										defaultValue={tabletop?.playtimeMinutes ?? undefined}
-										className="h-8 w-24"
-									/>
-								</div>
-							)}
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor={`difficulty-${game.id}`} className="text-xs">
-									{isTabletop ? "Crunch" : "Difficulty"}
-								</Label>
-								<select
-									id={`difficulty-${game.id}`}
-									name="difficulty"
-									defaultValue={game.difficulty ?? ""}
-									className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-32 rounded-md border px-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-								>
-									<option value="">unset</option>
-									{isTabletop ? (
-										<>
-											<option value="1">1 — ultra-light</option>
-											<option value="2">2 — light</option>
-											<option value="3">3 — medium</option>
-											<option value="4">4 — heavy</option>
-											<option value="5">5 — very heavy</option>
-										</>
-									) : (
-										<>
-											<option value="1">1 — breezy</option>
-											<option value="2">2 — casual</option>
-											<option value="3">3 — solid</option>
-											<option value="4">4 — tough</option>
-											<option value="5">5 — brutal</option>
-										</>
-									)}
-								</select>
-							</div>
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor={`override-${game.id}`} className="text-xs">
-									Effort override
-								</Label>
-								<Input
-									id={`override-${game.id}`}
-									name="pointsOverride"
-									type="number"
-									min="0"
-									defaultValue={game.pointsOverride ?? undefined}
-									placeholder="auto"
-									className="h-8 w-24"
-								/>
-							</div>
-							<Button size="sm">Save</Button>
-						</form>
+						<ScoringForm game={game} tabletop={tabletop} />
 						{/* No tabletop provider yet — the action rejects non-video rows. */}
 						{!isTabletop && (
 							<form action={refreshGameMetadata.bind(null, game.id)} className="flex items-center gap-2">

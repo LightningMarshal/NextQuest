@@ -155,6 +155,24 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
 				</p>
 			</div>
 
+			<div className="flex flex-col gap-1.5">
+				<label className="flex items-center gap-2 text-sm font-medium">
+					<input
+						type="checkbox"
+						name="showCompletionStats"
+						value="1"
+						defaultChecked={settings.showCompletionStats}
+						className="accent-primary size-4"
+					/>
+					Show completion &amp; burn-rate stats on the dashboard
+				</label>
+				<p className="text-muted-foreground text-xs">
+					Turn off if the group is more about getting together than finishing things —
+					service games like DOTA 2 never &ldquo;complete.&rdquo; Session stats always show;
+					effort scoring and the picker are unaffected.
+				</p>
+			</div>
+
 			<div>
 				<SubmitButton />
 			</div>

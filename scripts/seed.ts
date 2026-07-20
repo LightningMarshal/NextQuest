@@ -400,6 +400,7 @@ const tabletopGames: TabletopSeed[] = [
 
 async function wipe() {
 	// Children before parents; auth rows are kept except the demo members.
+	await db.delete(schema.availabilityMarks);
 	await db.delete(schema.availabilityResponses);
 	await db.delete(schema.availabilityOptions);
 	await db.delete(schema.eventAttendance);
@@ -714,7 +715,37 @@ async function main() {
 		{ eventId: eventId(4), userId: casey, rsvp: "yes", attended: true },
 	]);
 
-	// An open availability poll with mixed responses.
+	// An open GRID poll (issue #33): day-windows as options, painted marks.
+	await db.insert(schema.availabilityPolls).values({
+		id: pollId(2),
+		title: "Seat a Wingspan evening",
+		kind: "grid",
+		gridSessionMinutes: 120,
+		createdBy: casey,
+		status: "open",
+	});
+	const gridDay = (n: number) => ({
+		start: eveningIn(n, 17),
+		end: eveningIn(n, 23),
+	});
+	const [day1, day2] = [gridDay(5), gridDay(7)];
+	await db.insert(schema.availabilityOptions).values([
+		{ id: optionId(4), pollId: pollId(2), startsAt: day1.start, endsAt: day1.end },
+		{ id: optionId(5), pollId: pollId(2), startsAt: day2.start, endsAt: day2.end },
+	]);
+	const hoursIn = (day: { start: Date }, from: number, to: number) => ({
+		startsAt: new Date(day.start.getTime() + (from - 17) * 60 * 60_000),
+		endsAt: new Date(day.start.getTime() + (to - 17) * 60 * 60_000),
+	});
+	await db.insert(schema.availabilityMarks).values([
+		{ pollId: pollId(2), userId: casey, ...hoursIn(day1, 18, 22) },
+		{ pollId: pollId(2), userId: brooke, ...hoursIn(day1, 19, 23) },
+		{ pollId: pollId(2), userId: alex, ...hoursIn(day1, 20, 22) },
+		{ pollId: pollId(2), userId: alex, ...hoursIn(day2, 18, 21) },
+		{ pollId: pollId(2), userId: drew, ...hoursIn(day2, 17, 23) },
+	]);
+
+	// A legacy slots poll with mixed responses (still rendered).
 	await db.insert(schema.availabilityPolls).values({
 		id: pollId(1),
 		title: "One-shot night for The Quiet Year?",

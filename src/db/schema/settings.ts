@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { check, jsonb, pgTable, real, smallint, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	check,
+	jsonb,
+	pgTable,
+	real,
+	smallint,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 import { DEFAULT_PICK_WEIGHTS, type PickWeights } from "@/lib/pick";
 import {
@@ -31,6 +40,10 @@ export const appSettings = pgTable(
 		// un-normalized; scoreBacklog (src/lib/pick.ts) renormalizes over the
 		// components active for a given session context.
 		pickWeights: jsonb("pick_weights").$type<PickWeights>().notNull().default(DEFAULT_PICK_WEIGHTS),
+		// Issue #35: not every group is grinding toward "done" — service games
+		// (DOTA 2, Helldivers) never complete. Off hides the completion %, burn
+		// rate, and projection on the dashboard; session stats always show.
+		showCompletionStats: boolean("show_completion_stats").notNull().default(true),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [check("app_settings_single_row", sql`${table.id} = 1`)]

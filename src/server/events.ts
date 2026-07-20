@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
@@ -220,10 +220,52 @@ const wrapUpSchema = z.object({
 	// What was actually played — defaults to the planned game, editable when
 	// the night changed. "" clears the link.
 	gameId: z.string().uuid().optional(),
+	// Issue #32: the group played something not in NextQuest at all. A title
+	// here wins over the select and creates (or links) a game row.
+	newGameTitle: z.string().trim().min(1).max(200).optional(),
 	recap: z.string().trim().max(5000).optional(),
 	howItWent: z.coerce.number().int().min(1).max(5).optional(),
 	progressNote: z.string().trim().max(2000).optional(),
 });
+
+/**
+ * Resolve a typed-in game title to a game id: reuse an existing row on a
+ * case-insensitive title match (wrap-up shouldn't mint duplicates), else
+ * create a minimal proposed game. No metadata fetch — wrap-up stays fast and
+ * offline-tolerant; "Refresh metadata" on the card fills it in later.
+ */
+async function resolvePlayedGame(
+	db: ReturnType<typeof getDb>,
+	user: { id: string; name: string },
+	title: string,
+	eventTitle: string
+): Promise<string> {
+	const [existing] = await db
+		.select({ id: schema.games.id })
+		.from(schema.games)
+		.where(sql`lower(${schema.games.title}) = lower(${title})`);
+	if (existing) return existing.id;
+
+	const [game] = await db
+		.insert(schema.games)
+		.values({
+			title,
+			status: "proposed",
+			proposedBy: user.id,
+			pitch: `Played at “${eventTitle}” — added from the wrap-up.`,
+		})
+		.returning({ id: schema.games.id });
+	await db.insert(schema.gameMetadata).values({ gameId: game.id, source: "manual" });
+	await db.insert(schema.gameStatusHistory).values({
+		gameId: game.id,
+		fromStatus: null,
+		toStatus: "proposed",
+		changedBy: user.id,
+	});
+	notifyDiscord(`🎮 ${user.name} added **${title}** from the wrap-up of “${eventTitle}”`);
+	revalidatePath("/backlog");
+	return game.id;
+}
 
 /**
  * Wrap up a session: record who actually showed up (checkbox per approved
@@ -237,6 +279,7 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 
 	const parsed = wrapUpSchema.safeParse({
 		gameId: formData.get("gameId") || undefined,
+		newGameTitle: formData.get("newGameTitle") || undefined,
 		recap: formData.get("recap") || undefined,
 		howItWent: formData.get("howItWent") || undefined,
 		progressNote: formData.get("progressNote") || undefined,
@@ -279,6 +322,12 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 			});
 	}
 
+	// A typed-in title wins over the select (issue #32) — it links an existing
+	// game by name or creates a minimal proposed one.
+	const playedGameId = input.newGameTitle
+		? await resolvePlayedGame(db, user, input.newGameTitle, event.title)
+		: (input.gameId ?? null);
+
 	// The wrap-up form always submits the game select, so treat it as
 	// authoritative (a blank selection clears the link). Planning notes are
 	// left untouched — the recap lives in its own column now.
@@ -286,7 +335,7 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 		.update(schema.events)
 		.set({
 			status: "completed",
-			gameId: input.gameId ?? null,
+			gameId: playedGameId,
 			recap: input.recap ?? null,
 			howItWent: input.howItWent ?? null,
 			progressNote: input.progressNote ?? null,
@@ -297,7 +346,7 @@ export async function recordAttendance(eventId: string, formData: FormData): Pro
 	// "Same time next week" checkbox on the wrap-up form — one round-trip.
 	// Clone from the confirmed game, not the originally-planned one.
 	if (formData.get("scheduleNext")) {
-		await cloneEventForward(db, user, { ...event, gameId: input.gameId ?? null });
+		await cloneEventForward(db, user, { ...event, gameId: playedGameId });
 	}
 
 	revalidatePath("/events");
