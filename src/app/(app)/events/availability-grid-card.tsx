@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CELL_MS, cellsToIntervals } from "@/lib/availability-grid";
 import { cn } from "@/lib/utils";
-import { saveAvailability, scheduleGridWindow } from "@/server/availability";
+import { deletePoll, saveAvailability, scheduleGridWindow } from "@/server/availability";
 
 // The whenisgood-style grid (issue #33): columns are the poll's day-windows,
 // rows are 15-minute cells. Members paint what works; everyone's marks show
@@ -39,9 +39,11 @@ function timeLabel(date: Date): string {
 export function AvailabilityGridCard({
 	pollId,
 	title,
+	gameTitle,
 	creatorName,
 	open,
 	scheduled,
+	canDelete,
 	sessionMinutes,
 	windows,
 	marks,
@@ -51,10 +53,14 @@ export function AvailabilityGridCard({
 }: {
 	pollId: string;
 	title: string;
+	/** What the poll is trying to schedule (#37), if linked. */
+	gameTitle?: string | null;
 	creatorName: string | null;
 	open: boolean;
 	/** A scheduled event points back at this poll. */
 	scheduled: boolean;
+	/** Creator or admin may delete once closed (#37). */
+	canDelete?: boolean;
 	sessionMinutes: number;
 	windows: GridWindow[];
 	marks: GridMark[];
@@ -169,6 +175,7 @@ export function AvailabilityGridCard({
 			<CardHeader>
 				<div className="flex flex-wrap items-center gap-2">
 					<CardTitle>{title}</CardTitle>
+					{gameTitle && <Badge variant="outline">{gameTitle}</Badge>}
 					{scheduled && (
 						<Badge variant="secondary" className="gap-1">
 							<CalendarCheckIcon className="size-3" />
@@ -176,6 +183,13 @@ export function AvailabilityGridCard({
 						</Badge>
 					)}
 					{!open && !scheduled && <Badge variant="outline">closed</Badge>}
+					{!open && canDelete && (
+						<form action={deletePoll.bind(null, pollId)} className="ml-auto">
+							<Button size="sm" variant="ghost">
+								Delete poll
+							</Button>
+						</form>
+					)}
 				</div>
 				<CardDescription>
 					{open
@@ -233,16 +247,20 @@ export function AvailabilityGridCard({
 															: undefined,
 												}}
 											>
-												{isHour && (
-													<span
-														className={cn(
-															"pointer-events-none absolute top-0 left-1 text-[9px] leading-4",
-															mine ? "text-primary-foreground" : "text-muted-foreground"
-														)}
-													>
-														{timeLabel(date)}
-													</span>
-												)}
+												{/* Issue #37: every segment shows its time, not just the
+												    hour rows — hour rows stay visually stronger. */}
+												<span
+													className={cn(
+														"pointer-events-none absolute top-0 left-1 text-[9px] leading-4",
+														mine
+															? "text-primary-foreground"
+															: isHour
+																? "text-muted-foreground"
+																: "text-muted-foreground/60"
+													)}
+												>
+													{timeLabel(date)}
+												</span>
 											</button>
 										);
 									})}

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { closePoll, createEventFromSlot, respondToSlot } from "@/server/availability";
+import { closePoll, createEventFromSlot, deletePoll, respondToSlot } from "@/server/availability";
 
 export type PollSlot = {
 	id: string;
@@ -20,6 +20,8 @@ export type PollWithSlots = {
 	status: "open" | "closed";
 	creatorName: string | null;
 	scheduled: boolean;
+	/** Creator or admin may delete once closed (#37). */
+	canDelete?: boolean;
 	slots: PollSlot[];
 };
 
@@ -57,6 +59,13 @@ export function PollCard({
 					)}
 					{poll.creatorName && (
 						<span className="text-muted-foreground text-xs">by {poll.creatorName}</span>
+					)}
+					{!open && poll.canDelete && (
+						<form action={deletePoll.bind(null, poll.id)} className="ml-auto">
+							<Button size="sm" variant="ghost">
+								Delete poll
+							</Button>
+						</form>
 					)}
 					<span className="stat text-muted-foreground ml-auto text-xs">
 						{respondedCount} responded

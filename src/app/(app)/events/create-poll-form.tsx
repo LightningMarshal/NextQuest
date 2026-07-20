@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createGridPoll } from "@/server/availability";
 
+import { GameSelectOptions, type SelectableGame } from "./game-select-options";
+
 // Grid-poll creation (issue #33): pick the candidate DAYS and a daily time
 // window; members then paint the 15-minute blocks that work on the grid.
 // Times use 15-minute steps, and the end time follows the start by default.
@@ -43,7 +45,7 @@ function shiftTime(time: string, minutes: number): string {
 	return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-export function CreatePollForm() {
+export function CreatePollForm({ games }: { games: SelectableGame[] }) {
 	const formRef = useRef<HTMLFormElement>(null);
 	// Lazy initializer: "now" is impure, so it runs once, not per render.
 	const [anchor] = useState(() => {
@@ -109,6 +111,8 @@ export function CreatePollForm() {
 		try {
 			await createGridPoll({
 				title: String(formData.get("title") ?? ""),
+				gameId: String(formData.get("gameId") ?? "") || undefined,
+				newGameTitle: String(formData.get("newGameTitle") ?? "").trim() || undefined,
 				sessionMinutes,
 				windows,
 			});
@@ -153,6 +157,32 @@ export function CreatePollForm() {
 								<option value="180">3 hours</option>
 								<option value="240">4 hours</option>
 							</select>
+						</div>
+					</div>
+					{/* Issue #37: what the poll is trying to schedule — an existing
+					    game, or a typed title that creates a proposed entry. Copied
+					    onto the event when a window is scheduled. */}
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="poll-game">Game (optional)</Label>
+							<select
+								id="poll-game"
+								name="gameId"
+								defaultValue=""
+								className="border-input bg-transparent focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+							>
+								<option value="">none / undecided</option>
+								<GameSelectOptions games={games} />
+							</select>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="poll-new-game">…or something not in the list</Label>
+							<Input
+								id="poll-new-game"
+								name="newGameTitle"
+								maxLength={200}
+								placeholder="typed titles are added as proposals"
+							/>
 						</div>
 					</div>
 					<div className="flex flex-col gap-2">
