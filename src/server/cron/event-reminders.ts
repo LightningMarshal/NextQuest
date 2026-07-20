@@ -1,7 +1,8 @@
 // Cron task (hourly, via the secret-gated /api/cron route): Discord
 // reminders ~24h and ~1h before each scheduled event, plus a single
 // post-event "needs wrap-up" nudge (issue #23) once a session has sat
-// unwrapped for a while. Sent-markers on the events row are claimed with
+// unwrapped for a while, plus a single "nobody rated this" nudge for
+// completed games (Phase 21). Sent-markers are claimed with
 // single-statement conditional UPDATEs, so a concurrent or repeated tick can
 // never double-send (Neon HTTP has no transactions). Cancelled/completed
 // events drop out via the status filter; their unsent markers simply never
@@ -16,11 +17,15 @@ const HOUR_MS = 60 * 60 * 1000;
 // How long a past session may sit unwrapped before the nudge: long enough
 // that the morning after an evening session is the typical firing time.
 const WRAP_UP_NUDGE_AFTER_MS = 12 * HOUR_MS;
+// How long after completion before asking for ratings — give people a few
+// days to rate on their own before the bot asks. Rating first prevents it.
+const RATING_NUDGE_AFTER_MS = 3 * 24 * HOUR_MS;
 
 export async function sendEventReminders(): Promise<{
 	sent1h: number;
 	sent24h: number;
 	sentWrapUpNudges: number;
+	sentRatingNudges: number;
 }> {
 	const db = getDb();
 	const now = new Date();
@@ -30,6 +35,7 @@ export async function sendEventReminders(): Promise<{
 	let sent1h = 0;
 	let sent24h = 0;
 	let sentWrapUpNudges = 0;
+	let sentRatingNudges = 0;
 
 	const startingSoon = await db
 		.select({
@@ -128,5 +134,34 @@ export async function sendEventReminders(): Promise<{
 		sentWrapUpNudges += 1;
 	}
 
-	return { sent1h, sent24h, sentWrapUpNudges };
+	// Phase 21: a completed game with zero ratings a few days on gets one ask.
+	const ratingCutoff = new Date(now.getTime() - RATING_NUDGE_AFTER_MS);
+	const unrated = await db
+		.select({ id: schema.games.id, title: schema.games.title })
+		.from(schema.games)
+		.where(
+			and(
+				eq(schema.games.status, "completed"),
+				lte(schema.games.completedAt, ratingCutoff),
+				isNull(schema.games.ratingNudgeSentAt),
+				sql`not exists (
+					select 1 from "game_ratings"
+					where "game_ratings"."game_id" = ${schema.games.id}
+				)`
+			)
+		);
+	for (const game of unrated) {
+		const claimed = await db
+			.update(schema.games)
+			.set({ ratingNudgeSentAt: now })
+			.where(and(eq(schema.games.id, game.id), isNull(schema.games.ratingNudgeSentAt)))
+			.returning({ id: schema.games.id });
+		if (claimed.length === 0) continue;
+		notifyDiscord(
+			`🎲 **${game.title}** is finished but nobody's rated it — drop your score on the game page while it's fresh.`
+		);
+		sentRatingNudges += 1;
+	}
+
+	return { sent1h, sent24h, sentWrapUpNudges, sentRatingNudges };
 }

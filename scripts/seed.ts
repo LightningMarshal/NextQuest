@@ -400,6 +400,8 @@ const tabletopGames: TabletopSeed[] = [
 
 async function wipe() {
 	// Children before parents; auth rows are kept except the demo members.
+	await db.delete(schema.gameRatings);
+	await db.delete(schema.gameComments);
 	await db.delete(schema.availabilityMarks);
 	await db.delete(schema.availabilityResponses);
 	await db.delete(schema.availabilityOptions);
@@ -715,12 +717,45 @@ async function main() {
 		{ eventId: eventId(4), userId: casey, rsvp: "yes", attended: true },
 	]);
 
-	// An open GRID poll (issue #33): day-windows as options, painted marks.
+	// Member ratings + discussion (Phase 21): finished games get scores, and
+	// a backlog game gets an argument-in-progress.
+	await db.insert(schema.gameRatings).values([
+		{ gameId: gameId(2), userId: alex, rating: 5, note: "co-op puzzle perfection" },
+		{ gameId: gameId(2), userId: brooke, rating: 5, note: null },
+		{ gameId: gameId(2), userId: casey, rating: 4, note: "GLaDOS carried it" },
+		{ gameId: gameId(3), userId: casey, rating: 5, note: "one more run, forever" },
+		{ gameId: gameId(3), userId: drew, rating: 4, note: null },
+		{ gameId: gameId(4), userId: drew, rating: 3, note: "the B-sides broke me" },
+	]);
+	await db.insert(schema.gameComments).values([
+		{
+			gameId: gameId(5),
+			userId: brooke,
+			body: "Nobody spoil ANYTHING. Not even the thing with the thing.",
+			createdAt: daysAgo(9),
+		},
+		{
+			gameId: gameId(5),
+			userId: drew,
+			body: "Is this really a group game though? One person flies, four people backseat.",
+			createdAt: daysAgo(8),
+		},
+		{
+			gameId: gameId(5),
+			userId: brooke,
+			body: "That's the fun part. Rotating pilot every loop.",
+			createdAt: daysAgo(8),
+		},
+	]);
+
+	// An open GRID poll (issue #33): day-windows as options, painted marks,
+	// linked to the game it's trying to seat (#37).
 	await db.insert(schema.availabilityPolls).values({
 		id: pollId(2),
 		title: "Seat a Wingspan evening",
 		kind: "grid",
 		gridSessionMinutes: 120,
+		gameId: gameId(12),
 		createdBy: casey,
 		status: "open",
 	});

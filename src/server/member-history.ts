@@ -60,6 +60,14 @@ export type MemberHistory = {
 		status: (typeof schema.gameStatus.enumValues)[number];
 		system: string | null;
 	}[];
+	/** What they rated (Phase 21) — the "what I rated" the original member
+	 * history pitch wanted but had no data for. Public, unlike votes. */
+	rated: {
+		id: string;
+		title: string;
+		rating: number;
+		note: string | null;
+	}[];
 };
 
 export async function getMemberHistory(userId: string): Promise<MemberHistory | null> {
@@ -81,7 +89,7 @@ export async function getMemberHistory(userId: string): Promise<MemberHistory | 
 
 	const effectivePoints = sql<number | null>`coalesce(${schema.games.pointsOverride}, ${schema.games.points})`;
 
-	const [proposals, sessions, upcoming, runs, completedEvents] = await Promise.all([
+	const [proposals, sessions, upcoming, runs, rated, completedEvents] = await Promise.all([
 		db
 			.select({
 				id: schema.games.id,
@@ -144,6 +152,17 @@ export async function getMemberHistory(userId: string): Promise<MemberHistory | 
 			.where(eq(schema.tabletopDetails.gmUserId, userId))
 			.orderBy(desc(schema.games.createdAt)),
 		db
+			.select({
+				id: schema.games.id,
+				title: schema.games.title,
+				rating: schema.gameRatings.rating,
+				note: schema.gameRatings.note,
+			})
+			.from(schema.gameRatings)
+			.innerJoin(schema.games, eq(schema.gameRatings.gameId, schema.games.id))
+			.where(eq(schema.gameRatings.userId, userId))
+			.orderBy(desc(schema.gameRatings.rating), desc(schema.gameRatings.updatedAt)),
+		db
 			.select({ count: sql<number>`count(*)::int` })
 			.from(schema.events)
 			.where(eq(schema.events.status, "completed")),
@@ -165,5 +184,6 @@ export async function getMemberHistory(userId: string): Promise<MemberHistory | 
 		sessions,
 		upcoming: upcoming.map((row) => ({ ...row, rsvp: row.rsvp ?? "maybe" })),
 		runs,
+		rated,
 	};
 }

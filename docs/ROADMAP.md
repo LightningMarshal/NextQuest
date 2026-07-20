@@ -302,31 +302,37 @@ First batch of issues filed from real group use, shipped together:
   together, average session rating, next session) always shows, and a new
   admin setting hides the completion %/burn-rate surfaces entirely for
   groups living in service games (migration 0017)
+- Poll cleanup (#37): every grid segment shows its time (not just hour
+  rows); a poll can carry the game it's trying to seat (select or typed
+  title → proposed entry, copied onto the scheduled event and named in
+  the Discord notice); closed polls drop from view a week after closing
+  (`closed_at`, migration 0019) and gain a creator/admin "Delete poll"
+  button. And yes — opening a poll pings Discord (it has since the grid
+  overhaul; the notice now names the linked game too)
 
-## Phase 21 (proposed) — Player voice
+## Phase 21 — Player voice ✅ (done)
 
-Everything the app records today is a group aggregate: votes are summed,
-`how_it_went` rates the session for everyone, quality signals come from
-strangers on Steam/BGG. The one voice the app never captures is an
-individual member's opinion — which is why "what I rated" from the
-original member-history pitch was quietly impossible to build.
+Everything the app recorded before this was a group aggregate: votes
+summed, `how_it_went` rating the session for everyone, quality signals
+from strangers on Steam/BGG. This phase captures the individual member's
+opinion — which is why "what I rated" from the original member-history
+pitch had been quietly impossible to build.
 
-- Per-member game ratings: a 1–5 rating (+ optional one-line take) a
-  member can leave once a game is `completed`/`abandoned` — new
-  `game_ratings` table (game_id, user_id, rating, note), prompted from the
-  game detail page and the wrap-up flow. Ratings are group-public (like
-  RSVPs, unlike votes). Feeds: member history ("what I rated"), year in
-  review (a real group GOTY instead of best session only), and the
-  backlog card for re-proposed games ("the group gave this 4.2 last time")
-- Per-game discussion: a lightweight comment thread on the game detail
-  page (game_comments: game_id, user_id, body, created_at) — today the
-  pitch is single-author and the actual argument about it happens in
-  Discord, invisible to the person deciding a year later. No editing
-  wars: plain append, author-delete only
-- Group GOTY in /review once ratings exist: highest average member
-  rating with a minimum-raters floor; show the per-member spread
-- Discord nudge when a game completes with no ratings after a few days
-  (reuse the wrap-up-nudge claim-marker pattern)
+- Per-member game ratings: 1–5 + optional one-line take, once a game is
+  `completed`/`abandoned` (`game_ratings`, migration 0019; upsert per
+  member). Group-public like RSVPs — the vote-anonymity invariant is
+  untouched. Surfaces: the game page's Player Ratings card (average +
+  spread + your form), "group N/5" on backlog cards (the re-proposal
+  receipt), "Rated" on member pages, and a real group GOTY in /review
+  (highest average with a 2-rater floor, per-member spread shown).
+  The rating prompt lives on the game page, the completion Discord ping
+  points at it, and the cron nudges once if a finished game sits unrated
+  for 3 days (claim marker `games.rating_nudge_sent_at`) — deliberately
+  NOT in the session wrap-up form, since sessions complete events, not
+  games
+- Per-game discussion ("Table talk"): append-only comment thread on the
+  game page, any status — arguing about a proposal is the point. Author
+  (or admin) delete only; no edits, the thread is a record
 
 ## Phase 22 (proposed) — Production confidence
 
