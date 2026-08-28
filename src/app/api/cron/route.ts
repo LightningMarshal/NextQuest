@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { notifyDiscord } from "@/lib/discord";
 import { sendEventReminders } from "@/server/cron/event-reminders";
 import { refreshStaleMetadata } from "@/server/cron/metadata-refresh";
 
@@ -37,8 +38,11 @@ export async function GET(request: Request): Promise<Response> {
 		return Response.json({ task, ...summary });
 	} catch (error) {
 		// 200 on handled failure: Cloudflare retries non-2xx cron fetches and
-		// none of these tasks benefit from a retry storm.
+		// none of these tasks benefit from a retry storm. console.warn alone is
+		// silent in prod (no retained logs), so also surface it on Discord —
+		// notifyDiscord no-ops without DISCORD_WEBHOOK_URL configured.
 		console.warn(`cron task ${task} failed`, error);
+		notifyDiscord(`⚠️ Cron task \`${task}\` failed: ${String(error)}`);
 		return Response.json({ task, error: "failed" });
 	}
 }

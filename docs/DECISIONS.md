@@ -285,6 +285,8 @@ neither is needed for the capture goals.
 
 ## 2026-07-12 — RAWG as a Steam supplement; IGDB deferred; mood = filters
 
+## 2026-07-12 — RAWG as a Steam supplement; IGDB deferred; mood = filters
+
 RAWG joins as a *supplement*, not a peer: it fills art/description/genres/
 release/Metacritic that Steam left blank, and Steam stays canonical (its
 review % and category-derived play-modes have no RAWG equivalent). Gated
@@ -296,3 +298,26 @@ gains `rawg` (append-only). **IGDB deferred**: its Twitch OAuth
 client-credentials exchange is more surface for similar coverage. A dedicated
 **mood** taxonomy is also deferred — mood rides the existing genre/mode/tag
 filters (a member can make a "chill" or "brainburner" tag today).
+
+## 2026-08-28 — Phase 22 slice: cron→Discord alerting, migration CI check
+
+Picked the two Phase 22 items with no external-provisioning dependency and
+did them; deferred the rest. Cron task failures (`/api/cron`) previously
+only `console.warn`'d — invisible in prod (no retained Worker logs). Now
+they also fire the existing `notifyDiscord()` (already optional/no-op
+without `DISCORD_WEBHOOK_URL`), matching the app's established
+optional-webhook pattern rather than adding a new secret. Separately, CI
+gained a `migration-check` job: a `postgres:17` GitHub Actions service
+container plus `drizzle-kit migrate` run from empty, catching a broken
+generated migration at PR time instead of at `npm run deploy` (which runs
+migrations first today). Both verified locally — the migration job was
+smoke-tested against a locally built Postgres 16 instance (all 21 tables
+created cleanly) since this sandbox has no Docker daemon.
+
+Deferred, each needs something this session can't provision unattended:
+full Worker log shipping/Sentry (new external account/DSN), automated R2
+backups (new R2 bucket + binding decision), the E2E smoke suite (blocked on
+the Neon-HTTP→Postgres shim Phase 23 flags as "lives in no repo"), and PR
+preview deploys (new CI secrets for `wrangler versions upload`). No open
+GitHub issues existed and no explicit task was given this session — picked
+the next roadmap phase per the resume prompt's own instruction.

@@ -334,16 +334,17 @@ pitch had been quietly impossible to build.
   game page, any status — arguing about a proposal is the point. Author
   (or admin) delete only; no edits, the thread is a record
 
-## Phase 22 (proposed) — Production confidence
+## Phase 22 (in progress) — Production confidence
 
 The app now has CI, tests, and error pages — but production is still a
 black box: a crashed cron logs to a console nobody retains, and the only
 backup is an admin remembering to click "Everything (JSON)".
 
-- Error visibility: ship Worker logs somewhere durable (Workers Logs /
-  Logpush or a lightweight Sentry via `@sentry/cloudflare`); at minimum,
-  cron task failures should post to the existing Discord webhook — the
-  plumbing is already there (`console.warn` today = silent in prod)
+- Error visibility: ✅ cron task failures now post to the existing Discord
+  webhook (`src/app/api/cron/route.ts` → `notifyDiscord`, no-op without
+  `DISCORD_WEBHOOK_URL`); shipping Worker logs somewhere durable (Workers
+  Logs / Logpush or a lightweight Sentry via `@sentry/cloudflare`) is still
+  open — needs a new external account this repo can't provision unattended
 - Automated backups: a weekly cron task that writes the /api/export
   snapshot to an R2 bucket with a retention window — the export route
   already builds the payload; this schedules it. Document Neon PITR
@@ -353,10 +354,9 @@ backup is an admin remembering to click "Everything (JSON)".
   seam, walk propose → vote → schedule → wrap-up. Every verification
   session so far has hand-rebuilt exactly this harness; commit it
   (the shim itself is the missing piece — see Phase 23's local dev item)
-- Migration check in CI: apply `drizzle/` from zero against a scratch
-  Postgres service so a broken generated migration fails the PR, not the
-  deploy (the deploy script runs migrations first — today that's where
-  you'd find out)
+- Migration check in CI: ✅ a `migration-check` job in `ci.yml` spins up a
+  disposable `postgres:17` service container and runs `npm run db:migrate`
+  (`drizzle-kit migrate`) against it from empty on every push/PR
 - PR preview deploys via `wrangler versions upload` — review a change on
   a real workerd runtime instead of trusting `npm run dev`
 
