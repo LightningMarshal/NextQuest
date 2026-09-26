@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextQuest Promo</title>
+<meta name="description" content="A 47-second hand-drawn animated short about NextQuest — the shared backlog, secret votes, picker, scheduling and burn rate for your gaming group. Pure JavaScript: every line, note and sound effect is generated in the browser.">
+<!--FONTS-->
+<style>
+@font-face { font-family: 'Shantell Sans'; src: url(assets/ShantellSans.woff2) format('woff2'); font-weight: 300 800; font-display: block; }
+@font-face { font-family: 'Caveat'; src: url(assets/Caveat.woff2) format('woff2'); font-weight: 400 700; font-display: block; }
+<!--/FONTS-->
+:root {
+	--bg: #efe6d4;
+	--fg: #1f2433;
+	--muted: #6b6457;
+	--frame: #1f2433;
+	--accent: #0e9fb3;
+	--bar: rgba(31, 36, 51, 0.82);
+	--bar-fg: #f6efe0;
+	--track: rgba(246, 239, 224, 0.25);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #0b0d11;
+		--fg: #e7ebf1;
+		--muted: #8a93a3;
+		--frame: #000;
+		--accent: #34d1e6;
+		--bar: rgba(11, 13, 17, 0.82);
+		--bar-fg: #e7ebf1;
+		--track: rgba(231, 235, 241, 0.22);
+		color-scheme: dark;
+	}
+}
+:root[data-theme="dark"] {
+	--bg: #0b0d11;
+	--fg: #e7ebf1;
+	--muted: #8a93a3;
+	--frame: #000;
+	--accent: #34d1e6;
+	--bar: rgba(11, 13, 17, 0.82);
+	--bar-fg: #e7ebf1;
+	--track: rgba(231, 235, 241, 0.22);
+	color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family: 'Shantell Sans', system-ui, sans-serif;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: 100%;
+	padding: 16px;
+	overflow-x: hidden;
+}
+#wrap {
+	position: relative;
+	width: min(100%, calc((100vh - 110px) * 16 / 9));
+	aspect-ratio: 16 / 9;
+	background: var(--frame);
+	border-radius: 14px;
+	overflow: hidden;
+	box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+#wrap:fullscreen { width: 100vw; height: 100vh; border-radius: 0; aspect-ratio: auto; background: #000; display: flex; align-items: center; justify-content: center; }
+#wrap:fullscreen #stage { width: min(100vw, calc(100vh * 16 / 9)); height: auto; }
+#stage { display: block; width: 100%; height: auto; }
+#overlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 14px;
+	background: radial-gradient(ellipse at center, rgba(31, 36, 51, 0.15), rgba(31, 36, 51, 0.55));
+	transition: opacity 0.35s;
+}
+#overlay.hidden { opacity: 0; pointer-events: none; }
+#bigplay {
+	width: clamp(64px, 12vw, 116px);
+	height: clamp(64px, 12vw, 116px);
+	border-radius: 50%;
+	border: 4px solid #1f2433;
+	background: #34d1e6;
+	cursor: pointer;
+	display: grid;
+	place-items: center;
+	box-shadow: 5px 6px 0 #1f2433;
+	transition: transform 0.15s;
+}
+#bigplay:focus-visible, #controls button:focus-visible { outline: 3px solid #ffc94a; outline-offset: 3px; }
+#bigplay:hover { transform: scale(1.06) rotate(-3deg); }
+#bigplay:active { transform: scale(0.97); box-shadow: 2px 3px 0 #1f2433; }
+#bigplay svg { width: 44%; height: 44%; margin-left: 8%; }
+#status {
+	font-weight: 700;
+	font-size: clamp(13px, 1.6vw, 19px);
+	color: #fffdf8;
+	background: rgba(31, 36, 51, 0.8);
+	padding: 6px 14px;
+	border-radius: 999px;
+}
+#controls {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	background: linear-gradient(transparent, var(--bar) 55%);
+	color: var(--bar-fg);
+	opacity: 0;
+	transition: opacity 0.25s;
+}
+#wrap:hover #controls, #wrap:focus-within #controls { opacity: 1; }
+@media (hover: none) { #controls { opacity: 1; } }
+#controls button {
+	background: none;
+	border: 0;
+	color: inherit;
+	cursor: pointer;
+	width: 30px;
+	height: 30px;
+	padding: 4px;
+	display: grid;
+	place-items: center;
+}
+#controls svg { width: 100%; height: 100%; }
+#toggle[data-state="playing"] .i-play, #toggle:not([data-state="playing"]) .i-pause { display: none; }
+#scrub { flex: 1; height: 18px; display: flex; align-items: center; cursor: pointer; }
+#scrub .track { width: 100%; height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
+#fill { height: 100%; width: 0; background: #34d1e6; }
+#time { font-size: 13px; font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
+.caption { margin-top: 14px; font-size: 14px; color: var(--muted); text-align: center; max-width: 60ch; }
+.caption b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="wrap">
+	<canvas id="stage" width="1920" height="1080" aria-label="NextQuest hand-drawn animation"></canvas>
+	<div id="overlay">
+		<button id="bigplay" aria-label="Play">
+			<svg viewBox="0 0 24 24"><path d="M5 3.5 L20 12 L5 20.5 Z" fill="#1f2433" stroke="#1f2433" stroke-width="2" stroke-linejoin="round"/></svg>
+		</button>
+		<div id="status">Sketching…</div>
+	</div>
+	<div id="controls">
+		<button id="toggle" aria-label="Play / pause">
+			<svg class="i-play" viewBox="0 0 24 24"><path d="M6 4 L20 12 L6 20 Z" fill="currentColor"/></svg>
+			<svg class="i-pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1" fill="currentColor"/></svg>
+		</button>
+		<div id="scrub"><div class="track"><div id="fill"></div></div></div>
+		<span id="time">0:00 / 0:47</span>
+		<button id="full" aria-label="Fullscreen">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+		</button>
+	</div>
+</div>
+<p class="caption"><b>NextQuest</b> — every line, note and sound effect in this short is drawn and synthesized live in your browser with plain JavaScript. Narration: Kokoro TTS.</p>
+<!--SCRIPTS-->
+<script src="src/engine.js"></script>
+<script src="src/draw.js"></script>
+<script src="src/scenes.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/main.js"></script>
+<!--/SCRIPTS-->
+</body>
+</html>

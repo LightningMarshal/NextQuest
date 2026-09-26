@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
 		"drizzle/**",
 		// Imports .open-next build output that may not exist (see file header).
 		"custom-worker.ts",
+		// Standalone promo animation (plain browser JS, not part of the app).
+		"promo/**",
 	]),
 ]);
 
