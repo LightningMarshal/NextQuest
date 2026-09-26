@@ -5,7 +5,7 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { notifyDiscord } from "@/lib/discord";
+import { notifyDiscord } from "@/server/discord";
 import { fetchGameMetadata } from "@/lib/metadata";
 import { parseBggExternalId } from "@/lib/metadata/bgg";
 import { deriveGameModes } from "@/lib/metadata/steam";

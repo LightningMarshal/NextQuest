@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { admitPendingAsGuest } from "@/lib/auth";
-import { notifyDiscord } from "@/lib/discord";
+import { notifyDiscord } from "@/server/discord";
 import { randomToken, sha256Hex } from "@/lib/ids";
 import { INVITE_TOKEN_RE } from "@/server/circle-read";
 import { getSessionUser, requireAdmin, requireMember } from "@/server/session";

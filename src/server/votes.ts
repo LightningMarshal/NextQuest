@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { notifyDiscord } from "@/lib/discord";
+import { notifyDiscord } from "@/server/discord";
 import { requireMember } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 

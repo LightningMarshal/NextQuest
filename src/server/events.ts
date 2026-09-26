@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { discordTimestamp, notifyDiscord } from "@/lib/discord";
+import { discordTimestamp, notifyDiscord } from "@/server/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
 import { requireMember } from "@/server/session";
 

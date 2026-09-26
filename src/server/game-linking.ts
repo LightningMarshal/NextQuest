@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { notifyDiscord } from "@/lib/discord";
+import { notifyDiscord } from "@/server/discord";
 
 export async function resolveOrCreateGame(
 	db: ReturnType<typeof getDb>,

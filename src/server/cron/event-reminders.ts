@@ -11,7 +11,7 @@
 import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { discordTimestamp, notifyDiscord } from "@/lib/discord";
+import { discordTimestamp, notifyDiscord } from "@/server/discord";
 
 const HOUR_MS = 60 * 60 * 1000;
 // How long a past session may sit unwrapped before the nudge: long enough
