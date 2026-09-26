@@ -6,6 +6,9 @@ import { getAuth } from "@/lib/auth";
 import { signInHref } from "@/lib/safe-redirect";
 
 export type UserRole = "admin" | "member" | "guest";
+
+/** Where a guest lands when they hit a member-only page. */
+export const GUEST_HOME = "/apply";
 export type UserStatus = "pending" | "approved" | "rejected";
 
 export type SessionUser = {
@@ -67,14 +70,15 @@ export function isAdmin(user: Pick<SessionUser, "role" | "status"> | null): bool
 export async function requireCircleUser(returnTo?: string): Promise<SessionUser> {
 	const user = await getSessionUser();
 	if (!user) redirect(signInHref(returnTo));
-	if (user.status !== "approved") redirect("/pending-approval");
+	if (user.status !== "approved") redirect("/apply");
 	return user;
 }
 
 /** Gate for member-only surfaces and actions. Guests bounce to their home. */
 export async function requireMember(returnTo?: string): Promise<SessionUser> {
 	const user = await requireCircleUser(returnTo);
-	if (!isMember(user)) redirect("/");
+	// Guests only ever see circle pages; their home is the sessions view.
+	if (!isMember(user)) redirect(GUEST_HOME);
 	return user;
 }
 
