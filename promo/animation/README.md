@@ -7,6 +7,7 @@ image or music files. The only pre-rendered asset is the narration.
 
 - **Watch:** `dist/nextquest-promo.mp4` (1920×1080, 30 fps, AAC 256k)
 - **Play in a browser:** `dist/nextquest-promo.html` (single self-contained file)
+- **README poster:** `dist/poster.jpg` (finale frame at 44.6 s with a play badge)
 
 ## Story (≈47 s, 100 BPM grid)
 

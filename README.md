@@ -7,6 +7,14 @@ sessions get scheduled with availability polls, RSVPs, and attendance.
 One deployment serves one group — members sign in with Google and are let
 in by an admin.
 
+<p align="center">
+  <a href="promo/animation/dist/nextquest-promo.mp4">
+    <img src="promo/animation/dist/poster.jpg" alt="NextQuest — a 47-second hand-drawn animated tour. Click to watch." width="720">
+  </a>
+  <br>
+  <sub>▶ <a href="promo/animation/dist/nextquest-promo.mp4">Watch the 47-second tour</a> (MP4, sound on) · made in plain JavaScript — see <a href="promo/animation/">promo/animation</a></sub>
+</p>
+
 ## Feature tour
 
 ### Dashboard
