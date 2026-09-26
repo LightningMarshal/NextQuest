@@ -142,8 +142,8 @@
 	});
 	ui.full.addEventListener("click", () => {
 		const el = ui.wrap;
-		if (document.fullscreenElement) document.exitFullscreen();
-		else if (el.requestFullscreen) el.requestFullscreen();
+		if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+		else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
 	});
 	window.addEventListener("keydown", (e) => {
 		if (e.code === "Space") {

@@ -30,6 +30,7 @@
 		--bar: rgba(11, 13, 17, 0.82);
 		--bar-fg: #e7ebf1;
 		--track: rgba(231, 235, 241, 0.22);
+		color-scheme: dark;
 	}
 }
 :root[data-theme="dark"] {
@@ -41,6 +42,7 @@
 	--bar: rgba(11, 13, 17, 0.82);
 	--bar-fg: #e7ebf1;
 	--track: rgba(231, 235, 241, 0.22);
+	color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -92,6 +94,7 @@ body {
 	box-shadow: 5px 6px 0 #1f2433;
 	transition: transform 0.15s;
 }
+#bigplay:focus-visible, #controls button:focus-visible { outline: 3px solid #ffc94a; outline-offset: 3px; }
 #bigplay:hover { transform: scale(1.06) rotate(-3deg); }
 #bigplay:active { transform: scale(0.97); box-shadow: 2px 3px 0 #1f2433; }
 #bigplay svg { width: 44%; height: 44%; margin-left: 8%; }
@@ -4974,8 +4977,8 @@ function encodeWav(ab) {
 	});
 	ui.full.addEventListener("click", () => {
 		const el = ui.wrap;
-		if (document.fullscreenElement) document.exitFullscreen();
-		else if (el.requestFullscreen) el.requestFullscreen();
+		if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+		else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
 	});
 	window.addEventListener("keydown", (e) => {
 		if (e.code === "Space") {
