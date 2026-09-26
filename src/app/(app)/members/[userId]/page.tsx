@@ -7,7 +7,7 @@ import { CalendarIcon, DicesIcon, LightbulbIcon, StarIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMemberHistory } from "@/server/member-history";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 import { GAME_TYPE_LABELS, STATUS_BADGE } from "../../backlog/game-display";
 
@@ -30,7 +30,7 @@ export default async function MemberPage({
 }: {
 	params: Promise<{ userId: string }>;
 }) {
-	const viewer = await requireApprovedUser();
+	const viewer = await requireMember();
 	const { userId } = await params;
 	const history = await getMemberHistory(userId);
 	if (!history) notFound();

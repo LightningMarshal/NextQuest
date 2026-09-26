@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchHltbTimesById, fetchHltbTimesByTitle, hltbProvider } from "./hltb";
+import {
+	fetchHltbTimesById,
+	fetchHltbTimesByTitle,
+	hltbProvider,
+	resetHltbEndpointCache,
+} from "./hltb";
 
 // These tests drive the full discovery → /init handshake → POST search flow
 // against a stubbed fetch that mimics HLTB's current scheme, including the
@@ -84,6 +89,7 @@ function stubHltb({ noAppChunk = false, staleEndpoint = false }: StubOptions = {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	resetHltbEndpointCache();
 });
 
 describe("endpoint discovery + handshake", () => {
@@ -150,5 +156,15 @@ describe("time lookups", () => {
 	it("returns null when nothing matches at all", async () => {
 		stubHltb();
 		expect(await fetchHltbTimesByTitle("zzz no such game")).toBeNull();
+	});
+});
+
+describe("endpoint cache", () => {
+	it("discovers once across searches", async () => {
+		const { fetchMock } = stubHltb();
+		await hltbProvider.search("hades");
+		await hltbProvider.search("hades");
+		const homepageHits = fetchMock.mock.calls.filter(([url]) => String(url) === "https://howlongtobeat.com").length;
+		expect(homepageHits).toBe(1);
 	});
 });

@@ -5,7 +5,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
 import { notifyDiscord } from "@/lib/discord";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
 // ANONYMITY INVARIANT (see src/db/schema/votes.ts): nothing in this module
@@ -18,7 +18,7 @@ import { getAppSettings } from "@/server/settings";
  * weight 0 removes the allocation (returns budget).
  */
 export async function setVote(gameId: string, weight: number): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const settings = await getAppSettings();
 
 	if (!Number.isInteger(weight) || weight < 0 || weight > settings.voteMaxPerGame) {
@@ -111,7 +111,7 @@ export async function getMyBallot(): Promise<{
 	allocations: { gameId: string; weight: number }[];
 	remainingBudget: number;
 }> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const settings = await getAppSettings();
 	const db = getDb();
 
@@ -126,7 +126,7 @@ export async function getMyBallot(): Promise<{
 
 /** Aggregate priority order — totals only, never voter identity. */
 export async function getVoteTally(): Promise<{ gameId: string; totalWeight: number }[]> {
-	await requireApprovedUser();
+	await requireMember();
 	const db = getDb();
 	return db
 		.select({

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import {
@@ -105,7 +105,7 @@ function StatCard({
 }: {
 	icon: typeof LibraryIcon;
 	label: string;
-	value: string;
+	value: React.ReactNode;
 	detail?: string;
 	/** Nova: the headline metric (Completion) renders its value in the cyan accent. */
 	highlight?: boolean;
@@ -253,9 +253,9 @@ export default async function DashboardPage({
 				<StatCard
 					icon={CalendarIcon}
 					label="Next session"
-					value={
-						upcomingEvents[0] ? format(upcomingEvents[0].scheduledAt, "MMM d") : "—"
-					}
+					// Rendered in the viewer's timezone — a server-side format() runs in
+					// UTC and shows an evening session on the wrong day.
+					value={upcomingEvents[0] ? <LocalTime date={upcomingEvents[0].scheduledAt} dateOnly /> : "—"}
 					detail={upcomingEvents[0] ? upcomingEvents[0].title : "nothing scheduled"}
 				/>
 			</div>
@@ -339,7 +339,7 @@ export default async function DashboardPage({
 									<li key={game.id} className="flex items-center gap-3">
 										{game.art ? (
 											<div className="relative h-12 w-[84px] shrink-0 overflow-hidden rounded-md">
-												<Image
+												<GameArt
 													src={game.art}
 													alt={game.title}
 													fill

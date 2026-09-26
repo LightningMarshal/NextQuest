@@ -14,7 +14,9 @@ export function notifyDiscord(message: string): void {
 		const send = fetch(url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ content: message }),
+			// Titles and names are member-typed: never let them ping @everyone,
+			// @here, roles, or users.
+			body: JSON.stringify({ content: message, allowed_mentions: { parse: [] } }),
 			signal: AbortSignal.timeout(5_000),
 		})
 			.then((res) => {

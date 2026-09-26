@@ -18,7 +18,7 @@ import {
 } from "@/lib/metadata";
 import { bggConfigured } from "@/lib/metadata/bgg";
 import { rawgConfigured } from "@/lib/metadata/rawg";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 const MAX_PER_PROVIDER = 8;
 
@@ -47,7 +47,7 @@ export async function searchGameCandidates(
 	rawQuery: string,
 	kind: "video" | "tabletop" = "video"
 ): Promise<SearchCandidatesResult> {
-	await requireApprovedUser();
+	await requireMember();
 	const query = querySchema.parse(rawQuery);
 
 	// Tabletop searches BGG only — Steam/HLTB would match the wrong medium.
@@ -131,7 +131,7 @@ export async function previewCandidate(input: {
 	bggId?: string;
 	rawgId?: number;
 }): Promise<PreviewCandidateResult> {
-	await requireApprovedUser();
+	await requireMember();
 	const parsed = previewSchema.parse(input);
 	const { metadata, sources, failures } = await fetchGameMetadata(parsed);
 	// Never ship raw provider dumps to the client.

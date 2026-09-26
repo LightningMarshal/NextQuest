@@ -83,3 +83,13 @@ export function getAuth() {
 }
 
 export type Auth = ReturnType<typeof getAuth>;
+
+/** Discord sign-in only appears once its OAuth app credentials are set. */
+export function discordSignInConfigured(): boolean {
+	const { env } = getCloudflareContext();
+	const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET } = env as {
+		DISCORD_CLIENT_ID?: string;
+		DISCORD_CLIENT_SECRET?: string;
+	};
+	return Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET);
+}

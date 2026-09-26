@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 // Phase 21 (player voice): per-member ratings and per-game discussion.
 // Both are PUBLIC within the group — the anonymity invariant covers votes
@@ -22,7 +22,7 @@ const rateSchema = z.object({
  * "having played it, this is where I landed".
  */
 export async function rateGame(gameId: string, formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = rateSchema.safeParse({
 		rating: formData.get("rating"),
 		note: formData.get("note") || undefined,
@@ -64,7 +64,7 @@ const commentSchema = z.object({
 /** Append a comment to a game's discussion thread. Any status — arguing
  * about a proposal is the whole point. */
 export async function addGameComment(gameId: string, formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = commentSchema.safeParse({ body: formData.get("body") });
 	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
@@ -86,7 +86,7 @@ export async function addGameComment(gameId: string, formData: FormData): Promis
 /** Delete one of YOUR comments (admins can moderate). No editing — the
  * thread is a record, not a wiki. */
 export async function deleteGameComment(commentId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 	const [comment] = await db
 		.select({ userId: schema.gameComments.userId, gameId: schema.gameComments.gameId })

@@ -8,7 +8,7 @@ import { getDb, schema } from "@/db";
 import { covers, mergeIntervals, overlaps, type Interval } from "@/lib/availability-grid";
 import { discordTimestamp, notifyDiscord } from "@/lib/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 type AvailabilityResponse = (typeof schema.availabilityResponseValue.enumValues)[number];
 
@@ -38,7 +38,7 @@ const createPollSchema = z.object({
 });
 
 export async function createAvailabilityPoll(formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = createPollSchema.safeParse({
 		title: formData.get("title"),
 		durationMinutes: formData.get("durationMinutes"),
@@ -117,7 +117,7 @@ export async function createGridPoll(input: {
 	sessionMinutes: number;
 	windows: { start: string; end: string }[];
 }): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = createGridPollSchema.safeParse(input);
 	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 	const { title, sessionMinutes, windows } = parsed.data;
@@ -163,7 +163,7 @@ export async function createGridPoll(input: {
  * poll back-reference (set null).
  */
 export async function deletePoll(pollId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 	const [poll] = await db
 		.select({
@@ -204,7 +204,7 @@ export async function saveAvailability(
 	pollId: string,
 	intervals: { start: string; end: string }[]
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = saveAvailabilitySchema.safeParse({ pollId, intervals });
 	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
@@ -264,7 +264,7 @@ export async function scheduleGridWindow(
 	startIso: string,
 	endIso: string
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const start = new Date(startIso);
 	const end = new Date(endIso);
 	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
@@ -353,7 +353,7 @@ export async function respondToSlot(
 	optionId: string,
 	response: AvailabilityResponse
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	if (!schema.availabilityResponseValue.enumValues.includes(response)) {
 		throw new Error("Invalid response.");
 	}
@@ -382,7 +382,7 @@ export async function respondToSlot(
 }
 
 export async function closePoll(pollId: string): Promise<void> {
-	await requireApprovedUser();
+	await requireMember();
 	const db = getDb();
 	await db
 		.update(schema.availabilityPolls)
@@ -397,7 +397,7 @@ export async function closePoll(pollId: string): Promise<void> {
  * poll.
  */
 export async function createEventFromSlot(optionId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 
 	const [slot] = await db

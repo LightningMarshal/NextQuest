@@ -6,7 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { getDb, schema } from "@/db";
 import { bestWindows, type Interval } from "@/lib/availability-grid";
 import { deriveCalendarToken } from "@/lib/ical";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 import { AvailabilityGridCard } from "./availability-grid-card";
 import { CalendarSubscribe } from "./calendar-subscribe";
@@ -61,7 +61,7 @@ export default async function EventsPage({
 }: {
 	searchParams: Promise<{ game?: string }>;
 }) {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 	// "Plan a session with this game" deep link from a game card/page (#34).
 	const { game: preselectedGameId } = await searchParams;

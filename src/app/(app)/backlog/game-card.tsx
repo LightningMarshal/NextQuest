@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { CalendarPlusIcon, HistoryIcon, RefreshCwIcon, TagIcon, XIcon } from "lucide-react";
 
@@ -83,7 +83,7 @@ export function GameCard({
 				className="focus-visible:ring-ring relative block h-[140px] w-full shrink-0 focus-visible:ring-2 focus-visible:outline-none"
 			>
 				{art ? (
-					<Image
+					<GameArt
 						src={art}
 						alt={game.title}
 						fill

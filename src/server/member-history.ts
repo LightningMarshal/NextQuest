@@ -1,5 +1,5 @@
 // Read-side assembly for /members/[userId] (server-only, not a server
-// action — callers sit behind the (app) layout's requireApprovedUser gate,
+// action — callers sit behind the (app) layout's requireMember gate,
 // same as dashboard.ts / pick.ts).
 //
 // ANONYMITY INVARIANT: this surface must never touch the votes table. A

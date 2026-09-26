@@ -305,7 +305,8 @@ export function AvailabilityGridCard({
 								>
 									<span>
 										<span className="font-medium">
-											{dayLabel(start)} · {timeLabel(start)}–{timeLabel(end)}
+											{/* Local labels only after hydration — SSR runs in UTC. */}
+											{mounted ? `${dayLabel(start)} · ${timeLabel(start)}–${timeLabel(end)}` : "…"}
 										</span>{" "}
 										<span className="text-muted-foreground">
 											— {suggestion.names.join(", ")} ({suggestion.names.length}/{memberCount})

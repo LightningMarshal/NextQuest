@@ -1,5 +1,5 @@
 // Read-side assembly for the /pick page (server-only, not a server action —
-// callers sit behind the (app) layout's requireApprovedUser gate, same as
+// callers sit behind the (app) layout's requireMember gate, same as
 // dashboard.ts). Vote data enters ONLY as aggregates via getVoteTally();
 // the anonymity invariant is untouched.
 

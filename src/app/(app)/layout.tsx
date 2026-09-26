@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { SiteNav } from "@/components/site-nav";
 import { WelcomeTour } from "@/components/welcome-tour";
 import { getDb, schema } from "@/db";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
 // Everything in this group is members-only: signed out → /sign-in,
@@ -16,7 +16,7 @@ export default async function AppLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const settings = await getAppSettings();
 	// tutorial_seen_at is app-owned, not a Better Auth field, so it isn't on
 	// the session — one indexed-PK lookup per request is fine at group scale.

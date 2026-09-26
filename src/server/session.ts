@@ -1,22 +1,37 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getAuth } from "@/lib/auth";
+import { signInHref } from "@/lib/safe-redirect";
+
+export type UserRole = "admin" | "member" | "guest";
+export type UserStatus = "pending" | "approved" | "rejected";
 
 export type SessionUser = {
 	id: string;
 	name: string;
 	email: string;
 	image?: string | null;
-	role: "admin" | "member";
-	status: "pending" | "approved" | "rejected";
+	role: UserRole;
+	status: UserStatus;
 };
 
 // Server-only session helpers (not server actions) used by layouts, pages,
 // and actions. Route protection happens here server-side — there is no
 // middleware/proxy layer; every protected surface calls one of these.
+//
+// Access tiers:
+//   admin / member (approved) — everything: library, stats, planning, admin (admin only)
+//   guest (approved)          — "the circle": sessions marked open, join/leave only
+//   pending / rejected        — /apply and /pending only
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * Memoized per request (React cache): a page, its layout, and every helper
+ * they call share ONE Better Auth lookup instead of re-querying the session
+ * and user tables each time (it used to be 3× per page).
+ */
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 	// Resolve headers() before touching getAuth(): it marks the route dynamic,
 	// keeping build-time prerendering away from getCloudflareContext().
 	const requestHeaders = await headers();
@@ -28,22 +43,44 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 		name,
 		email,
 		image,
-		role: role as SessionUser["role"],
-		status: status as SessionUser["status"],
+		role: (["admin", "member", "guest"].includes(role) ? role : "guest") as UserRole,
+		status: (["pending", "approved", "rejected"].includes(status) ? status : "pending") as UserStatus,
 	};
+});
+
+export function isMember(user: Pick<SessionUser, "role" | "status"> | null): boolean {
+	return !!user && user.status === "approved" && (user.role === "member" || user.role === "admin");
 }
 
-/** Gate for everything inside the (app) route group. */
-export async function requireApprovedUser(): Promise<SessionUser> {
+export function isCircle(user: Pick<SessionUser, "role" | "status"> | null): boolean {
+	return !!user && user.status === "approved";
+}
+
+export function isAdmin(user: Pick<SessionUser, "role" | "status"> | null): boolean {
+	return !!user && user.status === "approved" && user.role === "admin";
+}
+
+/**
+ * Gate for anything a guest may see (sessions marked open). `returnTo` is
+ * where sign-in should come back to — deep links from Discord depend on it.
+ */
+export async function requireCircleUser(returnTo?: string): Promise<SessionUser> {
 	const user = await getSessionUser();
-	if (!user) redirect("/sign-in");
+	if (!user) redirect(signInHref(returnTo));
 	if (user.status !== "approved") redirect("/pending-approval");
+	return user;
+}
+
+/** Gate for member-only surfaces and actions. Guests bounce to their home. */
+export async function requireMember(returnTo?: string): Promise<SessionUser> {
+	const user = await requireCircleUser(returnTo);
+	if (!isMember(user)) redirect("/");
 	return user;
 }
 
 /** Gate for /admin pages and member-management actions. */
 export async function requireAdmin(): Promise<SessionUser> {
-	const user = await requireApprovedUser();
+	const user = await requireMember("/admin");
 	if (user.role !== "admin") redirect("/");
 	return user;
 }

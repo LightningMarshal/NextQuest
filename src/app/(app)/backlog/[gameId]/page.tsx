@@ -1,5 +1,5 @@
 import type { Metadata as NextMetadata } from "next";
-import Image from "next/image";
+import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, desc, eq, sql } from "drizzle-orm";
@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDb, schema } from "@/db";
+import { isUuid } from "@/lib/ids";
 import { transitionGameStatus } from "@/server/games";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 import { getVoteTally } from "@/server/votes";
 
 import {
@@ -28,6 +29,7 @@ import { StatTiles, videoStatTiles } from "../stat-tiles";
 import { DiscussionCard, RatingsCard } from "./player-voice";
 
 async function getGameDetail(gameId: string) {
+	if (!isUuid(gameId)) return null;
 	const db = getDb();
 	const gmUser = alias(schema.user, "gm_user");
 	const [row] = await db
@@ -64,7 +66,7 @@ export default async function GameDetailPage({
 }) {
 	const { gameId } = await params;
 	// Layout already gates; the id is for the self-approval hint below.
-	const viewer = await requireApprovedUser();
+	const viewer = await requireMember();
 	const row = await getGameDetail(gameId);
 	if (!row) notFound();
 
@@ -162,7 +164,7 @@ export default async function GameDetailPage({
 			<Card className="flex flex-col gap-0 overflow-hidden py-0">
 				<div className="relative h-[220px] w-full shrink-0 sm:h-[300px]">
 					{art ? (
-						<Image
+						<GameArt
 							src={art}
 							alt={game.title}
 							fill

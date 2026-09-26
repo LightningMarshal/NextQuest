@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { discordTimestamp, notifyDiscord } from "@/lib/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 type Rsvp = (typeof schema.rsvpStatus.enumValues)[number];
 
@@ -37,7 +37,7 @@ const createEventSchema = z.object({
 });
 
 export async function createEvent(formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = createEventSchema.safeParse({
 		title: formData.get("title"),
 		gameId: formData.get("gameId") || undefined,
@@ -89,7 +89,7 @@ export async function createEvent(formData: FormData): Promise<void> {
 
 /** Upsert the calling member's RSVP. Attendance (the after-fact record) is untouched. */
 export async function setRsvp(eventId: string, rsvp: Rsvp): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	if (!schema.rsvpStatus.enumValues.includes(rsvp)) throw new Error("Invalid RSVP.");
 
 	const db = getDb();
@@ -183,7 +183,7 @@ async function cloneEventForward(
  * title. Works from any event (the wrap-up form and completed cards call it).
  */
 export async function scheduleNextSession(eventId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 
 	const [source] = await db
@@ -207,7 +207,7 @@ export async function scheduleNextSession(eventId: string): Promise<void> {
 }
 
 export async function cancelEvent(eventId: string): Promise<void> {
-	await requireApprovedUser();
+	await requireMember();
 	const db = getDb();
 	await db
 		.update(schema.events)
@@ -239,7 +239,7 @@ const wrapUpSchema = z.object({
  * notes are never overwritten.
  */
 export async function recordAttendance(eventId: string, formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 
 	const parsed = wrapUpSchema.safeParse({

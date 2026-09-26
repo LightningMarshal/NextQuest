@@ -1,15 +1,13 @@
 import type { NextConfig } from "next";
 
+import { OPTIMIZED_IMAGE_HOSTS } from "./src/lib/images";
+
 const nextConfig: NextConfig = {
 	images: {
-		// Steam art CDNs cover the auto-fetched metadata; the catch-all allows
-		// members to paste a replacement cover/header URL from any https host
-		// (issue #14). Fine for a single-tenant, auth-gated group app.
-		remotePatterns: [
-			{ protocol: "https", hostname: "**.steamstatic.com" },
-			{ protocol: "https", hostname: "**.akamaihd.net" },
-			{ protocol: "https", hostname: "**" },
-		],
+		// Only provider art CDNs are optimized. The optimizer endpoint is public,
+		// so a "**" wildcard made it an open image proxy billed to this account;
+		// member-pasted URLs on other hosts render unoptimized via <GameArt>.
+		remotePatterns: OPTIMIZED_IMAGE_HOSTS.map((hostname) => ({ protocol: "https" as const, hostname })),
 	},
 };
 

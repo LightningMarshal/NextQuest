@@ -24,22 +24,25 @@ export async function resolveOrCreateGame(
 		.where(sql`lower(${schema.games.title}) = lower(${title})`);
 	if (existing) return existing.id;
 
-	const [game] = await db
-		.insert(schema.games)
-		.values({
+	const game = { id: crypto.randomUUID() };
+	// Atomic (db.batch = one transaction on Neon HTTP): never a game without
+	// its metadata row and first history entry.
+	await db.batch([
+		db.insert(schema.games).values({
+			id: game.id,
 			title,
 			status: "proposed",
 			proposedBy: user.id,
 			pitch: `Added from ${sourceLabel}.`,
-		})
-		.returning({ id: schema.games.id });
-	await db.insert(schema.gameMetadata).values({ gameId: game.id, source: "manual" });
-	await db.insert(schema.gameStatusHistory).values({
-		gameId: game.id,
-		fromStatus: null,
-		toStatus: "proposed",
-		changedBy: user.id,
-	});
+		}),
+		db.insert(schema.gameMetadata).values({ gameId: game.id, source: "manual" }),
+		db.insert(schema.gameStatusHistory).values({
+			gameId: game.id,
+			fromStatus: null,
+			toStatus: "proposed",
+			changedBy: user.id,
+		}),
+	]);
 	notifyDiscord(`🎮 ${user.name} added **${title}** (from ${sourceLabel})`);
 	revalidatePath("/backlog");
 	return game.id;

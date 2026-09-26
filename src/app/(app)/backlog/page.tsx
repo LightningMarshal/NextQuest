@@ -5,7 +5,7 @@ import { alias } from "drizzle-orm/pg-core";
 
 import { Badge } from "@/components/ui/badge";
 import { getDb, schema } from "@/db";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 import { getVoteTally } from "@/server/votes";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +59,7 @@ export default async function BacklogPage({
 		: undefined;
 	// The (app) layout already gates; this call is just for the viewer's id
 	// (used to hide "Add to backlog" on their own proposals).
-	const viewer = await requireApprovedUser();
+	const viewer = await requireMember();
 	const db = getDb();
 	// games.proposedBy already joins user; the GM ref needs its own alias.
 	const gmUser = alias(schema.user, "gm_user");

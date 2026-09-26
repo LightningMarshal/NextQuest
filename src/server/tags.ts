@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 // Tags are deliberately open: any approved member can create, assign, and
 // remove them on any game — shared vocabulary, not personal labels.
@@ -18,7 +18,7 @@ const tagNameSchema = z
 	.max(30, "Tag must be 30 characters or fewer");
 
 export async function addTagToGame(gameId: string, formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const name = tagNameSchema.parse(formData.get("tag"));
 
 	const db = getDb();
@@ -45,7 +45,7 @@ export async function addTagToGame(gameId: string, formData: FormData): Promise<
 }
 
 export async function removeTagFromGame(gameId: string, tagId: string): Promise<void> {
-	await requireApprovedUser();
+	await requireMember();
 	const db = getDb();
 	await db
 		.delete(schema.gameTags)

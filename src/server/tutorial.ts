@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 /**
  * Stamp the welcome tour as seen for the calling member (issue #13).
@@ -11,7 +11,7 @@ import { requireApprovedUser } from "@/server/session";
  * so it never auto-opens again (replay stays in the user menu).
  */
 export async function markTutorialSeen(): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 	await db
 		.update(schema.user)
