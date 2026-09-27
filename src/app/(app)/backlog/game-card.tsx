@@ -16,8 +16,8 @@ import { StatTiles, videoStatTiles } from "./stat-tiles";
 
 /**
  * A library card: enough to decide "do I want to play this?" — art, genres,
- * play time and reception, the description, who's keen — plus the two
- * everyday actions (I'm keen, post a session). Editing lives on the game
+ * play time and reception, the description, who would play it — plus the
+ * two everyday actions ("I'd play this", post a session). Editing lives on the game
  * page; cards no longer carry hidden forms (they made /backlog ~640 KB).
  */
 export function GameCard({ game, viewerId }: { game: LibraryGame; viewerId: string }) {
@@ -130,7 +130,7 @@ export function GameCard({ game, viewerId }: { game: LibraryGame; viewerId: stri
 								))}
 							</div>
 							<span className="text-muted-foreground truncate text-xs">
-								{game.keen.map((entry) => entry.name.split(" ")[0]).join(", ")} keen
+								{game.keen.map((entry) => entry.name.split(" ")[0]).join(", ")} would play this
 							</span>
 						</div>
 					)}

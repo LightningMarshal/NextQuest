@@ -46,7 +46,7 @@ plus membership fields on `user`: `role` (`admin`/`member`/`guest`) and
   (`pending`/`approved`/`declined`), reviewer + time.
 - **`discord_webhooks`** — admin-managed targets with an `audience`
   (`all` = group server, `open` = wider server, open sessions only).
-- **`game_interest`** — "keen": PK `(game_id, user_id)`, public within the
+- **`game_interest`** — "keen" in code, **"I'd play this"** in the UI: PK `(game_id, user_id)`, public within the
   group.
 
 ### Games (`games.ts`)
@@ -232,7 +232,7 @@ remains meaningful and nothing was destroyed. The five-factor picker
 Played / Shelved, searches titles, and filters on four composing dimensions
 carried in the URL — **type**, **genre**, **mode**, and member **tags**.
 Cards show art, genres/modes, time-to-beat and reception tiles, the
-description, and who's keen; they carry no hidden forms (curation lives on
+description, and who'd play it; they carry no hidden forms (curation lives on
 the game page's Manage panel). Data: `getLibrary()` in
 `src/server/library-read.ts` (explicit columns, never `raw`). Cards link
 (art + title) through to **`/backlog/[gameId]`**, a read/detail surface with

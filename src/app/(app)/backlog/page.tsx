@@ -15,7 +15,8 @@ export const metadata: Metadata = { title: "Library" };
 
 // The library: every game the group plays, wants to play, or has played —
 // rich enough to decide from (genres, description, time-to-beat,
-// reception), with "I'm keen" as the group's want-to-play signal. Filters
+// reception), with "I'd play this" (game_interest, "keen" in code) as the
+// group's want-to-play signal. Filters
 // compose and live in the URL.
 
 const SECTIONS: { key: string; heading: string; statuses: LibraryGame["status"][]; collapsed?: boolean }[] = [
@@ -26,7 +27,7 @@ const SECTIONS: { key: string; heading: string; statuses: LibraryGame["status"][
 ];
 
 const SORTS = [
-	{ value: "keen", label: "Most keen" },
+	{ value: "keen", label: "Most wanted" },
 	{ value: "newest", label: "Newest" },
 	{ value: "shortest", label: "Shortest" },
 ] as const;
@@ -104,7 +105,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 				<div>
 					<h1 className="font-display text-3xl font-semibold tracking-tight">Library</h1>
 					<p className="text-muted-foreground mt-1 text-sm">
-						What the group plays, wants to play, and has played. Mark what you&apos;re keen on.
+						What the group plays, wants to play, and has played. Tap “I&apos;d play this” on anything you&apos;re up for.
 					</p>
 				</div>
 				<div className="border-border bg-card flex items-center gap-0.5 rounded-lg border p-0.5 text-xs">

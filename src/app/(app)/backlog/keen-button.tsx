@@ -1,13 +1,12 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { HeartIcon } from "lucide-react";
+import { CheckIcon, HeartIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { setKeen } from "@/server/interest";
 
-/** "I'm keen" toggle — optimistic; the server re-renders the names. */
+/** "I'd play this" toggle (game_interest, called "keen" in code) — optimistic; the server re-renders the names. */
 export function KeenButton({ gameId, keen, size = "sm" }: { gameId: string; keen: boolean; size?: "sm" | "default" }) {
 	const [optimistic, setOptimistic] = useOptimistic(keen);
 	const [, startTransition] = useTransition();
@@ -31,8 +30,8 @@ export function KeenButton({ gameId, keen, size = "sm" }: { gameId: string; keen
 					});
 				}}
 			>
-				<HeartIcon className={cn(optimistic && "fill-primary text-primary")} />
-				{optimistic ? "Keen" : "I'm keen"}
+				{optimistic ? <CheckIcon className="text-primary" /> : <HeartIcon />}
+				{optimistic ? "You'd play this" : "I'd play this"}
 			</Button>
 			{error && <span className="text-destructive text-xs">{error}</span>}
 		</span>

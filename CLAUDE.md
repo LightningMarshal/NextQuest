@@ -10,7 +10,7 @@ join, joinable by the group's members *and* a wider circle of guests
 a 10-second wrap-up so every past session shows who came and how it went.
 
 Around it: a rich game **library** (genres, descriptions, time-to-beat,
-reception, "who's keen"), **find-a-time polls** for nights that need
+reception, "I'd play this"), **find-a-time polls** for nights that need
 planning, and **stats**. One deployment = one group.
 
 - Design history and the 2026-09 redesign rationale: `docs/DECISIONS.md`
@@ -145,7 +145,8 @@ src/
    gone; the columns, `votes`, and the retired `app_settings` columns are
    retained (non-destructive policy). Votes were promised anonymous — never
    expose per-member vote rows, and never convert them into public "keen".
-5. **Pick-free, keen-public.** "Keen" (`game_interest`) is public within the
+5. **Pick-free, keen-public.** "Keen" (`game_interest`; the UI label is
+   **"I'd play this"** — never show the word "keen" to users) is public within the
    group; a non-proposer marking a suggested game keen promotes it to
    want-to-play (the old "a proposal needs a second" rule).
 6. **Schema changes:** edit `src/db/schema/*`, `npm run db:generate`, commit

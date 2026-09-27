@@ -274,8 +274,8 @@ export default async function GameDetailPage({
 							<KeenButton gameId={game.id} keen={iAmKeen} />
 							<span className="text-muted-foreground text-sm">
 								{keenRows.length === 0
-									? "Nobody's marked this keen yet."
-									: `${keenRows.map((row) => row.name).join(", ")} ${keenRows.length === 1 ? "is" : "are"} keen.`}
+									? "Nobody's said they'd play this yet."
+									: `${keenRows.map((row) => row.name).join(", ")} would play this.`}
 							</span>
 						</div>
 					)}

@@ -20,7 +20,8 @@ narrowed:
 
 Untouched: games, `game_status_history` (the burn-rate source), effort
 points, votes, polls, ratings, comments, tags, settings. Votes stay
-anonymous and are **not** converted into the new public "keen" marks.
+anonymous and are **not** converted into the new public "I'd play this"
+marks.
 
 ## Before you start
 
@@ -67,8 +68,8 @@ deploy`). The extra columns and tables are simply ignored.
 
 To also restore the old schema, run the rollback script against the
 database (it drops only the redesign's own tables/columns — invites,
-applications, webhooks, keen marks, session visibility/caps — and turns any
-guests back into pending accounts):
+applications, webhooks, "I'd play this" marks, session visibility/caps —
+and turns any guests back into pending accounts):
 
 ```bash
 psql "$DATABASE_URL" -f drizzle-rollback/0020_0021_circle_sessions.down.sql

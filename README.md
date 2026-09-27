@@ -16,7 +16,7 @@ a wider circle of guests can see and join the sessions you mark **open**.
 
 What's live now and coming up, with who's in and a one-tap **I'm in /
 Maybe / Out** on every card. Sessions that need a wrap-up, games people are
-keen on, open polls, and recently played nights with how they went.
+want to play, open polls, and recently played nights with how they went.
 
 ### Posting a session
 
@@ -57,7 +57,7 @@ who's in. Mentions are always disabled.
 
 Every game with art, genres, play modes, time-to-beat (HowLongToBeat),
 Steam/Metacritic/BGG reception, tabletop system and player counts, the full
-description, and **who's keen**. Search and filter by type, genre, mode, or
+description, and **who'd play it** (an "I'd play this" button). Search and filter by type, genre, mode, or
 tag; post a session for any game in one tap. Games come in search-first
 from Steam/HLTB/RAWG (video) or BoardGameGeek/RPGGeek (tabletop), with
 manual entry always available.

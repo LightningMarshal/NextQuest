@@ -124,14 +124,14 @@ export default async function HomePage() {
 				<div className="grid gap-4 sm:grid-cols-2">
 					{keen.length > 0 && (
 						<Card className="gap-2 px-4 py-4">
-							<h2 className="text-sm font-medium tracking-wide uppercase">People are keen on</h2>
+							<h2 className="text-sm font-medium tracking-wide uppercase">Games people want to play</h2>
 							<ul className="flex flex-col gap-1.5">
 								{keen.map((game) => (
 									<li key={game.id} className="flex items-center gap-2 text-sm">
 										<Link href={`/backlog/${game.id}`} className="hover:text-primary min-w-0 flex-1 truncate font-medium">
 											{game.title}
 										</Link>
-										<span className="text-muted-foreground text-xs">{game.keen} keen</span>
+										<span className="text-muted-foreground text-xs">{game.keen} would play</span>
 										<Link href={`/sessions/new?game=${game.id}`} className="text-primary text-xs font-medium" aria-label={`Post a session for ${game.title}`}>
 											Post
 										</Link>

@@ -57,7 +57,7 @@ const MEMBER_STEPS: Step[] = [
 		icon: BookOpenIcon,
 		where: "Library",
 		title: "The library",
-		body: "Every game with its genres, description, and how long it takes. Mark the ones you're keen on — that's who to ping when someone posts a session.",
+		body: "Every game with its genres, description, and how long it takes. Tap “I'd play this” on the ones you're up for — that's who to ping when someone posts a session.",
 	},
 	{
 		icon: CheckCircle2Icon,

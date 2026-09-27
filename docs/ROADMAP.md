@@ -353,7 +353,7 @@ and wants more people. Audit + rebuild on `claude/nextquest-redesign-audit-d8y1j
   clicked
 - **Wrap-up in ten seconds**, a nudge after the session ends, and 48h
   auto-close so history has no holes
-- **Library** stays rich; "I'm keen" replaces budget voting; cards lost
+- **Library** stays rich; "I'd play this" replaces budget voting; cards lost
   their hidden forms (HTML −55%); curation moved to the game page
 - **Retired (data kept)**: the picker, budget voting, effort editing and
   recompute; effort is frozen history behind a legacy burn-rate on /stats

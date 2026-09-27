@@ -381,3 +381,12 @@ no *interactive* transactions, but `db.batch([...])` runs as one
 transaction. Multi-table writes (game creation, session creation, wrap-up,
 auto-close) now use it, and the status transition is a single CTE
 statement, so a double-click can no longer write duplicate history.
+
+## 2026-09-27 — UI label: "I'd play this", not "I'm keen"
+
+The owner (American) found "keen" odd — it's British/Australian-casual. The
+button now reads **"I'd play this"** (→ "You'd play this"), cards say "Casey,
+Drew would play this", Home says "Games people want to play", and the sort is
+"Most wanted". "Want to play" was avoided as the button label because it's
+already the Library section for not-yet-started games. The code, table
+(`game_interest`), and these docs keep "keen" as the internal name.

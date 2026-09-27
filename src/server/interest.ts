@@ -9,8 +9,9 @@ import { applyStatusTransition } from "@/server/game-status";
 import { requireMember } from "@/server/session";
 
 /**
- * Toggle "I'm keen" on a game. Public within the group (names show) — the
- * signal a host uses to decide what to post and who to ping.
+ * Toggle "I'd play this" on a game ("keen" is the code name). Public
+ * within the group (names show) — the signal a host uses to decide what to
+ * post and who to ping.
  *
  * "A proposal needs a second" (docs/DECISIONS.md 2026-07-12), in keen form:
  * when someone OTHER than the proposer marks a proposed game keen, it moves
