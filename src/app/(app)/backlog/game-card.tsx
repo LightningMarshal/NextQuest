@@ -267,7 +267,7 @@ export function GameCard({
 							)}
 							{planSession && (
 								<Button size="sm" variant="outline" asChild>
-									<Link href={`/events?game=${game.id}`}>
+									<Link href={`/sessions/new?game=${game.id}`}>
 										<CalendarPlusIcon className="size-3.5" />
 										Plan session
 									</Link>

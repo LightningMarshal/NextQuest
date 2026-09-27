@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOutIcon, MenuIcon, ShieldIcon, SparklesIcon } from "lucide-react";
+import { LogOutIcon, MenuIcon, PlusIcon, ShieldIcon, SparklesIcon, UserPlusIcon } from "lucide-react";
 
 import { ChevronMark } from "@/components/chevron-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,23 +21,41 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { REPLAY_EVENT } from "@/components/welcome-tour";
 
-const links = [
-	{ href: "/", label: "Dashboard" },
-	{ href: "/backlog", label: "Backlog" },
-	{ href: "/pick", label: "What's next?" },
-	{ href: "/events", label: "Events" },
+type NavLink = { href: string; label: string; also?: string[] };
+
+const MEMBER_LINKS: NavLink[] = [
+	{ href: "/", label: "Home" },
+	{ href: "/sessions", label: "Sessions", also: ["/s/"] },
+	{ href: "/backlog", label: "Library" },
+	{ href: "/stats", label: "Stats", also: ["/review", "/members/"] },
 ];
+
+// Guests ("the circle") only ever see sessions.
+const GUEST_LINKS: NavLink[] = [
+	{ href: "/", label: "Home" },
+	{ href: "/sessions", label: "Sessions", also: ["/s/"] },
+];
+
+function isActive(link: NavLink, pathname: string): boolean {
+	if (link.href === "/") return pathname === "/";
+	return (
+		pathname === link.href ||
+		pathname.startsWith(`${link.href}/`) ||
+		(link.also ?? []).some((prefix) => pathname.startsWith(prefix))
+	);
+}
 
 export type NavUser = {
 	name: string;
 	email: string;
 	image: string | null;
 	isAdmin: boolean;
+	isGuest: boolean;
 };
 
 /** Below `sm` the four links collapse behind this menu (issue #22) — the
  * bar otherwise overflows on phones, where a session app actually lives. */
-function MobileNav({ pathname }: { pathname: string }) {
+function MobileNav({ pathname, links }: { pathname: string; links: NavLink[] }) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -105,6 +123,21 @@ function UserMenu({ user }: { user: NavUser }) {
 					</div>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
+				{user.isGuest ? (
+					<DropdownMenuItem asChild>
+						<Link href="/apply">
+							<UserPlusIcon />
+							Become a member
+						</Link>
+					</DropdownMenuItem>
+				) : (
+					<DropdownMenuItem asChild>
+						<Link href="/invites">
+							<UserPlusIcon />
+							Invite friends
+						</Link>
+					</DropdownMenuItem>
+				)}
 				{user.isAdmin && (
 					<DropdownMenuItem asChild>
 						<Link href="/admin">
@@ -130,11 +163,12 @@ function UserMenu({ user }: { user: NavUser }) {
 
 export function SiteNav({ user, groupName }: { user: NavUser; groupName: string }) {
 	const pathname = usePathname();
+	const links = user.isGuest ? GUEST_LINKS : MEMBER_LINKS;
 
 	return (
 		<header className="border-b sticky top-0 z-40 bg-background/80 backdrop-blur">
 			<div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 sm:gap-6">
-				<MobileNav pathname={pathname} />
+				<MobileNav pathname={pathname} links={links} />
 				<Link href="/" className="flex items-center gap-2.5">
 					<ChevronMark className="text-foreground size-6" />
 					<span className="font-display text-base font-semibold tracking-tight">NextQuest</span>
@@ -144,7 +178,7 @@ export function SiteNav({ user, groupName }: { user: NavUser; groupName: string 
 				</Link>
 				<nav className="hidden items-center gap-1 text-sm sm:flex">
 					{links.map((link) => {
-						const active = pathname === link.href;
+						const active = isActive(link, pathname);
 						return (
 							<Link
 								key={link.href}
@@ -162,6 +196,16 @@ export function SiteNav({ user, groupName }: { user: NavUser; groupName: string 
 					})}
 				</nav>
 				<div className="ml-auto flex items-center gap-2">
+					{/* The app's primary action, one tap from anywhere. */}
+					{!user.isGuest && (
+						<Button size="sm" className="glow-primary" asChild>
+							<Link href="/sessions/new">
+								<PlusIcon />
+								<span className="hidden sm:inline">Post session</span>
+								<span className="sm:hidden">Post</span>
+							</Link>
+						</Button>
+					)}
 					<ThemeToggle />
 					<UserMenu user={user} />
 				</div>

@@ -3,66 +3,99 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-	CalendarDaysIcon,
-	Gamepad2Icon,
-	SearchIcon,
+	BookOpenIcon,
+	CalendarPlusIcon,
+	CalendarSearchIcon,
+	CheckCircle2Icon,
+	HomeIcon,
 	SparklesIcon,
-	TrendingDownIcon,
-	VoteIcon,
+	UserPlusIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { markTutorialSeen } from "@/server/tutorial";
 
-// First-time tour (issue #13): a short once-only modal walking a newly
-// approved member through the workflow loop. The seen flag lives on the
-// user row (server decides whether to auto-open), so it follows them
-// across devices; "Replay the tour" in the user menu re-opens it via the
-// REPLAY_EVENT custom event — no URL or context plumbing needed between
-// two client islands.
+// First-time tour (issue #13), rewritten for the sessions-first redesign:
+// a short once-only modal. The seen stamp lives on the user row; anyone who
+// dismissed the OLD tour sees this one once (TOUR_VERSION_DATE). "Replay
+// the tour" in the user menu re-opens it via REPLAY_EVENT.
 
 export const REPLAY_EVENT = "nq:replay-tour";
 
-const STEPS: {
-	icon: typeof SparklesIcon;
-	where: string | null;
-	title: string;
-	body: string;
-}[] = [
+/** Stamps older than this predate the current tour — show it again once. */
+export const TOUR_VERSION_DATE = new Date("2026-09-26T00:00:00Z");
+
+type Step = { icon: typeof SparklesIcon; where: string | null; title: string; body: string };
+
+const MEMBER_STEPS: Step[] = [
 	{
 		icon: SparklesIcon,
 		where: null,
 		title: "Welcome to NextQuest",
-		body: "This is your group's shared game shelf — video games, TTRPGs, and board games in one backlog. The group decides together what to play next; here's the loop in four quick steps.",
+		body: "This is where the group says “I'm playing Rust Tuesday, hop in” — and where the plans, the game library, and the history of every session live.",
 	},
 	{
-		icon: SearchIcon,
-		where: "Backlog",
-		title: "Propose a game",
-		body: "Search by title on the Backlog page and the details fill themselves in — art, genres, and how long it takes (its effort score). Every proposal needs a second: another member adds it to the backlog.",
+		icon: HomeIcon,
+		where: "Home",
+		title: "What's on, at a glance",
+		body: "Home shows what's happening now and this week, who's in, and a one-tap I'm in / Maybe / Out. Discord gets the same card, kept up to date as people join.",
 	},
 	{
-		icon: VoteIcon,
-		where: "What's next?",
-		title: "Vote, then let the picker argue for you",
-		body: "Spend your vote budget on the games you want — votes are anonymous, only totals show. On game night, tell What's next? how much time you've got and it ranks what actually fits.",
+		icon: CalendarPlusIcon,
+		where: "Post a session",
+		title: "Post in three taps",
+		body: "Pick a game, pick a time — right now, tonight, or next month — and choose who can join: open to the wider circle of friends, or members only.",
 	},
 	{
-		icon: CalendarDaysIcon,
-		where: "Events",
-		title: "Schedule the session",
-		body: "Plan sessions on Events and RSVP. Nobody can agree on a night? Run a quick find-a-time poll and schedule the winning slot in one click.",
+		icon: CalendarSearchIcon,
+		where: "Sessions → Plan",
+		title: "Planning ahead? Find a time",
+		body: "For bigger nights, open a find-a-time poll: everyone paints when they're free and the best slot becomes a session in one click.",
 	},
 	{
-		icon: TrendingDownIcon,
-		where: "Dashboard",
-		title: "Wrap up & burn it down",
-		body: "After a session, record who showed up and how it went. Finishing a game burns its effort points — the dashboard charts the group's march toward backlog zero.",
+		icon: BookOpenIcon,
+		where: "Library",
+		title: "The library",
+		body: "Every game with its genres, description, and how long it takes. Mark the ones you're keen on — that's who to ping when someone posts a session.",
+	},
+	{
+		icon: CheckCircle2Icon,
+		where: "After",
+		title: "Wrap up in ten seconds",
+		body: "Afterwards: who came, how it went, same time next week? Forgotten wrap-ups close themselves after two days, so history never has holes.",
 	},
 ];
 
-export function WelcomeTour({ initialOpen }: { initialOpen: boolean }) {
+const GUEST_STEPS: Step[] = [
+	{
+		icon: SparklesIcon,
+		where: null,
+		title: "Welcome!",
+		body: "You're in as a guest: you can see the group's open sessions and jump into any of them.",
+	},
+	{
+		icon: HomeIcon,
+		where: "Home",
+		title: "Join with one tap",
+		body: "Each session shows when, what, and who's in. Tap I'm in, grab the join link, and add it to your calendar.",
+	},
+	{
+		icon: UserPlusIcon,
+		where: "Membership",
+		title: "Want the full picture?",
+		body: "Members also get the game library, planning polls, and stats. Apply from your account menu whenever you like.",
+	},
+];
+
+export function WelcomeTour({
+	initialOpen,
+	variant,
+}: {
+	initialOpen: boolean;
+	variant: "member" | "guest";
+}) {
+	const STEPS = variant === "guest" ? GUEST_STEPS : MEMBER_STEPS;
 	const [open, setOpen] = useState(initialOpen);
 	const [step, setStep] = useState(0);
 	const panelRef = useRef<HTMLDivElement>(null);
@@ -165,9 +198,9 @@ export function WelcomeTour({ initialOpen }: { initialOpen: boolean }) {
 						)}
 						{last ? (
 							<Button size="sm" className="glow-primary" asChild>
-								<Link href="/backlog" onClick={close}>
-									<Gamepad2Icon />
-									Propose your first game
+								<Link href={variant === "guest" ? "/" : "/sessions/new"} onClick={close}>
+									{variant === "guest" ? <HomeIcon /> : <CalendarPlusIcon />}
+									{variant === "guest" ? "See what's on" : "Post a session"}
 								</Link>
 							</Button>
 						) : (

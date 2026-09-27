@@ -14,6 +14,8 @@ export type CalendarFeedEvent = {
 	/** Bumps DTSTAMP so subscribed copies pick up reschedules/edits. */
 	updatedAt: Date;
 	cancelled?: boolean;
+	/** Link back to the session page. */
+	url?: string | null;
 };
 
 export const DEFAULT_DURATION_MINUTES = 120;
@@ -70,6 +72,8 @@ export function buildCalendar(events: CalendarFeedEvent[], options: { name: stri
 		);
 		if (event.location) lines.push(`LOCATION:${escapeIcalText(event.location)}`);
 		if (event.description) lines.push(`DESCRIPTION:${escapeIcalText(event.description)}`);
+		// URI values are not TEXT-escaped (RFC 5545 3.3.13).
+		if (event.url) lines.push(`URL:${event.url}`);
 		lines.push("END:VEVENT");
 	}
 

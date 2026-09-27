@@ -226,7 +226,7 @@ export default async function GameDetailPage({
 							    preselected — the events form reads ?game=. */}
 							{game.status !== "rejected" && game.status !== "abandoned" && (
 								<Button size="sm" variant="outline" asChild>
-									<Link href={`/events?game=${game.id}`}>
+									<Link href={`/sessions/new?game=${game.id}`}>
 										<CalendarPlusIcon className="size-3.5" />
 										Plan a session
 									</Link>

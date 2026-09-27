@@ -8,7 +8,7 @@ import { signInHref } from "@/lib/safe-redirect";
 export type UserRole = "admin" | "member" | "guest";
 
 /** Where a guest lands when they hit a member-only page. */
-export const GUEST_HOME = "/apply";
+export const GUEST_HOME = "/";
 export type UserStatus = "pending" | "approved" | "rejected";
 
 export type SessionUser = {

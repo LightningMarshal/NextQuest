@@ -295,7 +295,7 @@ export default async function DashboardPage({
 					<h2 className="text-sm font-medium tracking-wide uppercase">Next sessions</h2>
 					<div className="grid gap-4 sm:grid-cols-3">
 						{upcomingEvents.map((event) => (
-							<Link key={event.id} href="/events">
+							<Link key={event.id} href={`/s/${event.id}`}>
 								<Card className="hover:border-primary/50 h-full py-4 transition-colors">
 									<CardContent className="flex flex-col gap-1 px-5">
 										<p className="flex items-center gap-1.5 truncate text-sm font-semibold">
