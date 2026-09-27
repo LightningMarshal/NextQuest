@@ -19,7 +19,9 @@ const tagNameSchema = z
 
 export async function addTagToGame(gameId: string, formData: FormData): Promise<void> {
 	const user = await requireMember();
-	const name = tagNameSchema.parse(formData.get("tag"));
+	const parsed = tagNameSchema.safeParse(formData.get("tag"));
+	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+	const name = parsed.data;
 
 	const db = getDb();
 	const [game] = await db
@@ -42,6 +44,7 @@ export async function addTagToGame(gameId: string, formData: FormData): Promise<
 		.onConflictDoNothing();
 
 	revalidatePath("/backlog");
+	revalidatePath(`/backlog/${gameId}`);
 }
 
 export async function removeTagFromGame(gameId: string, tagId: string): Promise<void> {
@@ -51,4 +54,5 @@ export async function removeTagFromGame(gameId: string, tagId: string): Promise<
 		.delete(schema.gameTags)
 		.where(and(eq(schema.gameTags.gameId, gameId), eq(schema.gameTags.tagId, tagId)));
 	revalidatePath("/backlog");
+	revalidatePath(`/backlog/${gameId}`);
 }

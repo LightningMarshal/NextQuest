@@ -2,6 +2,7 @@ import type { Metadata as NextMetadata } from "next";
 import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { ArrowLeftIcon, CalendarIcon, CalendarPlusIcon } from "lucide-react";
@@ -14,7 +15,6 @@ import { getDb, schema } from "@/db";
 import { isUuid } from "@/lib/ids";
 import { transitionGameStatus } from "@/server/games";
 import { requireMember } from "@/server/session";
-import { getVoteTally } from "@/server/votes";
 
 import {
 	GAME_TYPE_LABELS,
@@ -24,11 +24,13 @@ import {
 	tabletopInfoLine,
 	type GameStatus,
 } from "../game-display";
-import { ScoringForm } from "../scoring-form";
+import { KeenButton } from "../keen-button";
+import { ManageGame } from "./manage-game";
 import { StatTiles, videoStatTiles } from "../stat-tiles";
 import { DiscussionCard, RatingsCard } from "./player-voice";
 
-async function getGameDetail(gameId: string) {
+// Memoized: generateMetadata and the page share one lookup per request.
+const getGameDetail = cache(async (gameId: string) => {
 	if (!isUuid(gameId)) return null;
 	const db = getDb();
 	const gmUser = alias(schema.user, "gm_user");
@@ -47,7 +49,7 @@ async function getGameDetail(gameId: string) {
 		.leftJoin(schema.user, eq(schema.games.proposedBy, schema.user.id))
 		.where(eq(schema.games.id, gameId));
 	return row ?? null;
-}
+});
 
 export async function generateMetadata({
 	params,
@@ -66,20 +68,25 @@ export default async function GameDetailPage({
 }) {
 	const { gameId } = await params;
 	// Layout already gates; the id is for the self-approval hint below.
-	const viewer = await requireMember();
+	const viewer = await requireMember(`/backlog/${gameId}`);
 	const row = await getGameDetail(gameId);
 	if (!row) notFound();
 
 	const { game, metadata, tabletop, gmName, proposerName } = row;
 	const db = getDb();
-	const [taggings, tally, linkedEvents, ratings, comments] = await Promise.all([
+	const [taggings, keenRows, linkedEvents, ratings, comments, allTags] = await Promise.all([
 		db
 			.select({ id: schema.tags.id, name: schema.tags.name })
 			.from(schema.gameTags)
 			.innerJoin(schema.tags, eq(schema.gameTags.tagId, schema.tags.id))
 			.where(eq(schema.gameTags.gameId, gameId))
 			.orderBy(asc(schema.tags.name)),
-		getVoteTally(),
+		db
+			.select({ userId: schema.gameInterest.userId, name: schema.user.name })
+			.from(schema.gameInterest)
+			.innerJoin(schema.user, eq(schema.gameInterest.userId, schema.user.id))
+			.where(eq(schema.gameInterest.gameId, gameId))
+			.orderBy(asc(schema.gameInterest.createdAt)),
 		// Session history: every event linked to this game, newest first —
 		// the same events.gameId join the campaign strip uses.
 		db
@@ -125,12 +132,12 @@ export default async function GameDetailPage({
 			.leftJoin(schema.user, eq(schema.gameComments.userId, schema.user.id))
 			.where(eq(schema.gameComments.gameId, gameId))
 			.orderBy(asc(schema.gameComments.createdAt)),
+		db.select({ name: schema.tags.name }).from(schema.tags).orderBy(asc(schema.tags.name)),
 	]);
-	const voteTotal = tally.find((t) => t.gameId === gameId)?.totalWeight ?? 0;
+	const iAmKeen = keenRows.some((row) => row.userId === viewer.id);
 
 	const badge = STATUS_BADGE[game.status];
 	const isTabletop = game.gameType !== "video";
-	const effectivePoints = game.pointsOverride ?? game.points;
 	const art = metadata?.headerUrl ?? metadata?.coverUrl;
 	const tabletopInfo = tabletopInfoLine(tabletop, gmName);
 	const transitions = Object.entries(TRANSITION_LABELS[game.status] ?? {}) as [
@@ -142,8 +149,7 @@ export default async function GameDetailPage({
 	const meta = [
 		lengthLabel(game, tabletop),
 		game.difficulty ? `${isTabletop ? "Crunch" : "Difficulty"} ${game.difficulty}` : null,
-		metadata?.bggRating != null ? `BGG ${Number(metadata.bggRating).toFixed(1)}` : null,
-		game.status === "backlog" ? `${voteTotal} vote${voteTotal === 1 ? "" : "s"}` : null,
+		metadata?.bggRating != null ? `BGG ${(Number(metadata.bggRating) / 10).toFixed(1)}` : null,
 	].filter(Boolean);
 
 	const sessionsHeld = linkedEvents.filter((event) => event.status === "completed");
@@ -158,7 +164,7 @@ export default async function GameDetailPage({
 				className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1.5 text-sm"
 			>
 				<ArrowLeftIcon className="size-4" />
-				Back to backlog
+				Library
 			</Link>
 
 			<Card className="flex flex-col gap-0 overflow-hidden py-0">
@@ -189,11 +195,6 @@ export default async function GameDetailPage({
 								{GAME_TYPE_LABELS[game.gameType as keyof typeof GAME_TYPE_LABELS]}
 							</Badge>
 						)}
-					</span>
-					<span className="stat bg-background/60 absolute top-3 right-3 rounded-md px-2.5 py-1 text-sm font-semibold backdrop-blur">
-						{effectivePoints !== null
-							? `${effectivePoints} EFFORT${game.pointsOverride !== null ? "*" : ""}`
-							: "— EFFORT"}
 					</span>
 				</div>
 
@@ -228,7 +229,7 @@ export default async function GameDetailPage({
 								<Button size="sm" variant="outline" asChild>
 									<Link href={`/sessions/new?game=${game.id}`}>
 										<CalendarPlusIcon className="size-3.5" />
-										Plan a session
+										Post a session
 									</Link>
 								</Button>
 							)}
@@ -268,6 +269,17 @@ export default async function GameDetailPage({
 						</div>
 					)}
 
+					{(game.status === "proposed" || game.status === "backlog" || game.status === "playing") && (
+						<div className="flex flex-wrap items-center gap-3 border-t pt-4">
+							<KeenButton gameId={game.id} keen={iAmKeen} />
+							<span className="text-muted-foreground text-sm">
+								{keenRows.length === 0
+									? "Nobody's marked this keen yet."
+									: `${keenRows.map((row) => row.name).join(", ")} ${keenRows.length === 1 ? "is" : "are"} keen.`}
+							</span>
+						</div>
+					)}
+
 					{game.pitch && (
 						<blockquote className="border-primary/40 border-l-2 pl-4 text-base italic">
 							&ldquo;{game.pitch}&rdquo;
@@ -279,20 +291,6 @@ export default async function GameDetailPage({
 							<h2 className="text-sm font-medium tracking-wide uppercase">About</h2>
 							<p className="text-muted-foreground text-sm leading-relaxed">
 								{metadata.description}
-							</p>
-						</div>
-					)}
-
-					{/* Issue #34: effort inputs editable right here, not only from the
-					    backlog card's Manage expander. Same action, same recompute
-					    rules (stored points, CLAUDE.md #2). */}
-					{game.status !== "completed" && game.status !== "abandoned" && (
-						<div className="flex flex-col gap-2 border-t pt-4">
-							<h2 className="text-sm font-medium tracking-wide uppercase">Effort inputs</h2>
-							<ScoringForm game={game} tabletop={tabletop} idPrefix="page-" />
-							<p className="text-muted-foreground text-xs">
-								Effort recomputes from these on save; an override always wins. Played and
-								finished games keep their historical value.
 							</p>
 						</div>
 					)}
@@ -321,6 +319,16 @@ export default async function GameDetailPage({
 				</div>
 			</Card>
 
+			<ManageGame
+				gameId={game.id}
+				isVideo={!isTabletop}
+				hasBggId={Boolean(tabletop?.bggId)}
+				tags={taggings}
+				allTags={allTags.map((tag) => tag.name)}
+				coverUrl={metadata?.coverUrl ?? null}
+				headerUrl={metadata?.headerUrl ?? null}
+			/>
+
 			<RatingsCard
 				gameId={game.id}
 				gameStatus={game.status}
@@ -348,7 +356,7 @@ export default async function GameDetailPage({
 							<li key={event.id} className="flex items-start gap-2 text-sm">
 								<CalendarIcon className="text-primary mt-0.5 size-4 shrink-0" />
 								<div>
-									<span className="font-medium">{event.title}</span>{" "}
+									<Link href={`/s/${event.id}`} className="hover:text-primary font-medium">{event.title}</Link>{" "}
 									<span className="text-muted-foreground">
 										— <LocalTime date={event.scheduledAt} withWeekday />
 									</span>
@@ -360,7 +368,7 @@ export default async function GameDetailPage({
 							<li key={event.id} className="flex items-start gap-2 text-sm">
 								<CalendarIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
 								<div>
-									<span className="font-medium">{event.title}</span>{" "}
+									<Link href={`/s/${event.id}`} className="hover:text-primary font-medium">{event.title}</Link>{" "}
 									<span className="text-muted-foreground">
 										— <LocalTime date={event.scheduledAt} />
 										{event.attendedCount > 0 && ` · ${event.attendedCount} showed up`}

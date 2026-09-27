@@ -1,4 +1,4 @@
-import type { GameMode } from "@/lib/pick";
+import type { GameMode } from "@/lib/game-modes";
 
 import type { GameMetadataProvider, GameSearchResult, NormalizedGameMetadata } from "./types";
 

@@ -47,9 +47,9 @@ const KIND_DESCRIPTIONS: Record<ProposeKind, string> = {
 	video:
 		"Search by title and pick a match — art, genres, review scores, and playtime (HowLongToBeat) fill in automatically. If the lookups fail you can retry or enter the details yourself.",
 	ttrpg:
-		"Pitch a campaign or one-shot: system, length, and how you'll play. Search RPGGeek to prefill, or type it all in — length band and crunch drive the effort estimate and can be edited later.",
+		"Pitch a campaign or one-shot: system, length, and how you'll play. Search RPGGeek to prefill, or type it all in — length band and crunch help people know what they're signing up for.",
 	boardgame:
-		"Add a board game to the rotation. Search BGG to prefill playtime, players, and complexity, or type it all in — playtime and crunch drive the effort estimate.",
+		"Add a board game to the rotation. Search BGG to prefill playtime, players, and complexity, or type it all in.",
 };
 
 function SubmitButton({ pendingLabel }: { pendingLabel: string }) {
@@ -57,7 +57,7 @@ function SubmitButton({ pendingLabel }: { pendingLabel: string }) {
 	return (
 		<Button className="glow-primary" disabled={pending}>
 			{pending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-			{pending ? pendingLabel : "Propose"}
+			{pending ? pendingLabel : "Add to library"}
 		</Button>
 	);
 }
@@ -226,7 +226,7 @@ export function ProposeForm() {
 		<Card>
 			<CardHeader>
 				<div className="flex flex-wrap items-center justify-between gap-3">
-					<CardTitle>Propose a game</CardTitle>
+					<CardTitle>Add a game</CardTitle>
 					{/* Same segmented-control pattern as the backlog sort switcher. */}
 					<div className="border-border bg-card flex items-center gap-0.5 rounded-lg border p-0.5 text-xs">
 						{(Object.keys(KIND_LABELS) as ProposeKind[]).map((value) => (
@@ -559,8 +559,7 @@ export function ProposeForm() {
 					    above (the key remounts the grid when the preview lands so the
 					    defaultValues refresh — everything stays editable, and the
 					    server refetches from the bggId authoritatively on submit).
-					    Length band / playtime and crunch feed the same effort formula
-					    as video games. */}
+					    Length band / playtime and crunch are shown on the library card. */}
 					{kind !== "video" && (
 						<>
 							<input type="hidden" name="gameType" value={kind} />

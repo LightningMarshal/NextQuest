@@ -12,7 +12,7 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
-import type { GameMode } from "@/lib/pick";
+import type { GameMode } from "@/lib/game-modes";
 
 import { user } from "./auth";
 

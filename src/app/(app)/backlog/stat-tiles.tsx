@@ -2,7 +2,7 @@ import type { schema } from "@/db";
 import { cn } from "@/lib/utils";
 
 // Decision strip for video-game cards and the detail page: the numbers a
-// member actually weighs before voting — how long (HLTB), how well-received
+// member actually weighs before picking something — how long (HLTB), how well-received
 // (Steam %, Metacritic), how old — as compact Nova stat tiles. Tabletop rows
 // have their own vocabulary (tabletopInfoLine / bggRating) and skip this.
 
@@ -28,7 +28,18 @@ function compactCount(count: number): string {
 	return String(count);
 }
 
-export function videoStatTiles(metadata: Metadata | null): StatTile[] {
+export function videoStatTiles(
+	metadata: Pick<
+		Metadata,
+		| "hltbMain"
+		| "hltbMainExtra"
+		| "hltbCompletionist"
+		| "steamReviewScore"
+		| "steamReviewCount"
+		| "metacriticScore"
+		| "releaseDate"
+	> | null
+): StatTile[] {
 	if (!metadata) return [];
 	const tiles: StatTile[] = [];
 

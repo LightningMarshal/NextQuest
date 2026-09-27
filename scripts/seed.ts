@@ -16,7 +16,7 @@ import { count, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 
 import * as schema from "@/db/schema";
-import type { GameMode } from "@/lib/pick";
+import type { GameMode } from "@/lib/game-modes";
 import {
 	computePoints,
 	DEFAULT_QUALITY_WEIGHT,

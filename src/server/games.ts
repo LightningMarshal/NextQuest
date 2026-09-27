@@ -1,25 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { notifyDiscord } from "@/server/discord";
+import type { GameMode } from "@/lib/game-modes";
 import { fetchGameMetadata } from "@/lib/metadata";
 import { parseBggExternalId } from "@/lib/metadata/bgg";
 import { deriveGameModes } from "@/lib/metadata/steam";
-import type { GameMode } from "@/lib/pick";
-import {
-	computePoints,
-	tabletopLengthHours,
-	type Difficulty,
-	type TtrpgLengthBand,
-} from "@/lib/points";
+import { tabletopLengthHours, type Difficulty, type TtrpgLengthBand } from "@/lib/points";
+import { notifyDiscord } from "@/server/discord";
 import { applyStatusTransition, type GameStatus } from "@/server/game-status";
 import { buildMetadataUpdates } from "@/server/metadata-write";
 import { requireAdmin, requireMember } from "@/server/session";
-import { getAppSettings } from "@/server/settings";
 
 const proposeSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
@@ -242,14 +236,8 @@ export async function proposeTabletopGame(formData: FormData): Promise<void> {
 		playtimeMinutes,
 	});
 
-	let points: number | undefined;
-	if (lengthHours && crunch) {
-		const settings = await getAppSettings();
-		points = computePoints(lengthHours, crunch as Difficulty, settings.difficultyMultipliers, {
-			weight: settings.qualityWeight,
-			signals: { bggRating: meta?.bggRating },
-		});
-	}
+	// Effort points are frozen history since the 2026-09 redesign: new games
+	// keep their length/crunch for display but earn no stored points.
 
 	const game = { id: crypto.randomUUID() };
 	const bggFetched = (fetched?.sources.length ?? 0) > 0;
@@ -264,7 +252,6 @@ export async function proposeTabletopGame(formData: FormData): Promise<void> {
 			pitch: input.pitch,
 			lengthHours: lengthHours !== undefined ? String(lengthHours) : undefined,
 			difficulty: crunch,
-			points,
 		}),
 		db.insert(schema.tabletopDetails).values({
 			gameId: game.id,
@@ -341,101 +328,6 @@ export async function transitionGameStatus(gameId: string, toStatus: GameStatus)
 	revalidatePath("/");
 }
 
-const scoringSchema = z.object({
-	lengthHours: z.coerce.number().positive().max(9999).optional(),
-	// Tabletop length inputs — the UI shows band/minutes, never raw hours.
-	lengthBand: z.enum(["one_shot", "arc", "mini_campaign", "campaign"]).optional(),
-	playtimeMinutes: z.coerce.number().int().positive().max(1440).optional(),
-	// "Crunch" in the tabletop UI; same column, same multipliers.
-	difficulty: z.coerce.number().int().min(1).max(5).optional(),
-	pointsOverride: z.coerce.number().int().min(0).max(999).optional(),
-});
-
-// Recomputes stored points whenever the inputs change (CLAUDE.md #2);
-// an explicit override always wins, and clearing it falls back to the formula.
-export async function updateGameScoring(gameId: string, formData: FormData): Promise<void> {
-	await requireMember();
-	const input = scoringSchema.parse({
-		lengthHours: formData.get("lengthHours") || undefined,
-		lengthBand: formData.get("lengthBand") || undefined,
-		playtimeMinutes: formData.get("playtimeMinutes") || undefined,
-		difficulty: formData.get("difficulty") || undefined,
-		pointsOverride: formData.get("pointsOverride") || undefined,
-	});
-
-	const db = getDb();
-	const [game] = await db
-		.select({
-			gameType: schema.games.gameType,
-			lengthHours: schema.games.lengthHours,
-			difficulty: schema.games.difficulty,
-			steamReviewScore: schema.gameMetadata.steamReviewScore,
-			metacriticScore: schema.gameMetadata.metacriticScore,
-			bggRating: schema.gameMetadata.bggRating,
-			lengthBand: schema.tabletopDetails.lengthBand,
-			playtimeMinutes: schema.tabletopDetails.playtimeMinutes,
-			status: schema.games.status,
-		})
-		.from(schema.games)
-		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
-		.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
-		.where(eq(schema.games.id, gameId));
-	if (!game) throw new Error("Game not found.");
-	// Invariant #2: once a game is being played (or is done), its stored effort
-	// is history — burn-rate must never be rewritten from a card.
-	if (game.status !== "proposed" && game.status !== "backlog") {
-		throw new Error("Effort is locked once a game has been started.");
-	}
-
-	// Tabletop games edit length via band/minutes; the server derives the
-	// hour-equivalent so raw hours never round-trip through the UI.
-	let lengthHours: number | undefined;
-	if (game.gameType === "video") {
-		lengthHours = input.lengthHours ?? (game.lengthHours ? Number(game.lengthHours) : undefined);
-	} else {
-		const lengthBand = (input.lengthBand ?? game.lengthBand ?? undefined) as
-			| TtrpgLengthBand
-			| undefined;
-		const playtimeMinutes = input.playtimeMinutes ?? game.playtimeMinutes ?? undefined;
-		lengthHours = tabletopLengthHours({ gameType: game.gameType, lengthBand, playtimeMinutes });
-		await db
-			.update(schema.tabletopDetails)
-			.set({
-				...(game.gameType === "ttrpg" && lengthBand ? { lengthBand } : {}),
-				...(game.gameType === "boardgame" && playtimeMinutes ? { playtimeMinutes } : {}),
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.tabletopDetails.gameId, gameId));
-	}
-	const difficulty = (input.difficulty ?? game.difficulty ?? undefined) as Difficulty | undefined;
-
-	let points: number | undefined;
-	if (lengthHours && difficulty) {
-		const settings = await getAppSettings();
-		points = computePoints(lengthHours, difficulty, settings.difficultyMultipliers, {
-			weight: settings.qualityWeight,
-			signals: {
-				steamReviewScore: game.steamReviewScore,
-				metacriticScore: game.metacriticScore,
-				bggRating: game.bggRating,
-			},
-		});
-	}
-
-	await db
-		.update(schema.games)
-		.set({
-			lengthHours: lengthHours !== undefined ? String(lengthHours) : null,
-			difficulty: difficulty ?? null,
-			points: points ?? null,
-			pointsOverride: input.pointsOverride ?? null,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.games.id, gameId));
-
-	revalidatePath("/backlog");
-}
-
 // A valid https:// image URL, or "" to clear the field back to null.
 const imageUrlField = z
 	.union([
@@ -478,60 +370,8 @@ export async function updateGameArtwork(gameId: string, formData: FormData): Pro
 			set: { coverUrl, headerUrl },
 		});
 
-	// The vote page and dashboard also render cover art.
 	revalidatePath("/backlog");
-	revalidatePath("/vote");
-	revalidatePath("/");
-}
-
-/**
- * Admin-only bulk refresh after tuning the formula settings: re-runs
- * computePoints for proposed and backlog games only. Playing, completed,
- * abandoned, and rejected games are never touched (CLAUDE.md #2 — burn-rate
- * history stays stable), and pointsOverride is left alone (it wins over
- * points everywhere it's read).
- */
-export async function recomputeUnplayedPoints(): Promise<void> {
-	await requireAdmin();
-	const settings = await getAppSettings();
-	const db = getDb();
-
-	const rows = await db
-		.select({
-			gameId: schema.games.id,
-			lengthHours: schema.games.lengthHours,
-			difficulty: schema.games.difficulty,
-			steamReviewScore: schema.gameMetadata.steamReviewScore,
-			metacriticScore: schema.gameMetadata.metacriticScore,
-			bggRating: schema.gameMetadata.bggRating,
-		})
-		.from(schema.games)
-		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
-		.where(inArray(schema.games.status, ["proposed", "backlog"]));
-
-	for (const row of rows) {
-		if (!row.lengthHours || !row.difficulty) continue;
-		const points = computePoints(
-			Number(row.lengthHours),
-			row.difficulty as Difficulty,
-			settings.difficultyMultipliers,
-			{
-				weight: settings.qualityWeight,
-				signals: {
-					steamReviewScore: row.steamReviewScore,
-					metacriticScore: row.metacriticScore,
-					bggRating: row.bggRating,
-				},
-			}
-		);
-		await db
-			.update(schema.games)
-			.set({ points, updatedAt: new Date() })
-			.where(eq(schema.games.id, row.gameId));
-	}
-
-	revalidatePath("/backlog");
-	revalidatePath("/pick");
+	revalidatePath(`/backlog/${gameId}`);
 	revalidatePath("/");
 }
 
@@ -591,7 +431,7 @@ export async function refreshGameMetadata(gameId: string): Promise<void> {
 		.where(eq(schema.gameMetadata.gameId, gameId));
 
 	revalidatePath("/backlog");
-	revalidatePath("/pick");
+	revalidatePath(`/backlog/${gameId}`);
 }
 
 /**
@@ -627,6 +467,5 @@ export async function backfillGameModes(): Promise<void> {
 			.where(eq(schema.gameMetadata.gameId, row.gameId));
 	}
 
-	revalidatePath("/pick");
-	revalidatePath("/backlog");
+		revalidatePath("/backlog");
 }
