@@ -86,6 +86,10 @@ export function getAuth() {
 		}),
 		secret: BETTER_AUTH_SECRET,
 		baseURL: BETTER_AUTH_URL,
+		// Names and avatars come from Google/Discord only: the public
+		// /update-user endpoint would let anyone (e.g. a guest) rename
+		// themselves "Alex Ortega" on every roster. The app never uses it.
+		disabledPaths: ["/update-user"],
 		socialProviders: {
 			google: {
 				clientId: GOOGLE_CLIENT_ID ?? "",

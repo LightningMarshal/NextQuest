@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { requireMember } from "@/server/session";
+import { requireCircleUser } from "@/server/session";
 
 /**
  * Stamp the welcome tour as seen for the calling member (issue #13).
@@ -11,7 +11,7 @@ import { requireMember } from "@/server/session";
  * so it never auto-opens again (replay stays in the user menu).
  */
 export async function markTutorialSeen(): Promise<void> {
-	const user = await requireMember();
+	const user = await requireCircleUser();
 	const db = getDb();
 	await db
 		.update(schema.user)

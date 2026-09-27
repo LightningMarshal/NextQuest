@@ -383,8 +383,16 @@ export async function respondToSlot(
 }
 
 export async function closePoll(pollId: string): Promise<void> {
-	await requireMember();
+	const user = await requireMember();
 	const db = getDb();
+	const [poll] = await db
+		.select({ createdBy: schema.availabilityPolls.createdBy })
+		.from(schema.availabilityPolls)
+		.where(eq(schema.availabilityPolls.id, pollId));
+	if (!poll) throw new Error("Poll not found.");
+	if (poll.createdBy !== user.id && user.role !== "admin") {
+		throw new Error("Only the poll's creator or an admin can close it.");
+	}
 	await db
 		.update(schema.availabilityPolls)
 		.set({ status: "closed", closedAt: new Date() })
