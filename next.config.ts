@@ -9,6 +9,22 @@ const nextConfig: NextConfig = {
 		// member-pasted URLs on other hosts render unoptimized via <GameArt>.
 		remotePatterns: OPTIMIZED_IMAGE_HOSTS.map((hostname) => ({ protocol: "https" as const, hostname })),
 	},
+	// Pre-redesign URLs (bookmarks, old Discord messages) → their new homes,
+	// as real HTTP redirects rather than in-page ones.
+	async redirects() {
+		return [
+			{
+				source: "/events",
+				has: [{ type: "query", key: "game", value: "(?<game>[0-9a-fA-F-]{36})" }],
+				destination: "/sessions/new?game=:game",
+				permanent: false,
+			},
+			{ source: "/events", destination: "/sessions", permanent: false },
+			{ source: "/pick", destination: "/backlog", permanent: false },
+			{ source: "/vote", destination: "/backlog", permanent: false },
+			{ source: "/pending-approval", destination: "/apply", permanent: false },
+		];
+	},
 };
 
 export default nextConfig;

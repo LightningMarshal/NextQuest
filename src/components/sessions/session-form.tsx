@@ -39,7 +39,9 @@ function quickTimes(now: Date): WhenChoice[] {
 		date.setHours(hour, 0, 0, 0);
 		return date;
 	};
-	const choices: WhenChoice[] = [{ key: "now", label: "Now", iso: new Date(Math.ceil(now.getTime() / 300_000) * 300_000).toISOString() }];
+	// "Now" means now: round DOWN to the minute so the session is live
+	// immediately (the server accepts starts up to 30 minutes in the past).
+	const choices: WhenChoice[] = [{ key: "now", label: "Now", iso: new Date(Math.floor(now.getTime() / 60_000) * 60_000).toISOString() }];
 	const tonight = at(0, 20);
 	if (tonight.getTime() - now.getTime() > 30 * 60_000) choices.push({ key: "tonight", label: "Tonight 8pm", iso: tonight.toISOString() });
 	choices.push({ key: "tomorrow", label: "Tomorrow 8pm", iso: at(1, 20).toISOString() });

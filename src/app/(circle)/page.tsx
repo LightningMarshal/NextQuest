@@ -132,7 +132,7 @@ export default async function HomePage() {
 											{game.title}
 										</Link>
 										<span className="text-muted-foreground text-xs">{game.keen} keen</span>
-										<Link href={`/sessions/new?game=${game.id}`} className="text-primary text-xs font-medium">
+										<Link href={`/sessions/new?game=${game.id}`} className="text-primary text-xs font-medium" aria-label={`Post a session for ${game.title}`}>
 											Post
 										</Link>
 									</li>
