@@ -72,12 +72,15 @@ const alex = "seed-alex";
 const brooke = "seed-brooke";
 const casey = "seed-casey";
 const drew = "seed-drew";
+const frankie = "seed-frankie";
 
 const users = [
 	{ id: alex, name: "Alex Ortega", email: "alex@example.com", role: "admin", status: "approved" },
 	{ id: brooke, name: "Brooke Tran", email: "brooke@example.com", role: "member", status: "approved" },
 	{ id: casey, name: "Casey Nwosu", email: "casey@example.com", role: "member", status: "approved" },
 	{ id: drew, name: "Drew Kaplan", email: "drew@example.com", role: "member", status: "approved" },
+	// A guest from the wider circle (came in on Brooke's invite link).
+	{ id: frankie, name: "Frankie Moss", email: "frankie@example.com", role: "guest", status: "approved" },
 	// Sits in the admin approval queue as a demo of the membership flow.
 	{ id: "seed-elliot", name: "Elliot Reyes", email: "elliot@example.com", role: "member", status: "pending" },
 ] satisfies (typeof schema.user.$inferInsert)[];
@@ -400,6 +403,10 @@ const tabletopGames: TabletopSeed[] = [
 
 async function wipe() {
 	// Children before parents; auth rows are kept except the demo members.
+	await db.delete(schema.gameInterest);
+	await db.delete(schema.inviteRedemptions);
+	await db.delete(schema.invites);
+	await db.delete(schema.membershipApplications);
 	await db.delete(schema.gameRatings);
 	await db.delete(schema.gameComments);
 	await db.delete(schema.availabilityMarks);
@@ -641,8 +648,23 @@ async function main() {
 		{ gameId: gameId(12), tagId: tagN("cozy"), addedBy: casey },
 	]);
 
-	// Events: one upcoming, one overdue for wrap-up, two completed.
+	// Sessions: an impromptu OPEN one tonight (the circle can join), one
+	// members-only campaign night, one overdue for wrap-up, two completed.
 	await db.insert(schema.events).values([
+		{
+			id: eventId(5),
+			title: "Rust — fresh wipe",
+			gameId: null,
+			scheduledAt: new Date(Math.ceil((Date.now() + 3 * 60 * 60 * 1000) / 900_000) * 900_000),
+			durationMinutes: 180,
+			visibility: "open",
+			capacity: 6,
+			venue: "virtual",
+			location: "Discord voice",
+			joinUrl: "https://discord.gg/example",
+			notes: "Fresh wipe. Hop in whenever.",
+			createdBy: brooke,
+		},
 		{
 			id: eventId(1),
 			title: "Strahd — Session 12",
@@ -677,6 +699,8 @@ async function main() {
 			venue: "hybrid",
 			location: "Roll20 + Alex's place",
 			status: "completed",
+			wrappedUpAt: daysAgo(6),
+			wrappedUpBy: alex,
 			recap: "The party finally met Strahd at dinner. Nobody died. Yet.",
 			howItWent: 5,
 			progressNote: "Ended at the gates of Castle Ravenloft.",
@@ -692,6 +716,9 @@ async function main() {
 			venue: "virtual",
 			location: "Discord voice",
 			status: "completed",
+			visibility: "open",
+			wrappedUpAt: daysAgo(20),
+			wrappedUpBy: brooke,
 			recap: "Beat the final boss on the fourth attempt of the night.",
 			howItWent: 4,
 			createdBy: brooke,
@@ -699,6 +726,10 @@ async function main() {
 		},
 	]);
 	await db.insert(schema.eventAttendance).values([
+		// Open impromptu session: a member and a guest are in.
+		{ eventId: eventId(5), userId: brooke, rsvp: "yes" },
+		{ eventId: eventId(5), userId: frankie, rsvp: "yes" },
+		{ eventId: eventId(5), userId: drew, rsvp: "maybe" },
 		// Upcoming session: RSVPs only.
 		{ eventId: eventId(1), userId: alex, rsvp: "yes" },
 		{ eventId: eventId(1), userId: brooke, rsvp: "yes" },
@@ -716,6 +747,24 @@ async function main() {
 		{ eventId: eventId(4), userId: brooke, rsvp: "yes", attended: true },
 		{ eventId: eventId(4), userId: casey, rsvp: "yes", attended: true },
 	]);
+
+	// "Keen" — who wants to play what (public, replaces budget votes).
+	await db.insert(schema.gameInterest).values([
+		{ gameId: gameId(5), userId: brooke },
+		{ gameId: gameId(5), userId: drew },
+		{ gameId: gameId(6), userId: drew },
+		{ gameId: gameId(6), userId: alex },
+		{ gameId: gameId(6), userId: casey },
+		{ gameId: gameId(12), userId: casey },
+	]);
+
+	// Elliot (pending) applied for membership.
+	await db.insert(schema.membershipApplications).values({
+		userId: "seed-elliot",
+		about: "Elliot — mostly strategy games, some D&D.",
+		reason: "Casey keeps telling me about the Strahd campaign.",
+		knows: "Casey (we work together)",
+	});
 
 	// Member ratings + discussion (Phase 21): finished games get scores, and
 	// a backlog game gets an argument-in-progress.
@@ -810,10 +859,10 @@ async function main() {
 	console.log(
 		[
 			"Seeded the demo group:",
-			`  ${users.length} members (1 pending approval)`,
+			`  ${users.length} people (4 members, 1 guest, 1 pending with an application)`,
 			`  ${videoGames.length + tabletopGames.length} games across every status (+ metadata, history)`,
-			`  ${ballots.length} vote allocations, ${tagNames.length} tags`,
-			"  4 events (1 upcoming, 1 needing wrap-up, 2 completed) + 1 open poll",
+			`  ${ballots.length} legacy vote allocations, 6 keen marks, ${tagNames.length} tags`,
+			"  5 sessions (1 open tonight, 1 members-only, 1 needing wrap-up, 2 played) + 2 polls",
 			"",
 			"Demo members can't sign in — sign in with your own Google account",
 			"(listed in ADMIN_EMAILS) and it joins alongside them.",
