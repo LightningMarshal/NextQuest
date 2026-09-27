@@ -1,50 +1,69 @@
-// Cron task (hourly, via the secret-gated /api/cron route): Discord
-// reminders ~24h and ~1h before each scheduled event, plus a single
-// post-event "needs wrap-up" nudge (issue #23) once a session has sat
-// unwrapped for a while, plus a single "nobody rated this" nudge for
-// completed games (Phase 21). Sent-markers are claimed with
-// single-statement conditional UPDATEs, so a concurrent or repeated tick can
-// never double-send (Neon HTTP has no transactions). Cancelled/completed
-// events drop out via the status filter; their unsent markers simply never
-// fire — wrapping up or cancelling before the nudge window prevents it.
+// Cron task (hourly, via the secret-gated /api/cron route):
+//   1. Discord reminders ~24h and ~1h before each scheduled session — with
+//      who's in and a link, to every webhook that can see the session
+//   2. one "how did it go?" nudge ~12h after a session ends unwrapped
+//   3. auto-close: a session still unwrapped 48h after it ended is closed
+//      as played, with "in" RSVPs presumed present (owner decision, 2026-09)
+//   4. one "nobody rated this" nudge for finished games (Phase 21)
+// Every send is claimed with a single-statement conditional UPDATE first, so
+// a concurrent or repeated tick can never double-send.
 
 import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/db";
-import { discordTimestamp, notifyDiscord } from "@/server/discord";
+import { AUTO_CLOSE_AFTER_MS, DEFAULT_SESSION_MINUTES } from "@/lib/sessions";
+import { md, notifyDiscord, postSessionReminders, syncSessionAnnouncement } from "@/server/discord";
 
 const HOUR_MS = 60 * 60 * 1000;
-// How long a past session may sit unwrapped before the nudge: long enough
-// that the morning after an evening session is the typical firing time.
 const WRAP_UP_NUDGE_AFTER_MS = 12 * HOUR_MS;
-// How long after completion before asking for ratings — give people a few
-// days to rate on their own before the bot asks. Rating first prevents it.
 const RATING_NUDGE_AFTER_MS = 3 * 24 * HOUR_MS;
+
+/** scheduled_at + duration (default 3h): when a session is over. */
+const ENDS_AT = sql`${schema.events.scheduledAt} + make_interval(mins => coalesce(${schema.events.durationMinutes}, ${DEFAULT_SESSION_MINUTES}))`;
+
+async function goingNames(db: ReturnType<typeof getDb>, eventId: string): Promise<string[]> {
+	const rows = await db
+		.select({ name: schema.user.name })
+		.from(schema.eventAttendance)
+		.innerJoin(schema.user, eq(schema.eventAttendance.userId, schema.user.id))
+		.where(and(eq(schema.eventAttendance.eventId, eventId), eq(schema.eventAttendance.rsvp, "yes")));
+	return rows.map((row) => row.name.split(" ")[0]);
+}
+
+function whoLine(names: string[], capacity: number | null): string {
+	if (names.length === 0) return "nobody's in yet";
+	const seats = capacity !== null ? ` (${names.length}/${capacity})` : "";
+	return `in${seats}: ${names.map(md).join(", ")}`;
+}
 
 export async function sendEventReminders(): Promise<{
 	sent1h: number;
 	sent24h: number;
 	sentWrapUpNudges: number;
+	autoClosed: number;
 	sentRatingNudges: number;
 }> {
 	const db = getDb();
 	const now = new Date();
 	const in1h = new Date(now.getTime() + HOUR_MS);
 	const in24h = new Date(now.getTime() + 24 * HOUR_MS);
-
+	const reminders: Parameters<typeof postSessionReminders>[0] = [];
 	let sent1h = 0;
 	let sent24h = 0;
-	let sentWrapUpNudges = 0;
-	let sentRatingNudges = 0;
 
+	const fields = {
+		id: schema.events.id,
+		title: schema.events.title,
+		scheduledAt: schema.events.scheduledAt,
+		visibility: schema.events.visibility,
+		capacity: schema.events.capacity,
+	};
+
+	// Claiming the 1h marker also backfills the 24h one, so a session posted
+	// less than a day out gets a single reminder, not two.
 	const startingSoon = await db
-		.select({
-			id: schema.events.id,
-			title: schema.events.title,
-			scheduledAt: schema.events.scheduledAt,
-			location: schema.events.location,
-		})
-		.from(schema.events)
+		.update(schema.events)
+		.set({ reminder1hSentAt: now, reminder24hSentAt: sql`coalesce(${schema.events.reminder24hSentAt}, ${now})` })
 		.where(
 			and(
 				eq(schema.events.status, "scheduled"),
@@ -52,35 +71,21 @@ export async function sendEventReminders(): Promise<{
 				lte(schema.events.scheduledAt, in1h),
 				isNull(schema.events.reminder1hSentAt)
 			)
-		);
+		)
+		.returning(fields);
 	for (const event of startingSoon) {
-		// Claiming the 1h marker also backfills the 24h one, so an event
-		// created less than 24h out gets a single reminder, not two.
-		const claimed = await db
-			.update(schema.events)
-			.set({
-				reminder1hSentAt: now,
-				reminder24hSentAt: sql`coalesce(${schema.events.reminder24hSentAt}, ${now})`,
-			})
-			.where(and(eq(schema.events.id, event.id), isNull(schema.events.reminder1hSentAt)))
-			.returning({ id: schema.events.id });
-		if (claimed.length === 0) continue;
-		notifyDiscord(
-			`⏰ **${event.title}** starts ${discordTimestamp(event.scheduledAt)}${
-				event.location ? ` — ${event.location}` : ""
-			}`
-		);
+		const who = whoLine(await goingNames(db, event.id), event.capacity);
+		reminders.push({
+			eventId: event.id,
+			visibility: event.visibility,
+			text: (link) => `⏰ **${md(event.title)}** starts <t:${Math.floor(event.scheduledAt.getTime() / 1000)}:R> — ${who}. Hop in: ${link}`,
+		});
 		sent1h += 1;
 	}
 
 	const tomorrow = await db
-		.select({
-			id: schema.events.id,
-			title: schema.events.title,
-			scheduledAt: schema.events.scheduledAt,
-			location: schema.events.location,
-		})
-		.from(schema.events)
+		.update(schema.events)
+		.set({ reminder24hSentAt: now })
 		.where(
 			and(
 				eq(schema.events.status, "scheduled"),
@@ -88,80 +93,93 @@ export async function sendEventReminders(): Promise<{
 				lte(schema.events.scheduledAt, in24h),
 				isNull(schema.events.reminder24hSentAt)
 			)
-		);
+		)
+		.returning(fields);
 	for (const event of tomorrow) {
-		const claimed = await db
-			.update(schema.events)
-			.set({ reminder24hSentAt: now })
-			.where(and(eq(schema.events.id, event.id), isNull(schema.events.reminder24hSentAt)))
-			.returning({ id: schema.events.id });
-		if (claimed.length === 0) continue;
-		notifyDiscord(
-			`🔔 Reminder: **${event.title}** is ${discordTimestamp(event.scheduledAt)}${
-				event.location ? ` — ${event.location}` : ""
-			}`
-		);
+		const who = whoLine(await goingNames(db, event.id), event.capacity);
+		reminders.push({
+			eventId: event.id,
+			visibility: event.visibility,
+			text: (link) => `🔔 Coming up: **${md(event.title)}** <t:${Math.floor(event.scheduledAt.getTime() / 1000)}:F> — ${who}. ${link}`,
+		});
 		sent24h += 1;
 	}
 
-	// Post-event: still `scheduled` well past its start time means nobody has
-	// wrapped it up (or cancelled it) — one nudge, then silence.
+	// Unwrapped well after it ENDED (not started): one nudge, then silence.
+	// Sessions already past the auto-close point are skipped — they close
+	// below, and nagging about a session in the same tick it closes is noise.
 	const nudgeCutoff = new Date(now.getTime() - WRAP_UP_NUDGE_AFTER_MS);
+	const closeCutoff = new Date(now.getTime() - AUTO_CLOSE_AFTER_MS);
 	const needsWrapUp = await db
-		.select({
-			id: schema.events.id,
-			title: schema.events.title,
-			scheduledAt: schema.events.scheduledAt,
-		})
-		.from(schema.events)
+		.update(schema.events)
+		.set({ wrapUpNudgeSentAt: now })
 		.where(
 			and(
 				eq(schema.events.status, "scheduled"),
-				lte(schema.events.scheduledAt, nudgeCutoff),
+				sql`${ENDS_AT} <= ${nudgeCutoff}`,
+				sql`${ENDS_AT} > ${closeCutoff}`,
 				isNull(schema.events.wrapUpNudgeSentAt)
 			)
-		);
+		)
+		.returning(fields);
 	for (const event of needsWrapUp) {
-		const claimed = await db
-			.update(schema.events)
-			.set({ wrapUpNudgeSentAt: now })
-			.where(and(eq(schema.events.id, event.id), isNull(schema.events.wrapUpNudgeSentAt)))
-			.returning({ id: schema.events.id });
-		if (claimed.length === 0) continue;
-		notifyDiscord(
-			`📝 **${event.title}** (${discordTimestamp(event.scheduledAt)}) needs a wrap-up — who showed up, how did it go? Head to the events page to close it out.`
-		);
-		sentWrapUpNudges += 1;
+		reminders.push({
+			eventId: event.id,
+			visibility: "members", // wrap-ups are a members' chore
+			text: (link) => `📝 How did **${md(event.title)}** go? Ten seconds to wrap it up: ${link} (it closes itself in a day or so if nobody does).`,
+		});
 	}
 
-	// Phase 21: a completed game with zero ratings a few days on gets one ask.
+	// Auto-close: nobody wrapped it up. Attendance defaults to "in" RSVPs;
+	// both writes are one transaction per session.
+	const stale = await db
+		.select({ id: schema.events.id })
+		.from(schema.events)
+		.where(and(eq(schema.events.status, "scheduled"), sql`${ENDS_AT} <= ${closeCutoff}`))
+		.limit(50);
+	let autoClosed = 0;
+	for (const { id } of stale) {
+		const [closed] = await db.batch([
+			db
+				.update(schema.events)
+				.set({ status: "completed", autoClosed: true, wrappedUpAt: now, updatedAt: now })
+				.where(and(eq(schema.events.id, id), eq(schema.events.status, "scheduled")))
+				.returning({ id: schema.events.id }),
+			db
+				.update(schema.eventAttendance)
+				.set({ attended: sql`(${schema.eventAttendance.rsvp} = 'yes')` })
+				.where(and(eq(schema.eventAttendance.eventId, id), isNull(schema.eventAttendance.attended))),
+		]);
+		if (closed.length > 0) {
+			autoClosed += 1;
+			syncSessionAnnouncement(id);
+		}
+	}
+
+	// A finished game with zero ratings a few days on gets one ask.
 	const ratingCutoff = new Date(now.getTime() - RATING_NUDGE_AFTER_MS);
 	const unrated = await db
-		.select({ id: schema.games.id, title: schema.games.title })
-		.from(schema.games)
+		.update(schema.games)
+		.set({ ratingNudgeSentAt: now })
 		.where(
 			and(
 				eq(schema.games.status, "completed"),
 				lte(schema.games.completedAt, ratingCutoff),
 				isNull(schema.games.ratingNudgeSentAt),
-				sql`not exists (
-					select 1 from "game_ratings"
-					where "game_ratings"."game_id" = ${schema.games.id}
-				)`
+				sql`not exists (select 1 from "game_ratings" where "game_ratings"."game_id" = ${schema.games.id})`
 			)
-		);
+		)
+		.returning({ title: schema.games.title });
 	for (const game of unrated) {
-		const claimed = await db
-			.update(schema.games)
-			.set({ ratingNudgeSentAt: now })
-			.where(and(eq(schema.games.id, game.id), isNull(schema.games.ratingNudgeSentAt)))
-			.returning({ id: schema.games.id });
-		if (claimed.length === 0) continue;
-		notifyDiscord(
-			`🎲 **${game.title}** is finished but nobody's rated it — drop your score on the game page while it's fresh.`
-		);
-		sentRatingNudges += 1;
+		notifyDiscord(`🎲 **${md(game.title)}** is finished but nobody's rated it — drop your score on the game page while it's fresh.`);
 	}
 
-	return { sent1h, sent24h, sentWrapUpNudges, sentRatingNudges };
+	postSessionReminders(reminders);
+	return {
+		sent1h,
+		sent24h,
+		sentWrapUpNudges: needsWrapUp.length,
+		autoClosed,
+		sentRatingNudges: unrated.length,
+	};
 }

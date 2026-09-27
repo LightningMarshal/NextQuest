@@ -3,7 +3,6 @@ import Link from "next/link";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import {
 	ActivityIcon,
-	CalendarIcon,
 	CheckCircle2Icon,
 	ClockIcon,
 	LibraryIcon,
@@ -156,7 +155,7 @@ export default async function DashboardPage({
 			? cookiePeriod
 			: "all";
 	const [
-		{ totals, burnRate, playing, upcomingEvents, activity, memberStats, completedEventCount, together },
+		{ totals, burnRate, playing, activity, memberStats, completedEventCount, together },
 		settings,
 	] = await Promise.all([getDashboardData(period), getAppSettings()]);
 	const projection = burnRate.projectedCompletionDate
@@ -169,64 +168,25 @@ export default async function DashboardPage({
 	return (
 		<div className="flex flex-col gap-8">
 			<div>
-				<h1 className="font-display text-3xl font-semibold tracking-tight">Dashboard</h1>
+				<h1 className="font-display text-3xl font-semibold tracking-tight">Stats</h1>
 				<p className="text-muted-foreground mt-1 text-sm">
 					{totals.gamesTotal === 0 ? (
 						<>
 							Nothing tracked yet —{" "}
 							<Link href="/backlog" className="underline underline-offset-4">
-								propose the first game
+								add the first game
 							</Link>
 							.
 						</>
 					) : (
-						"Group progress at a glance."
+						"What the group has played together."
 					)}
 				</p>
 			</div>
 
-			{showCompletion && (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					<StatCard
-						icon={TrendingUpIcon}
-						label="Completion"
-						value={`${totals.completionPct}%`}
-						detail={`${totals.completedPoints} of ${totals.totalPoints} effort`}
-						highlight
-						progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
-					/>
-					<StatCard
-						icon={CheckCircle2Icon}
-						label="Games finished"
-						value={String(totals.gamesCompleted)}
-						detail={`of ${totals.gamesTotal} accepted`}
-					/>
-					<StatCard
-						icon={LibraryIcon}
-						label="In the backlog"
-						value={String(totals.backlogCount)}
-						detail={
-							totals.unscoredCount > 0
-								? `${totals.unscoredCount} still need scoring`
-								: undefined
-						}
-					/>
-					<StatCard
-						icon={StarIcon}
-						label="Burn rate"
-						value={burnRate.weeklyRate !== null ? `${burnRate.weeklyRate}/wk` : "—"}
-						detail={
-							burnRate.projectedCompletionDate
-								? `done ~${format(new Date(burnRate.projectedCompletionDate), "MMM d, yyyy")}`
-								: "needs more completions"
-						}
-					/>
-				</div>
-			)}
-
 			{/* Issue #35: the together axis — sessions, not checkboxes. Always
 			    shown; it IS the headline row when completion stats are off. */}
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="grid gap-4 sm:grid-cols-3">
 				<StatCard
 					icon={UsersIcon}
 					label="Sessions held"
@@ -250,24 +210,52 @@ export default async function DashboardPage({
 					value={together.averageRating !== null ? `${together.averageRating}/5` : "—"}
 					detail={together.averageRating === null ? "rate sessions at wrap-up" : "average"}
 				/>
-				<StatCard
-					icon={CalendarIcon}
-					label="Next session"
-					// Rendered in the viewer's timezone — a server-side format() runs in
-					// UTC and shows an evening session on the wrong day.
-					value={upcomingEvents[0] ? <LocalTime date={upcomingEvents[0].scheduledAt} dateOnly /> : "—"}
-					detail={upcomingEvents[0] ? upcomingEvents[0].title : "nothing scheduled"}
-				/>
 			</div>
+
+			{showCompletion && (
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					<StatCard
+						icon={TrendingUpIcon}
+						label="Completion"
+						value={`${totals.completionPct}%`}
+						detail={`${totals.completedPoints} of ${totals.totalPoints} effort`}
+						highlight
+						progress={totals.totalPoints > 0 ? totals.completionPct : undefined}
+					/>
+					<StatCard
+						icon={CheckCircle2Icon}
+						label="Games finished"
+						value={String(totals.gamesCompleted)}
+						detail={`of ${totals.gamesTotal} accepted`}
+					/>
+					<StatCard
+						icon={LibraryIcon}
+						label="In the backlog"
+						value={String(totals.backlogCount)}
+						detail={undefined}
+					/>
+					<StatCard
+						icon={StarIcon}
+						label="Burn rate"
+						value={burnRate.weeklyRate !== null ? `${burnRate.weeklyRate}/wk` : "—"}
+						detail={
+							burnRate.projectedCompletionDate
+								? `done ~${format(new Date(burnRate.projectedCompletionDate), "MMM d, yyyy")}`
+								: "needs more completions"
+						}
+					/>
+				</div>
+			)}
+
 
 			{showCompletion && (
 			<Card>
 				<CardHeader>
 					<div className="flex flex-wrap items-start justify-between gap-3">
 						<div>
-							<CardTitle>Burn rate</CardTitle>
+							<CardTitle>Burn rate (legacy)</CardTitle>
 							<CardDescription>
-								Cumulative completed effort
+								Effort points burned before the 2026 redesign froze them
 								{projection && " — dashed line projects the current pace"}.
 							</CardDescription>
 						</div>
@@ -288,37 +276,6 @@ export default async function DashboardPage({
 					)}
 				</CardContent>
 			</Card>
-			)}
-
-			{upcomingEvents.length > 0 && (
-				<section className="flex flex-col gap-3">
-					<h2 className="text-sm font-medium tracking-wide uppercase">Next sessions</h2>
-					<div className="grid gap-4 sm:grid-cols-3">
-						{upcomingEvents.map((event) => (
-							<Link key={event.id} href={`/s/${event.id}`}>
-								<Card className="hover:border-primary/50 h-full py-4 transition-colors">
-									<CardContent className="flex flex-col gap-1 px-5">
-										<p className="flex items-center gap-1.5 truncate text-sm font-semibold">
-											<CalendarIcon className="text-primary size-3.5 shrink-0" />
-											{event.title}
-										</p>
-										<p className="text-muted-foreground text-xs">
-											<LocalTime date={event.scheduledAt} withWeekday />
-											{event.location && ` · ${event.location}`}
-										</p>
-										<p className="text-muted-foreground flex items-center gap-1 text-xs">
-											{event.gameTitle && <span className="truncate">{event.gameTitle}</span>}
-											<span className="stat ml-auto flex shrink-0 items-center gap-1">
-												<UsersIcon className="size-3" />
-												{event.yesCount} in
-											</span>
-										</p>
-									</CardContent>
-								</Card>
-							</Link>
-						))}
-					</div>
-				</section>
 			)}
 
 			{/* Nova: Now playing + Recent activity share a 1.15fr/1fr row. */}

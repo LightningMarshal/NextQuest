@@ -107,3 +107,28 @@ export async function deriveCalendarToken(secret: string): Promise<string> {
 		.join("")
 		.slice(0, 32);
 }
+
+/**
+ * Per-person feed token (2026-09): HMAC over the user id and their
+ * calendar_feed_version, so one person's URL can be revoked (bump the
+ * version) without touching anyone else's — and a guest's feed can be
+ * scoped to open sessions.
+ */
+export async function deriveUserCalendarToken(secret: string, userId: string, version: number): Promise<string> {
+	const key = await crypto.subtle.importKey(
+		"raw",
+		new TextEncoder().encode(secret),
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"]
+	);
+	const signature = await crypto.subtle.sign(
+		"HMAC",
+		key,
+		new TextEncoder().encode(`nextquest-ical-user-v1:${userId}:${version}`)
+	);
+	return [...new Uint8Array(signature)]
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("")
+		.slice(0, 32);
+}

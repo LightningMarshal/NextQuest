@@ -3,7 +3,9 @@ import Link from "next/link";
 import { CalendarPlusIcon, CalendarSearchIcon } from "lucide-react";
 
 import { PastSessionCard, SessionCard } from "@/components/sessions/session-card";
+import { CalendarSubscribe } from "@/components/calendar-subscribe";
 import { Button } from "@/components/ui/button";
+import { myCalendarFeedUrl } from "@/server/calendar-read";
 import { isMember, requireCircleUser } from "@/server/session";
 import { getSessionsPage } from "@/server/sessions-read";
 
@@ -19,7 +21,10 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
 	const parsed = Number((await searchParams).page);
 	const page = Number.isInteger(parsed) && parsed > 0 && parsed < 1000 ? parsed : 0;
 	const now = requestNow();
-	const { upcoming, past, hasMorePast } = await getSessionsPage(user, now, page);
+	const [{ upcoming, past, hasMorePast }, feedUrl] = await Promise.all([
+		getSessionsPage(user, now, page),
+		myCalendarFeedUrl(user.id),
+	]);
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -87,6 +92,8 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
 					)}
 				</div>
 			</section>
+
+			{feedUrl && <CalendarSubscribe url={feedUrl} />}
 		</div>
 	);
 }

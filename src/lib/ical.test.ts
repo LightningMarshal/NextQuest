@@ -119,3 +119,14 @@ describe("session links", () => {
 		expect(feed).toContain("URL:https://nq.example.com/s/e1\r\n");
 	});
 });
+
+describe("deriveUserCalendarToken", () => {
+	it("is per user and per version", async () => {
+		const { deriveUserCalendarToken } = await import("./ical");
+		const a = await deriveUserCalendarToken("s3cret", "u1", 0);
+		expect(a).toMatch(/^[0-9a-f]{32}$/);
+		expect(await deriveUserCalendarToken("s3cret", "u1", 0)).toBe(a);
+		expect(await deriveUserCalendarToken("s3cret", "u2", 0)).not.toBe(a);
+		expect(await deriveUserCalendarToken("s3cret", "u1", 1)).not.toBe(a);
+	});
+});

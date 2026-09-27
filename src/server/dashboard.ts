@@ -41,14 +41,6 @@ export type DashboardData = {
 		points: number | null;
 		startedAt: Date | null;
 	}[];
-	upcomingEvents: {
-		id: string;
-		title: string;
-		scheduledAt: Date;
-		location: string | null;
-		gameTitle: string | null;
-		yesCount: number;
-	}[];
 	activity: ActivityItem[];
 	memberStats: {
 		id: string;
@@ -98,7 +90,7 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 	const db = getDb();
 	const effectivePoints = sql<number | null>`coalesce(${schema.games.pointsOverride}, ${schema.games.points})`;
 
-	const [inScopeGames, completions, playingRows, upcomingEvents] = await Promise.all([
+	const [inScopeGames, completions, playingRows] = await Promise.all([
 		// The accepted body of work: proposed games aren't commitments yet,
 		// and abandoned/rejected ones left it.
 		db
@@ -133,24 +125,6 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 			.from(schema.games)
 			.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
 			.where(eq(schema.games.status, "playing")),
-		db
-			.select({
-				id: schema.events.id,
-				title: schema.events.title,
-				scheduledAt: schema.events.scheduledAt,
-				location: schema.events.location,
-				gameTitle: schema.games.title,
-				yesCount: sql<number>`(
-					select count(*)::int from "event_attendance"
-					where "event_attendance"."event_id" = "events"."id"
-					and "event_attendance"."rsvp" = 'yes'
-				)`,
-			})
-			.from(schema.events)
-			.leftJoin(schema.games, eq(schema.events.gameId, schema.games.id))
-			.where(and(eq(schema.events.status, "scheduled"), sql`${schema.events.scheduledAt} > now()`))
-			.orderBy(schema.events.scheduledAt)
-			.limit(3),
 	]);
 
 	const [statusActivity, eventActivity, sessionActivity, memberStats, completedEvents] = await Promise.all([
@@ -282,7 +256,6 @@ export async function getDashboardData(period: BurnRatePeriod = "all"): Promise<
 			startedAt: row.startedAt,
 			art: row.headerUrl ?? row.coverUrl,
 		})),
-		upcomingEvents,
 		activity,
 		memberStats,
 		completedEventCount: completedEvents[0]?.count ?? 0,
