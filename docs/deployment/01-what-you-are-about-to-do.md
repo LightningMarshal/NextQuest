@@ -163,6 +163,14 @@ own email in `ADMIN_EMAILS` **before** you sign in for the first time.
 Chapter 07 makes sure you get this right (and troubleshooting covers the
 rescue if you don't).
 
+There are two kinds of access. **Members** are the group: they post
+sessions, see the game library, plan, and see stats. **Guests** are the
+wider circle: they only see and join sessions a member marks *open*.
+People become guests by opening a member's invite link, or by signing in
+with Discord while in a Discord server you've listed (optional, chapter
+06). Anyone can apply for full membership; admins approve applications on
+the Admin page.
+
 ---
 
 [← Index](README.md) · Next: [02 — Set up your computer →](02-set-up-your-computer.md)

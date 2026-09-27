@@ -36,6 +36,9 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put ADMIN_EMAILS
 npx wrangler secret put DISCORD_WEBHOOK_URL
+npx wrangler secret put DISCORD_CLIENT_ID
+npx wrangler secret put DISCORD_CLIENT_SECRET
+npx wrangler secret put DISCORD_GUILD_IDS
 npx wrangler secret put CRON_SECRET
 npx wrangler secret put BGG_API_TOKEN
 npx wrangler secret put RAWG_API_KEY
@@ -49,7 +52,9 @@ npx wrangler secret put RAWG_API_KEY
 | `GOOGLE_CLIENT_ID` | From chapter 05 |
 | `GOOGLE_CLIENT_SECRET` | From chapter 05 |
 | `ADMIN_EMAILS` | Your email(s), comma-separated, no spaces |
-| `DISCORD_WEBHOOK_URL` | The webhook URL — *skip this command entirely if you skipped chapter 06* |
+| `DISCORD_WEBHOOK_URL` | The webhook URL — *skippable: you can add webhooks on the Admin page after deploying instead* |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | From chapter 06's Discord sign-in steps — *skip both if you only want Google sign-in* |
+| `DISCORD_GUILD_IDS` | Server ids, comma-separated — members of these servers who sign in with Discord become guests. *Skip if you skipped Discord sign-in* |
 | `CRON_SECRET` | Your random string from chapter 07 — *skippable, but then reminders and metadata refresh never run* ([why →](01-what-you-are-about-to-do.md#what-is-a-cron-job)) |
 | `BGG_API_TOKEN` | A BoardGameGeek API token from [boardgamegeek.com/applications/create](https://boardgamegeek.com/applications/create) (free registration; BGG and RPGGeek share it) — *skip it and board game / TTRPG proposals lose search & auto-fill; members type the details in manually instead* |
 | `RAWG_API_KEY` | A RAWG key from [rawg.io/apidocs](https://rawg.io/apidocs) (free tier is plenty) — *skippable; it only fills in video-game art/genres/scores when Steam is missing or down* |

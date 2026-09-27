@@ -9,12 +9,14 @@ Browser ──► Cloudflare Worker (Next.js via @opennextjs/cloudflare)
                  ├──► Steam storefront API (metadata, unauthenticated)
                  ├──► HowLongToBeat (unofficial — expected to break, optional)
                  ├──► BGG XML API2 (BoardGameGeek + RPGGeek; bearer token, optional)
-                 └──► RAWG API (supplemental video metadata; api key, optional)
+                 ├──► RAWG API (supplemental video metadata; api key, optional)
+                 ├──► Discord webhooks (session cards, edited in place; optional)
+                 └──► Discord OAuth + /users/@me/guilds (guest admission; optional)
 ```
 
 Single-tenant: one deployment is one gaming group. There is no `groups`
-table; membership is `user.role` (`admin`/`member`) + `user.status`
-(`pending`/`approved`/`rejected`).
+table; access is `user.role` (`admin`/`member`/`guest`) + `user.status`
+(`pending`/`approved`/`rejected`). See "Access" below.
 
 Per-request clients: Workers env bindings are request-scoped, so `getDb()`
 (`src/db/index.ts`) and `getAuth()` (`src/lib/auth.ts`) construct clients
@@ -30,8 +32,22 @@ timestamps are `timestamptz`.
 ### Auth (`auth.ts`)
 
 Standard Better Auth tables (`user`, `session`, `account`, `verification`)
-plus membership fields on `user`: `role` and `status` enums. Mirror any auth
-config change here (see CLAUDE.md invariant #4).
+plus membership fields on `user`: `role` (`admin`/`member`/`guest`) and
+`status` enums, and two app-owned columns: `tutorial_seen_at` and
+`calendar_feed_version` (bump = rotate that person's calendar URL).
+
+### The circle (`circle.ts`, `interest.ts`)
+
+- **`invites`** — member-minted links: `token_hash` (SHA-256; the raw token
+  exists only in the URL), `max_uses`/`uses`, `expires_at`, `revoked_at`,
+  `note`. **`invite_redemptions`** records who came in on which link (the
+  "invited by" admins see).
+- **`membership_applications`** — about / why / who-you-know, `status`
+  (`pending`/`approved`/`declined`), reviewer + time.
+- **`discord_webhooks`** — admin-managed targets with an `audience`
+  (`all` = group server, `open` = wider server, open sessions only).
+- **`game_interest`** — "keen": PK `(game_id, user_id)`, public within the
+  group.
 
 ### Games (`games.ts`)
 
@@ -55,7 +71,7 @@ config change here (see CLAUDE.md invariant #4).
 - **`tabletop_details`** — 1:1 sidecar for ttrpg/boardgame rows (the
   `game_metadata` pattern): `system`, `format` (virtual/in-person/hybrid),
   free-text `platform` ("Roll20", "kitchen table"), `gm_user_id`,
-  `min_players`/`max_players` (feeds picker party-fit), `length_band`
+  `min_players`/`max_players`, `length_band`
   (TTRPG), `playtime_minutes` (board game), `bgg_id` (dedup, mirrors
   `steamAppId`). Crunch and length deliberately have no columns here —
   they ride `games.difficulty`/`games.length_hours` so the formulas stay
@@ -65,8 +81,8 @@ config change here (see CLAUDE.md invariant #4).
   never block a game row. Holds art URLs, description, genres, review
   scores, HLTB times, BGG signals (`bgg_rating` 0–100 rescale,
   `bgg_weight` 1–5 — board games only), `game_modes` (play-mode vocabulary
-  derived from Steam appdetails categories — feeds the picker's party-fit
-  component; null = never derived), and the `raw` provider payloads
+  derived from Steam appdetails categories — library badges and the Mode
+  filter; null = never derived), and the `raw` provider payloads
   (re-derive fields later without refetching — the game-modes admin
   backfill does exactly this). `source` (`steam`/`hltb`/`bgg`/`rawg`/
   `manual`/`mixed`) records which providers contributed. `fetched_at`
@@ -79,12 +95,12 @@ config change here (see CLAUDE.md invariant #4).
   games transitioning to `completed`, bucketed by week. Also the future
   activity feed source.
 
-### Votes (`votes.ts`)
+### Votes (`votes.ts`) — retired, retained
 
-Budget-allocation voting (rationale: docs/DECISIONS.md). One row per
-member×game, `unique(game_id, user_id)`, `weight` 1..`vote_max_per_game`.
-Since the 2026-07-02 redesign the tally is the *interest* input to the
-picker rather than the whole ranking; the ballot UI lives on `/pick`.
+Budget-allocation voting was retired from the UI in the 2026-09 redesign
+("keen" replaced it). The rows are kept, still anonymous, and still cleared
+when a game leaves the backlog (so stored data stays coherent). Exports
+carry totals only.
 
 **Anonymity invariant:** `user_id` is for dedup/upsert only. All read paths
 aggregate to `{game_id, SUM(weight)}`; the only per-user read is the
@@ -93,7 +109,7 @@ requesting member's own ballot.
 **`game_vote_milestones`** (`votes.ts`) — a dedup ledger, PK
 `(game_id, milestone)`, so a group-total crossing a configured
 `app_settings.vote_milestones` threshold fires its Discord ping exactly once
-ever (atomic `onConflictDoNothing`, since Neon HTTP has no transactions).
+ever. Retired with voting; rows retained.
 
 ### Tags (`tags.ts`)
 
@@ -103,27 +119,28 @@ Free-form categorization alongside the structured `game_type` and provider
 genres; drives the backlog Tags filter. Zero-assignment tags are kept as
 filter/autocomplete vocabulary.
 
-### Events (`events.ts`)
+### Sessions (`events.ts` — the table kept its old name)
 
-- **`events`** — title, optional `game_id`, `scheduled_at`, duration,
-  free-form `location`, status (`scheduled`/`completed`/`cancelled`), and two
-  distinct text surfaces: `notes` (planning, set at creation) and the
-  session-capture fields written at wrap-up — `recap`, `how_it_went`
-  (1–5 rating), `progress_note` ("where we left off", for campaigns). Wrap-up
-  writes the recap to its own column so the plan is never overwritten.
-  Reminder sent-markers gate the cron.
+- **`events`** — a session: title, optional `game_id`, `scheduled_at`,
+  duration, `visibility` (`members`/`open`), optional `capacity`, free-form
+  `location` + `join_url` + `venue`, host (`created_by`), status
+  (`scheduled`/`completed`/`cancelled`), planning `notes`, and the wrap-up
+  fields — `recap`, `how_it_went`, `progress_note`, `wrapped_up_at/by`,
+  `auto_closed`. Reminder/nudge sent-markers gate the cron.
+- **`event_discord_messages`** — PK `(event_id, webhook_key)`: the Discord
+  message id per webhook, so the card is edited in place.
 - **`event_attendance`** — PK `(event_id, user_id)`, `rsvp`
   (`yes`/`no`/`maybe`) before, `attended` boolean recorded after.
 
 ### Settings (`settings.ts`)
 
-`app_settings` is a single-row table (`check id = 1`): group name, vote
-budget (10), per-game vote cap (4), difficulty multipliers (jsonb), quality
-weight, vote milestones, and `pick_weights` (jsonb — the picker's component
-weights, stored raw and renormalized at read time) — the tunables,
-changeable without a deploy.
+`app_settings` is a single-row table (`check id = 1`). Live settings:
+`group_name` and `show_completion_stats` (legacy burn-rate on /stats). The
+vote budget/cap, difficulty multipliers, quality weight, milestones, and
+`pick_weights` columns are retired but retained — they document how the
+frozen historical effort was computed.
 
-### GAC (`availability.ts`) — built in Phase 6
+### Find-a-time polls (`availability.ts`, "GAC") — /sessions/plan
 
 Landed as the purely additive migration designed here (0002):
 
@@ -167,65 +184,61 @@ try/catch:
 - **manual** — explicit pass-through fallback so "no provider data" is a
   supported state.
 
-## Points ("effort") & burn rate
+## Sessions (the heart of the app)
 
-Formula in `src/lib/points.ts` (pure, unit-testable), v2:
-`points = max(1, round(fibonacciLengthBucket(hours) × difficultyMultiplier
-× qualityMultiplier))` — the quality factor scales with the mean of Steam
-%, Metacritic, and BGG rating (0–100 rescale) around a baseline of 70
-(weight in `app_settings.quality_weight`; 0 reproduces v1). Stored on the
-game row; recomputed only on explicit scoring edits or the admin recompute
-action (pre-play games only). The UI labels this value **effort** — it is
-a size estimate for burn-rate, not a ranking. Tabletop games enter the same
-formula through hour-equivalents (`TTRPG_BAND_HOURS`, playtime ÷ 60) with
-crunch riding the difficulty parameter — see docs/DECISIONS.md 2026-07-05.
+Pure rules in `src/lib/sessions.ts` (tested): phase (`upcoming` → `live` →
+`ended` → `completed`/`cancelled`, with a 3h default length), who may RSVP
+(until the session ends), wrap up (host, admin, or someone who was in),
+edit/cancel (host or admin), see (`canSeeSession`: guests → open only), and
+the 48h auto-close rule. Actions in `src/server/sessions.ts`; reads in
+`src/server/sessions-read.ts` (visibility applied in every query). Capped
+sessions admit "in" with a conditional insert so the last seat can't be
+double-booked. Wrap-up and session creation write in one `db.batch`.
 
-Burn rate (Phase 4): cumulative completed effort from `game_status_history`,
-with a linear projection to estimate the backlog completion date. Each viewer
-picks the x-axis period — weekly / monthly / yearly / all-time — via a
-`?period=` toggle backed by a `nq-burn-period` cookie (no per-user table); the
-projection always regresses over the weekly series so its points/week units
-stay honest regardless of the displayed bucket (`src/lib/burn-rate.ts`).
+Pages: `/` (This week), `/sessions` (list + history + personal calendar
+feed), `/s/[id]` (the Discord link target: before → when/what/who/join;
+after → outcome), `/sessions/new` + `/s/[id]/edit` (the composer),
+`/sessions/plan` (find-a-time polls), `/api/sessions/[id]/ics`.
 
-## The picker (`/pick`)
+## Access
 
-The selection surface (Phase 8; rationale and math in docs/DECISIONS.md,
-2026-07-02). `src/lib/pick.ts` is a pure scoring lib mirroring
-`points.ts`/`burn-rate.ts`: `scoreBacklog(games, ctx, weights)` combines
-interest (vote tally aggregates), quality, time fit, staleness, and party
-fit into a 0–100 score per backlog game. Scores are computed at **read
-time and never stored** — deliberately opposite to points, so ranking
-changes can't rewrite burn-rate history.
+`src/server/session.ts`: `getSessionUser` (React-cached),
+`requireCircleUser(returnTo)`, `requireMember(returnTo)`, `requireAdmin`.
+The (app) layout gates members; (circle) pages gate themselves (see
+DECISIONS 2026-09-26). Invites/applications in `src/server/circle.ts`;
+Discord-server admission in `src/lib/auth.ts` (account create/update hooks
++ `src/lib/discord-guilds.ts`).
 
-Session context (hours tonight, commitment preset, playing
-together/player count, and `kind` — the "what kind of night is it?"
-video/ttrpg/boardgame **filter**, deliberately not a scored component) is
-carried in `/pick` query params — the force-dynamic `(app)` layout
-re-ranks server-side on every change, and the URL is shareable.
-`src/server/pick.ts` assembles the inputs (`parsePickContext` clamps
-garbage params instead of throwing); the ballot steppers live on the same
-page, feeding the interest component. Party fit branches by medium:
-tabletop games score against their declared min/max player range, video
-games against the Steam-derived `game_modes`.
+## Discord
 
-Game input is search-first: `src/server/metadata-search.ts` exposes
-typeahead candidates (Steam storesearch + HLTB, in parallel, + RAWG when
-keyed) and an advisory metadata preview; proposals submit candidate ids and
-the server refetches authoritatively. `refreshGameMetadata` (per game, in the
-backlog card's Manage expander) is the retry path when a provider was down;
-`src/server/metadata-write.ts` holds the shared only-overwrite-returned-
-fields merge used by both it and the refresh cron.
+`src/server/discord.ts`: targets = `DISCORD_WEBHOOK_URL` (audience `all`) +
+enabled `discord_webhooks`. `syncSessionAnnouncement(id)` posts or PATCHes
+one embed per eligible webhook (`src/lib/discord-embed.ts`, pure + tested),
+deletes it from `open` webhooks if a session stops being open, and can add
+a short notice line. `notifyDiscord` sends group news to `all` webhooks only.
+All sends run on `waitUntil` and never fail the triggering action.
 
-## Backlog browse & game detail
+## Effort & burn rate (legacy, frozen)
 
-`/backlog` groups games by status and filters on four independent, composing
-dimensions carried in the URL — **type** (`game_type`), **genre** and
-**mode** (`game_metadata.genres`/`game_modes`), and member **tags** — each a
-chip row whose vocabulary is derived from the library itself. Cards link
+Stored effort points (`src/lib/points.ts`) and the burn-rate chart predate
+the redesign. Nothing writes points any more; `/stats` shows the historical
+burn-down (admin toggle) computed from `game_status_history`, so the data
+remains meaningful and nothing was destroyed. The five-factor picker
+(`/pick`) and its tunables were retired; see DECISIONS 2026-09-26.
+
+## Library & game detail
+
+`/backlog` (labelled Library) groups games into Playing / Want to play /
+Played / Shelved, searches titles, and filters on four composing dimensions
+carried in the URL — **type**, **genre**, **mode**, and member **tags**.
+Cards show art, genres/modes, time-to-beat and reception tiles, the
+description, and who's keen; they carry no hidden forms (curation lives on
+the game page's Manage panel). Data: `getLibrary()` in
+`src/server/library-read.ts` (explicit columns, never `raw`). Cards link
 (art + title) through to **`/backlog/[gameId]`**, a read/detail surface with
 the full pitch, description, metadata, tabletop info line, and the game's
 **session history** (completed + upcoming events joined on `events.game_id`).
-Status transitions live on the detail page and behind each card's "Manage"
-expander — deliberately *not* on the card face, since `completed` is terminal
-with no undo. Shared card/detail display vocabulary lives in
+Status transitions live on the game page only — `completed` is terminal
+with no undo. A non-proposer marking a suggested game keen promotes it to
+want-to-play through the same status path. Shared card/detail display vocabulary lives in
 `src/app/(app)/backlog/game-display.ts`.

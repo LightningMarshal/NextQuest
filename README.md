@@ -1,137 +1,100 @@
 # NextQuest
 
-**NextQuest** is a web app for one gaming group: a shared backlog where
-games earn points, anonymous voting decides what to play next, a burn-rate
-chart shows whether the group will ever actually finish the pile, and
-sessions get scheduled with availability polls, RSVPs, and attendance.
-One deployment serves one group — members sign in with Google and are let
-in by an admin.
+**NextQuest** helps a gaming group play more games with more people. Post
+"I'm playing Rust Tuesday night, hop in" in a few taps; it shows up on
+everyone's home screen and as a Discord card that updates itself as people
+join; friends-of-friends can join too; and afterwards a ten-second wrap-up
+records who came and how it went. Around the sessions sit a rich game
+library, find-a-time polls for the nights that need planning, and stats.
+
+One deployment serves one group. Members sign in with Google (or Discord);
+a wider circle of guests can see and join the sessions you mark **open**.
 
 ## Feature tour
 
-### Dashboard
+### This week (home)
 
-The home page answers "how are we doing?" at a glance:
+What's live now and coming up, with who's in and a one-tap **I'm in /
+Maybe / Out** on every card. Sessions that need a wrap-up, games people are
+keen on, open polls, and recently played nights with how they went.
 
-- **Stat cards** — completion percentage (completed points vs. total, with
-  a progress bar), games finished, backlog size, and the weekly burn rate
-  with a projected date for clearing the backlog.
-- **Burn-up chart** — cumulative completed points per week plotted against
-  the backlog total, with a dashed least-squares projection toward the
-  finish line (hidden when progress is flat or the projection is hopeless).
-- **Next sessions** — the next three scheduled events with times rendered
-  in each viewer's timezone and RSVP counts.
-- **Now playing** — art cards for in-progress games with "started X ago".
-- **Activity feed** — the latest dozen status changes and scheduled events,
-  with who did what.
-- **Members** — per-member proposal counts and session attendance.
+### Posting a session
 
-### Backlog
+Pick a game (or type a new one), tap a time — *Now*, *Tonight 8pm*,
+*Tomorrow*, *Saturday*, or any date — and choose **open to the circle** or
+**members only**. Length, seat cap, where, a join link, and notes are
+optional. You're in automatically and Discord hears about it.
 
-Propose a game by pasting a Steam link (or just a title): the app
-auto-fills art, description, genres, review scores from the Steam
-storefront API and playtime from HowLongToBeat — and degrades gracefully
-to manual entry when a provider is down. Every game moves through an
-audited lifecycle:
+### A page for every session
 
-```
-proposed → backlog → playing → completed
-              ↑↓         ↘ abandoned   (rejected ↔ proposed)
-```
+The link in Discord goes here. Before: when (in your timezone), what, who's
+hosting, who's in and how many seats are left, the join link, "last time we
+left off…", and an **Add to calendar** file that works in any calendar app.
+The host (or an admin) can edit or cancel. After: who came, a star rating,
+a one-line recap, and **same time next week**. Sessions nobody wraps up
+close themselves after two days.
 
-Each transition is recorded in a history table, which is what makes the
-burn-rate math trustworthy. Cards carry the game's points, vote total,
-length, difficulty, Steam score, genres, and member-defined **tags** —
-with a tag filter bar across the whole page. A scoring editor sets length,
-difficulty, and an optional manual points override.
+### Discord
 
-### Voting
+Each connected webhook gets one card per session — when, game, host, where,
+who's in — and the app **edits that same card** as people join, the time
+moves, or it's cancelled or played. Add several webhooks on the admin page:
+the group's own server hears everything; a wider server can be set to hear
+only about open sessions. Reminders go out a day and an hour before, with
+who's in. Mentions are always disabled.
 
-Deciding what to play next is a budget-allocation vote, and it's
-**anonymous**:
+### The circle: guests, invites, applications
 
-- Every member gets the same budget (default 10 points, admin-tunable) to
-  spread across backlog games, capped per game (default 4).
-- The ballot page shows *your* allocation and the group total — never who
-  voted for what. Reallocate any time with optimistic ± steppers.
-- When a game leaves the backlog its votes are deleted and the budget
-  returns to members.
-- Crossing a configured vote milestone fires a Discord ping (once per
-  game, ever).
+- **Invite links**: any member can make one (limited uses, expiry,
+  revocable). Whoever opens it signs in and joins as a guest.
+- **Discord sign-in**: members of the Discord servers you list come
+  straight in as guests.
+- **Guests** see and join open sessions only — no library, stats, or
+  members-only sessions — and can **apply for membership** (who they are,
+  why, who they know); admins approve on /admin.
 
-### Events & availability
+### Library
 
-- **Scheduling** — events with optional game link, duration, location, and
-  notes; times are entered in your browser's timezone and rendered in each
-  viewer's.
-- **RSVPs** — yes / maybe / no with public name lists (attendance is the
-  one deliberately public signal; only votes are anonymous).
-- **Wrap-up** — past events prompt for an attendance checklist
-  (pre-checked from RSVPs) and a recap note.
-- **Availability polls** — when there's no obvious time, members propose
-  slots and everyone answers Free / If need be / Busy. The leading slot is
-  highlighted and converts to a real event in one click, seeding RSVPs
-  from the poll answers.
+Every game with art, genres, play modes, time-to-beat (HowLongToBeat),
+Steam/Metacritic/BGG reception, tabletop system and player counts, the full
+description, and **who's keen**. Search and filter by type, genre, mode, or
+tag; post a session for any game in one tap. Games come in search-first
+from Steam/HLTB/RAWG (video) or BoardGameGeek/RPGGeek (tabletop), with
+manual entry always available.
+
+### Planning ahead
+
+For bigger nights, open a **find-a-time** poll: everyone paints the times
+they're free on a grid, the best windows float to the top, and one click
+turns the winner into a session with RSVPs filled in.
+
+### Stats & history
+
+Sessions played, hours together, average rating, who comes most, a year in
+review with a group game of the year, per-member pages, and the legacy
+effort burn-down from before the 2026 redesign.
 
 ### Admin
 
-A single admin page covers the approval queue (new sign-ins wait there),
-member roles, and group settings: group name, vote budget and per-game
-cap, the points formula's difficulty multipliers and review-score weight,
-vote milestones, and a one-click recompute of proposed/backlog points
-after retuning the formula.
-
-### Notifications & automation
-
-With a Discord webhook configured (optional), the app announces proposals,
-games started and finished, vote milestones, newly scheduled sessions,
-poll results, and sends reminders ~24 hours and ~1 hour before each event.
-Two cron jobs run on the deployed Worker: hourly event reminders and a
-daily refresh of stale Steam/HLTB metadata.
+Applications, waiting sign-ins, members and guests, live invite links,
+Discord webhooks (with a test button), group settings, and a full data
+export.
 
 ## How it works
 
-### The points formula
+- **Access**: members, guests ("the circle"), and pending sign-ins; every
+  page and server action checks the tier on the server, and guests only
+  ever receive open sessions — the filter lives in the database queries.
+- **Sessions** are rows in `events` with a visibility, optional seat cap,
+  host, and wrap-up fields; the rules (live/ended, who may RSVP, edit, or
+  wrap up, when to auto-close) are pure, unit-tested functions.
+- **History is append-only**: game status changes go through one function
+  that records every transition; past effort points are frozen, so older
+  charts never rewrite themselves.
+- **Metadata providers fail soft**: a broken lookup means fewer pre-filled
+  fields, never a blocked game or session.
 
-```
-points = max(1, round( lengthPoints(hours) × difficultyMultiplier × qualityMultiplier ))
-```
-
-| HLTB hours | points |     | difficulty | × |     | quality |
-| --- | --- | --- | --- | --- | --- | --- |
-| < 5 | 1 | | 1 — breezy | 0.8 | | `q` = mean of Steam % positive |
-| 5–12 | 2 | | 2 — casual | 1.0 | | and Metacritic (0–100) |
-| 12–25 | 3 | | 3 — solid | 1.2 | | multiplier = `1 + w·(q−70)/100`, |
-| 25–50 | 5 | | 4 — tough | 1.5 | | clamped 0.5–1.5; no data → ×1.0 |
-| 50–100 | 8 | | 5 — brutal | 2.0 | | weight `w` 0–1, default 0.5 |
-| 100+ | 13 | | | | | (0 disables the factor) |
-
-Fibonacci length buckets dampen HLTB estimate noise; the difficulty
-multipliers and quality weight are admin-tunable. Example: Elden Ring
-(~100h, difficulty 5, ratings ≈ 94) → 13 × 2.0 × 1.12 = **29 points**;
-Portal (~5h, difficulty 2, equally acclaimed) → **2 points** — the buckets
-still dominate.
-
-Points are **stored, not derived**: they change only when someone edits a
-game's scoring (or an admin runs the recompute on not-yet-played games),
-so completed games keep their historical value and the burn-rate chart
-never rewrites history. Full rationale: [docs/DECISIONS.md](docs/DECISIONS.md).
-
-### Why voting is anonymous budget allocation
-
-Plain upvotes measure breadth, not how much anyone cares; ranked choice is
-a pain to tally and explain. A spendable budget captures intensity, the
-per-game cap adds a mild quadratic-voting effect (you can't dump
-everything on one game), and anonymity keeps votes honest in a group of
-friends. Votes are tied to a user only for dedup — every read path returns
-aggregate totals.
-
-### Burn rate & projection
-
-Because every status change is appended to a history table, the app can
-compute completed points per week and fit a least-squares line through
-recent weeks to project when the backlog — at its current total — would be
-cleared. Tune the formula all you like; history stays fixed.
+Design decisions and their reasoning: [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Architecture
 
@@ -147,18 +110,18 @@ Cloudflare Worker (next-quest) ── custom-worker.ts wraps the OpenNext build
 Next.js App Router (server actions, per-request auth gates)
        │                                   │
        ▼                                   ▼
-Neon Postgres (HTTP driver,         Steam API + HowLongToBeat
+Neon Postgres (HTTP driver,         Steam · HowLongToBeat · RAWG · BGG
 per-request Drizzle client)         (metadata providers, fail-soft)
                                            │
-                                    Discord webhook (optional,
-                                    fire-and-forget notifications)
+                                    Discord webhooks (session cards edited
+                                    in place) · Discord OAuth (guests)
 ```
 
 ## Stack
 
 - Next.js 16 (App Router, TypeScript) on Cloudflare Workers via [`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare)
 - Neon Postgres + Drizzle ORM
-- Better Auth (sign in via Google)
+- Better Auth (Google, optional Discord sign-in)
 - Tailwind CSS v4 + shadcn/ui-style components, Recharts
 
 ## Quickstart
@@ -180,7 +143,12 @@ cp .env.example .env
 npm run db:migrate
 
 npm run dev          # Next dev server → http://localhost:3000
+npm run seed         # optional: a demo group to click around
 ```
+
+No Neon account for local work? Run a local Postgres and
+`SHIM_TARGET=postgresql://… npm run db:shim`, then set
+`NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`.
 
 ## Useful commands
 
@@ -188,7 +156,7 @@ npm run dev          # Next dev server → http://localhost:3000
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
 npm run preview      # build + run under workerd (wrangler dev) — do this before deploying
-npm run deploy       # build + deploy to Cloudflare Workers
+npm run deploy       # MIGRATES the .env database, then builds + deploys
 npm run db:generate  # generate a migration after editing src/db/schema/
 npm run db:studio    # browse the database
 npm run cf-typegen   # regenerate cloudflare-env.d.ts after wrangler.jsonc changes
@@ -199,7 +167,7 @@ npm run cf-typegen   # regenerate cloudflare-env.d.ts after wrangler.jsonc chang
 - [Deployment guide](docs/deployment/README.md) — zero-to-deployed walkthrough, no experience assumed
 - [Roadmap](docs/ROADMAP.md) — what's built and what's next, phase by phase
 - [Architecture](docs/ARCHITECTURE.md) — data model, metadata pipeline, deployment shape
-- [Decisions](docs/DECISIONS.md) — points formula, voting mechanics, and other ADRs
+- [Decisions](docs/DECISIONS.md) — why things work the way they do, including the 2026-09 redesign
 - [CLAUDE.md](CLAUDE.md) — conventions and invariants for AI-assisted development
 
 ## License

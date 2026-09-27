@@ -296,3 +296,88 @@ gains `rawg` (append-only). **IGDB deferred**: its Twitch OAuth
 client-credentials exchange is more surface for similar coverage. A dedicated
 **mood** taxonomy is also deferred — mood rides the existing genre/mode/tag
 filters (a member can make a "chill" or "brainburner" tag today).
+
+## 2026-09-26 — Redesign: the session is the product
+
+**Why.** The app was live and working but barely used. It was built around
+one fixed group planning formally (backlog → budget votes → picker →
+schedule → burn-down), while the group actually coordinates ad hoc and
+wants to play more games with more people. The audit (branch
+`claude/nextquest-redesign-audit-d8y1jk`) found the answer to "what's on and
+can I join?" ~4,700px down the events page on a phone, Discord messages that
+linked nowhere, no way to edit a session, and a five-step tour needed to
+explain the concepts. The redesign puts the session at the centre and keeps
+advance planning as a first-class path (owner: "we do sometimes plan in
+advance").
+
+Owner decisions (2026-09-26): calendars via generic .ics (works everywhere)
+rather than Google-specific integration; guests view + join only, plus a
+membership application; guests sign in with Google via invite link AND with
+Discord if they're in a configured server; host + admins edit/cancel;
+unwrapped sessions auto-close after 48h; roster names are visible to
+guests; multiple Discord servers, messages edited in place; the library
+stays rich (genres, full descriptions); the welcome tour stays, updated.
+
+## 2026-09-26 — Three tiers: member, guest ("the circle"), pending
+
+`user_role` gains `guest` (additive). Guests see and join sessions marked
+`open` and nothing else. Chosen over a separate "circle" table or
+per-session share links: one user table, one session, one RSVP table — the
+visibility rule is a single function (`canSeeSession`) applied in queries.
+Nothing is public: session pages require sign-in, and the only
+signed-out-visible page is `/invite/[token]` (reveals the inviter's name for
+a live token only).
+
+Entry paths: invite links (hashed tokens, capped uses/expiry, 10 live per
+member, redemption is a POST that admits PENDING accounts only — never
+upgrades a member or overrides a rejection); Discord sign-in checked against
+`DISCORD_GUILD_IDS` on every sign-in, failing closed to the pending flow;
+membership applications for anyone who wants full membership.
+
+## 2026-09-26 — Self-gating (circle) pages
+
+A layout can't read the URL, so a gating layout can't send people back to
+the Discord link they clicked. The (circle) layout therefore doesn't
+redirect; each page calls `requireCircleUser(ownPath)`. A test enforces the
+gate on every page, and (circle) has no loading boundary so gates return
+real 307/404 responses (a loading.tsx streams first and softens them).
+
+## 2026-09-26 — Discord: one card per session per webhook, edited in place
+
+Every session is posted once per eligible webhook with `?wait=true`, the
+message id stored in `event_discord_messages`, and the SAME message is
+PATCHed as people join, the time moves, or it's cancelled/played — the
+channel stays a live board, not a stream of pings. Short new messages are
+still posted for things people must notice (time moved, cancelled,
+reminders). Webhooks have an audience: `all` (the group's server) or `open`
+(a wider server that only hears about open sessions). Mentions are always
+disabled and member text markdown-escaped. Interactive "Join" buttons would
+need a Discord bot + interactions endpoint — out of scope; the card links to
+the session page instead.
+
+## 2026-09-26 — Keen replaces budget voting and the picker; effort freezes
+
+The picker (five weighted factors) and anonymous budget voting were clever
+but answered a question the group rarely asks. "I'm keen" (public names) is
+the simple want-to-play signal and tells a host who to ping. The retired
+data is kept: votes stay stored and anonymous (never converted to keen —
+that would reveal ballots that were promised secret); effort points stay as
+frozen history behind a "legacy" burn-rate on /stats; retired
+`app_settings` columns remain with documentation. "A proposal needs a
+second" survives as: a non-proposer marking a suggestion keen promotes it.
+
+## 2026-09-26 — Wrap-up in ten seconds, and it can't rot
+
+Wrap-up is pre-filled (who said "in"), star taps, one line, optional "same
+time next week"; host, admins, or anyone who was in can do it. A nudge goes
+out 12h after the session ENDS (not starts). After 48h the cron closes it
+as played with "in" RSVPs presumed present (`auto_closed`, shown on the
+page), so history has no holes.
+
+## 2026-09-26 — Correcting an old assumption: Neon HTTP can do transactions
+
+Earlier entries and comments said "Neon HTTP has no transactions". It has
+no *interactive* transactions, but `db.batch([...])` runs as one
+transaction. Multi-table writes (game creation, session creation, wrap-up,
+auto-close) now use it, and the status transition is a single CTE
+statement, so a double-click can no longer write duplicate history.

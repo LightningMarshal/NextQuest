@@ -334,6 +334,42 @@ pitch had been quietly impossible to build.
   game page, any status — arguing about a proposal is the point. Author
   (or admin) delete only; no edits, the thread is a record
 
+## Phase 24 — Redesign: sessions first, a wider circle ✅ (done, 2026-09)
+
+Adoption was low: the app served formal planning; the group plays ad hoc
+and wants more people. Audit + rebuild on `claude/nextquest-redesign-audit-d8y1jk`
+(rationale: DECISIONS 2026-09-26; runbook: deployment/12-redesign-migration.md).
+
+- **Sessions are the product**: "This week" home, a composer that posts in
+  seconds (game, when-chip, open/members), a page per session that is the
+  Discord link target (before: when/what/who/join; after: who came, how it
+  went, next), host/admin edit + cancel, capped seats, live-session RSVPs
+- **Discord**: one rich card per session per webhook, edited in place;
+  multiple webhooks with audiences (group server vs open-only wider server);
+  reminders with who's in and a link; mentions always disabled
+- **The circle**: guest tier (open sessions only); member invite links;
+  Discord sign-in admitting members of configured servers; membership
+  applications reviewed on /admin; sign-in returns you to the page you
+  clicked
+- **Wrap-up in ten seconds**, a nudge after the session ends, and 48h
+  auto-close so history has no holes
+- **Library** stays rich; "I'm keen" replaces budget voting; cards lost
+  their hidden forms (HTML −55%); curation moved to the game page
+- **Retired (data kept)**: the picker, budget voting, effort editing and
+  recompute; effort is frozen history behind a legacy burn-rate on /stats
+- **Calendar**: per-session .ics and a personal, resettable feed per user
+- **Fixes from the audit**: completed-game effort editable by anyone
+  (burn-rate history rewrite), Discord @everyone injection, open image
+  proxy, UTC dates on the dashboard, grid hydration mismatch, duplicate
+  status history on double-submit, incomplete export, HLTB re-scraping per
+  keystroke, 3× session lookups per page, self-rename via Better Auth
+- **Engineering**: additive migrations 0020/0021 with a tested rollback;
+  local Neon-HTTP shim committed (`npm run db:shim`); db.batch for atomic
+  multi-table writes
+
+Superseded by this phase: Phases 3 (voting), 8 and 10 (the picker), and the
+effort-editing parts of 2 and 9 — their data remains, their UI is gone.
+
 ## Phase 22 (proposed) — Production confidence
 
 The app now has CI, tests, and error pages — but production is still a
@@ -365,15 +401,12 @@ backup is an admin remembering to click "Everything (JSON)".
 Nothing here is broken today at 13 games and 5 members; all of it starts
 to hurt at 100 games and year three.
 
-- Backlog text search: the filter row has tag/type/genre/mode/sort but no
-  free-text title search — fine now, not at 100 games
+- ~~Backlog text search~~ — shipped in Phase 24
 - Admin data hygiene: hard-delete for spam/typo proposals and a merge
   tool for duplicates (today the only exit is `rejected`, which keeps the
   row forever; merge must reconcile votes, tags, history, and events)
-- Local dev without a Neon account: commit the Neon-HTTP→Postgres shim
-  (`NEON_HTTP_PROXY_ENDPOINT` support already shipped in src/db/index.ts,
-  but the shim it points to lives in no repo) + a documented
-  Postgres-in-Docker path; pairs with `npm run seed`
+- ~~Local dev without a Neon account~~ — the shim shipped in Phase 24
+  (`npm run db:shim`); a Postgres-in-Docker doc is still open
 - PWA/installability: manifest + icons + a home-screen-worthy offline
   shell for the events page — promoted from future ideas now that the
   mobile nav works and the app gets used at the table
@@ -404,3 +437,6 @@ to hurt at 100 games and year three.
   webhook already exist; /review already assembles the content)
 - Notification opt-outs per member (would trigger the user_preferences
   table above)
+- A Discord bot (interactions endpoint) for one-tap "I'm in" buttons on the
+  session card — webhooks can't carry interactive components
+- Group chat / comments on a session page

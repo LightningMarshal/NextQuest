@@ -2,154 +2,179 @@
 
 ## Project overview
 
-**NextQuest** is a single-tenant web app for one gaming group: a shared game
-backlog (video games, TTRPGs, and board games) with point values, anonymous
-voting to prioritize what to play next, burn-rate tracking, and session
-scheduling with attendance. One deployment = one group; members sign in with
-Google and are approved by an admin.
+**NextQuest** helps one gaming group play more games with more people. Its
+centre is the **session**: "I'm playing Rust Tuesday night, hop in" — posted
+in a few taps, announced as one Discord card that updates itself as people
+join, joinable by the group's members *and* a wider circle of guests
+(friends-of-friends, Discord-server members), and closed out afterwards with
+a 10-second wrap-up so every past session shows who came and how it went.
 
-- Feature roadmap and current phase: `docs/ROADMAP.md`
-- Data model, data flow, and future GAC module design: `docs/ARCHITECTURE.md`
-- Why the points formula / voting mechanics work the way they do: `docs/DECISIONS.md`
-- End-to-end deploy walkthrough for non-developers: `docs/deployment/`
+Around it: a rich game **library** (genres, descriptions, time-to-beat,
+reception, "who's keen"), **find-a-time polls** for nights that need
+planning, and **stats**. One deployment = one group.
+
+- Design history and the 2026-09 redesign rationale: `docs/DECISIONS.md`
+- Data model and data flow: `docs/ARCHITECTURE.md`
+- Roadmap: `docs/ROADMAP.md`
+- Deploy walkthrough for non-developers: `docs/deployment/` (the redesign's
+  live-data migration runbook is `docs/deployment/12-redesign-migration.md`)
 
 ## Stack
 
-- **Next.js 16** (App Router, TypeScript, Turbopack) on **Cloudflare Workers**
-  via `@opennextjs/cloudflare` (NOT the deprecated `@cloudflare/next-on-pages`)
+- **Next.js 16** (App Router, TypeScript; production build uses webpack —
+  `next build --webpack`) on **Cloudflare Workers** via
+  `@opennextjs/cloudflare` (NOT the deprecated `@cloudflare/next-on-pages`)
 - **Neon Postgres** + **Drizzle ORM** using `@neondatabase/serverless`
-  (HTTP driver — required for Workers; no TCP, no pooler)
-- **Better Auth** (Google social sign-in), Drizzle adapter
+  (HTTP driver — required for Workers; no TCP, no pooler). The HTTP driver
+  DOES support atomic multi-statement writes via `db.batch([...])` (one
+  transaction); it does not support interactive transactions.
+- **Better Auth** (Google + optional Discord sign-in), Drizzle adapter
 - **Tailwind CSS v4** + shadcn/ui-style components + `next-themes`
-  (dark mode is the default; light mode supported)
-- **Recharts** for graphs (burn rate)
+  (dark default)
+- **Recharts** for the legacy burn-rate chart on /stats
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Next dev server (fast, but Node — not workerd) |
+| `npm run dev` | Next dev server (Node — not workerd) |
 | `npm run build` | Next production build |
-| `npm run lint` | ESLint (flat config, `eslint.config.mjs`) |
-| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` / `npm run typecheck` / `npm test` | ESLint / `tsc --noEmit` / Vitest |
 | `npm run preview` | OpenNext build + `wrangler dev` — run before shipping; catches workerd-only breakage |
-| `npm run deploy` | OpenNext build + deploy to Cloudflare |
+| `npm run deploy` | **Runs `db:migrate` against `.env`'s DATABASE_URL**, then builds + deploys |
+| `npm run seed [-- --reset]` | Demo group (members, a guest, open + members sessions, keen, polls) |
+| `npm run db:shim` | Local Neon-HTTP shim over plain Postgres (`scripts/neon-http-shim.mjs`) |
+| `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations |
 | `npm run cf-typegen` | Regenerate `cloudflare-env.d.ts` from `wrangler.jsonc` |
-| `npm run seed` | Seed a demo group into the DB (`--reset` wipes app data first; needs `DATABASE_URL` in `.env`) |
-| `npm run db:generate` | Generate SQL migration from schema changes |
-| `npm run db:migrate` | Apply migrations (needs `DATABASE_URL` in `.env`) |
-| `npm run db:studio` | Drizzle Studio against the DB |
+
+Local dev without Neon: run Postgres, `SHIM_TARGET=<pg url> npm run db:shim`,
+and set `NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`.
 
 ## Environment variables
 
-Two files, two runtimes — keep `DATABASE_URL` in sync between them:
-
-- **`.dev.vars`** (from `.dev.vars.example`) — Workers runtime for
-  `dev`/`preview`: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
-  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ADMIN_EMAILS` (first-admin
-  bootstrap: comma-separated emails that arrive approved + admin),
-  `DISCORD_WEBHOOK_URL` (optional — notifications no-op without it),
-  `CRON_SECRET` (optional — gates `/api/cron`; scheduled tasks no-op without it),
-  `BGG_API_TOKEN` (optional — BGG XML API2 bearer token for tabletop
-  search/metadata; without it tabletop proposals degrade to manual entry),
-  `RAWG_API_KEY` (optional — supplements Steam video metadata; no-op without it)
-- **`.env`** (from `.env.example`) — Node-side tooling only (drizzle-kit):
-  `DATABASE_URL`
+- **`.dev.vars`** (from `.dev.vars.example`) — Workers runtime:
+  `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (also the base for
+  links in Discord and calendar feeds), `GOOGLE_CLIENT_ID`/`SECRET`,
+  `ADMIN_EMAILS` (first-admin bootstrap), optional `DISCORD_CLIENT_ID`/
+  `DISCORD_CLIENT_SECRET` (Discord sign-in) + `DISCORD_GUILD_IDS`
+  (comma-separated servers whose members come in as guests), optional
+  `DISCORD_WEBHOOK_URL` (legacy single webhook; more are added on /admin),
+  `CRON_SECRET`, `BGG_API_TOKEN`, `RAWG_API_KEY`.
+- **`.env`** — Node tooling only (drizzle-kit, seed): `DATABASE_URL`.
 
 Production secrets: `wrangler secret put <NAME>`. Never commit either file.
+
+## Access model (read this before touching any route or action)
+
+| Tier | Who | Sees / does |
+| --- | --- | --- |
+| admin | approved, role admin | everything + /admin |
+| member | approved, role member | sessions (all), post/host, library, polls, stats, invites |
+| guest ("the circle") | approved, role guest | **open** sessions only: see, RSVP, calendar; apply for membership |
+| pending / rejected | signed in, not approved | /apply only (pending may redeem an invite) |
+
+How people get in: invite links (members mint them on /invites; token
+stored hashed; redemption admits a PENDING account as a guest), Discord
+sign-in by a member of a `DISCORD_GUILD_IDS` server (→ guest), or a
+membership application reviewed by an admin (→ member). `ADMIN_EMAILS`
+arrive as admins.
+
+Gates live in `src/server/session.ts` — there is no middleware/proxy:
+- `(app)` route group = members only; its layout calls `requireMember()`.
+- `(circle)` route group = guest-visible (/, /sessions, /s/[id]). Its layout
+  **does not redirect** (a layout can't know the URL, and Discord deep links
+  must survive sign-in), so **every page in `(circle)` must call
+  `requireCircleUser("<its path>")` itself** — `src/app/(circle)/gates.test.ts`
+  fails CI otherwise. `(circle)` has no `loading.tsx` on purpose: a loading
+  boundary streams before the page's gate runs and turns 307/404 into soft
+  client-side redirects.
+- Every server action re-checks its gate, and session actions also check
+  visibility (`canSeeSession`), host-or-admin (`canManageSession`), and
+  phase (`src/lib/sessions.ts`). Guests only ever receive open sessions —
+  the filter lives in the queries (`src/server/sessions-read.ts`), not the
+  pages.
+- A read helper must NOT live in a `"use server"` file (that makes it a
+  public POST endpoint): use `*-read.ts` server-only modules.
 
 ## Architecture map
 
 ```
 src/
 ├── app/
-│   ├── (app)/           # members-only: / (dashboard), /backlog, /pick,
-│   │   │                #   /events, /admin (/vote redirects to /pick) —
-│   │   └── layout.tsx   #   layout calls requireApprovedUser and is
-│   │                    #   force-dynamic (session + DB per request)
-│   ├── (auth)/          # public: sign-in, pending-approval
-│   └── api/auth/[...all]/  # Better Auth handler
-├── components/
-│   ├── ui/              # shadcn/ui-style primitives (hand-vendored, see note)
-│   └── *.tsx            # theme-provider, theme-toggle, site-nav (user menu)
-├── db/
-│   ├── index.ts         # getDb() — per-request Neon HTTP + Drizzle client
-│   └── schema/          # domain-split: auth, games, tabletop, votes, events,
-│                        #   settings, availability (GAC), tags
-├── lib/
-│   ├── auth.ts          # getAuth() — per-request Better Auth instance
-│   ├── auth-client.ts   # Better Auth React client
-│   ├── points.ts        # pure effort-formula functions (UI: "effort") +
-│   │                    #   tabletop hour-equivalents (TTRPG_BAND_HOURS)
-│   ├── pick.ts          # pure picker-scoring functions (read-time, never stored)
-│   ├── burn-rate.ts     # pure burn-rate bucketing (week/month/year) + projection
-│   └── metadata/        # pluggable providers (steam, hltb, bgg, rawg, manual)
-└── server/              # server actions + helpers per domain
-    ├── session.ts       # getSessionUser / requireApprovedUser / requireAdmin
-    ├── members.ts       # admin member management
-    ├── pick.ts          # /pick data assembly (read helper, like dashboard.ts)
-    ├── metadata-search.ts | metadata-write.ts  # propose typeahead / shared merge
-    ├── cron/            # metadata-refresh, event-reminders (via /api/cron)
-    └── games|votes|events|tags.ts
+│   ├── (circle)/        # guest-visible, self-gating pages: / (This week),
+│   │                    #   /sessions, /s/[id]
+│   ├── (app)/           # members: /sessions/new, /s/[id]/edit, /sessions/plan
+│   │                    #   (polls), /backlog (Library) + /backlog/[id],
+│   │                    #   /stats, /review, /members/[id], /invites, /admin;
+│   │                    #   /events, /pick, /vote are redirects
+│   ├── (auth)/          # public: /sign-in (?next=), /apply, /invite/[token]
+│   └── api/             # auth, cron (secret), calendar (token),
+│                        #   sessions/[id]/ics (session), export (admin)
+├── components/          # app-shell, site-nav, sessions/*, ui/* (vendored shadcn)
+├── db/schema/           # auth, events, circle (invites, applications,
+│                        #   discord_webhooks), interest (keen), games, …
+├── lib/                 # pure + tested: sessions, discord-embed, when-label,
+│                        #   safe-redirect, ids, ical, points (frozen), metadata/*
+└── server/              # actions ("use server") + *-read.ts helpers
+    ├── session.ts       # the gates
+    ├── sessions.ts | sessions-read.ts   # the heart of the app
+    ├── discord.ts       # multi-webhook delivery, edit-in-place announcements
+    ├── circle.ts        # invites + applications
+    ├── game-status.ts   # the ONLY games.status writer (atomic CTE + history)
+    └── cron/            # reminders, wrap-up nudge, auto-close, metadata refresh
 ```
-
-**Auth gating:** there is no middleware/proxy file. Protection is server-side:
-the `(app)` layout gates pages, and every server action re-checks via
-`requireApprovedUser()`/`requireAdmin()` (`src/server/session.ts`). New
-protected routes go inside `(app)`; new actions must call a gate first.
-
-**Cron:** the worker entry is `custom-worker.ts` (NOT `.open-next/worker.js`
-directly) — it adds a `scheduled` handler that self-fetches
-`/api/cron?task=<name>` with the `CRON_SECRET` header via the
-`WORKER_SELF_REFERENCE` binding, so task code runs in a normal request
-context. New scheduled tasks: register in `src/app/api/cron/route.ts` and map
-a cron expression in `custom-worker.ts` + `wrangler.jsonc` `triggers.crons`.
 
 ## Conventions & invariants
 
-1. **Vote anonymity** — `votes.user_id` exists only for dedup/upsert. No
-   query, API response, or UI may expose another member's votes; tallies are
-   `{gameId, SUM(weight)}` aggregates only. The single exception is loading
-   the requesting user's own ballot.
-2. **Points are stored, not derived at read time.** Recompute only on
-   explicit edit of length/difficulty/override, or via the admin-only
-   recompute action (proposed/backlog games only) — both through
-   `src/lib/points.ts`. Playing/completed/abandoned points never change,
-   keeping historical burn-rate stable when the formula is tuned. The UI
-   calls this value **effort**; DB columns keep the `points` names.
-   Deliberate mirror image: **pick scores (`src/lib/pick.ts`) are computed
-   at read time and never stored** — do not persist them.
-   Tabletop footnote: for `ttrpg`/`boardgame` rows, `difficulty` means
-   **crunch** and `length_hours` is a derived hour-equivalent (TTRPG length
-   band / board-game playtime ÷ 60) — edit length via band/minutes through
-   `updateGameScoring`, never write raw hours, and never display them.
-3. **All game status changes go through `transitionGameStatus`**
-   (`src/server/games.ts`), which appends to `game_status_history`. Never
-   update `games.status` directly — history powers burn rate.
-4. **Schema changes:** edit `src/db/schema/*`, `npm run db:generate`, commit
-   the migration, `npm run db:migrate`. Never hand-edit generated migrations.
-   If the Better Auth config changes (plugins, additionalFields), reconcile
-   `src/db/schema/auth.ts` with `npx @better-auth/cli generate` output.
-5. **HLTB is fragile.** HowLongToBeat has no official API; the provider WILL
-   break occasionally. Metadata fetch failures must degrade to manual entry
-   (`src/lib/metadata/index.ts` catches per provider) — never block a
-   proposal or game on a fetch.
-6. **Env access on Workers:** use `getCloudflareContext().env` (see
-   `src/db/index.ts`, `src/lib/auth.ts`), not bare `process.env`, in runtime
-   code. Bindings are request-scoped — build DB/auth clients per request,
-   never at module top level.
-7. Path alias `@/*` → `src/*`. Indentation is tabs (create-next-app default
-   here) — match it.
+1. **Visibility is enforced at the data layer.** Any new query that returns
+   sessions to a page must apply the guest filter (`canSeeSession` /
+   `visibilityFilter` in `sessions-read.ts`). Any new action touching a
+   session must check visibility for guests.
+2. **Discord text is member-typed input.** Always send
+   `allowed_mentions: { parse: [] }` and escape markdown (`md()` /
+   `escapeMarkdown`) — `src/server/discord.ts` does this for you; don't POST
+   to webhooks directly. Session announcements are edited in place via
+   `syncSessionAnnouncement(eventId)`; call it after any change a reader
+   would care about.
+3. **All game status changes go through `applyStatusTransition`**
+   (`src/server/game-status.ts`), which updates and appends
+   `game_status_history` in one statement. Never update `games.status`
+   directly — history powers burn-rate and the activity feed.
+4. **Effort points are frozen history.** Since the 2026-09 redesign nothing
+   writes `games.points`/`points_override` and the picker/voting UIs are
+   gone; the columns, `votes`, and the retired `app_settings` columns are
+   retained (non-destructive policy). Votes were promised anonymous — never
+   expose per-member vote rows, and never convert them into public "keen".
+5. **Pick-free, keen-public.** "Keen" (`game_interest`) is public within the
+   group; a non-proposer marking a suggested game keen promotes it to
+   want-to-play (the old "a proposal needs a second" rule).
+6. **Schema changes:** edit `src/db/schema/*`, `npm run db:generate`, commit
+   the migration. Migrations must be additive/reversible — write and test a
+   rollback in `drizzle-rollback/` for anything non-trivial. Editing a
+   generated migration is allowed only before it has run anywhere real, with
+   a comment explaining why (see 0020's `IF NOT EXISTS`).
+7. **HLTB is fragile.** Metadata failures must degrade to manual entry
+   (`src/lib/metadata/index.ts`); never block a game or session on a fetch.
+8. **Env access on Workers:** `getCloudflareContext().env`, never bare
+   `process.env`, in runtime code. Build DB/auth clients per request.
+   `getSessionUser`/`getAppSettings` are React-`cache()`d per request — use
+   them rather than re-querying.
+9. **Times:** store instants; convert datetime-local in the browser; render
+   with `LocalTime` / `SessionWhen` (hydration-safe `useSyncExternalStore`
+   with a primitive snapshot — returning a fresh object is the infinite
+   render loop that once crashed the events page). Never `format()` a date
+   server-side for display: Workers run in UTC.
+10. Path alias `@/*` → `src/*`. Tabs. Match the surrounding comment density.
 
 ## Gotchas
 
-- `next lint` was removed in Next 16 — `npm run lint` calls `eslint .`
-  directly with the flat config.
-- The shadcn registry (ui.shadcn.com) may be unreachable from sandboxed
-  environments; `src/components/ui/*` was hand-vendored to match shadcn
-  output. `components.json` is configured, so `npx shadcn add <component>`
-  works when the network allows; otherwise vendor by hand in the same style.
+- `wrangler.jsonc` must keep `nodejs_compat` and `"keep_names": false` —
+  esbuild's `__name` helper breaks next-themes' inline anti-flash script
+  ("__name is not defined" on every page).
+- `next lint` is gone in Next 16 — `npm run lint` runs `eslint .`.
+- next/image optimizes only provider art hosts (`src/lib/images.ts`, shared
+  with `next.config.ts`); use `<GameArt>` so pasted URLs render unoptimized
+  instead of turning `/_next/image` into an open proxy.
 - Recharts components need `"use client"`.
-- `npm run dev` runs under Node and will happily use APIs that explode under
-  workerd — always verify with `npm run preview` before deploying.
-- `wrangler.jsonc` must keep `nodejs_compat` in `compatibility_flags`.
+- The shadcn registry may be unreachable in sandboxes; `src/components/ui/*`
+  is hand-vendored.

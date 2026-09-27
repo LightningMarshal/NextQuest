@@ -22,11 +22,23 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
 # Comma-separated emails that become approved admins on first sign-in
-# (first-admin bootstrap — everyone else lands in the approval queue)
+# (first-admin bootstrap — everyone else applies, or uses an invite link)
 ADMIN_EMAILS=
 
-# Optional: Discord webhook for group notifications (new proposals,
-# completions, scheduled sessions). Leave empty to disable.
+# Optional: Discord sign-in (https://discord.com/developers/applications →
+# OAuth2; redirect URL <BETTER_AUTH_URL>/api/auth/callback/discord). Leave
+# empty to offer Google only.
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+# Optional: comma-separated Discord server (guild) ids. Anyone who signs in
+# with Discord and is a member of one of these servers comes straight in as
+# a GUEST (open sessions only). Right-click the server → Copy Server ID
+# (Developer Mode on).
+DISCORD_GUILD_IDS=
+
+# Optional: a Discord webhook for the group's own server (sessions + game
+# news). More webhooks — e.g. an "open sessions only" one for a wider server —
+# are added on the /admin page. Leave empty if you only use /admin.
 DISCORD_WEBHOOK_URL=
 
 # Shared secret gating /api/cron (called by the worker's scheduled handler,

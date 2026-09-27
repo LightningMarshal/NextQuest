@@ -35,6 +35,7 @@ earlier ones.
 | [09 — After you deploy](09-after-you-deploy.md) | Verify everything works, invite your friends, check the scheduled jobs. |
 | [10 — Updating the app](10-updating-the-app.md) | What to do when the code changes later. |
 | [11 — Troubleshooting](11-troubleshooting.md) | Every common failure: what you see, why it happened, how to fix it. |
+| [12 — Upgrading to the 2026-09 redesign](12-redesign-migration.md) | For groups already running NextQuest: rehearse on a Neon branch, migrate without data loss, roll back if needed. |
 
 ## Accounts you will create (and why)
 
