@@ -12,7 +12,7 @@ const font = (name, file, weights) =>
 	`@font-face { font-family: '${name}'; src: url(data:font/woff2;base64,${read(file).toString("base64")}) format('woff2'); font-weight: ${weights}; font-display: block; }`;
 html = html.replace(
 	/<!--FONTS-->[\s\S]*?<!--\/FONTS-->/,
-	`<style>\n${font("Shantell Sans", "assets/ShantellSans.woff2", "300 800")}\n${font("Caveat", "assets/Caveat.woff2", "400 700")}\n</style>\n<style>`,
+	`<style>\n${font("Shantell Sans", "assets/ShantellSans.woff2", "300 800")}\n${font("Caveat", "assets/Caveat.woff2", "400 700")}\n</style>`,
 );
 
 const scripts = ["engine", "draw", "scenes", "audio", "main"].map((n) => read(`src/${n}.js`).toString());

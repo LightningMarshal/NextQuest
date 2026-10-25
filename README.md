@@ -8,11 +8,11 @@ One deployment serves one group — members sign in with Google and are let
 in by an admin.
 
 <p align="center">
-  <a href="promo/animation/dist/nextquest-promo.mp4">
-    <img src="promo/animation/dist/poster.jpg" alt="NextQuest — a 47-second hand-drawn animated tour. Click to watch." width="720">
+  <a href="promo/videos/nextquest-reel-1080p60.mp4">
+    <img src="promo/reel/dist/nextquest-reel-preview.webp" alt="NextQuest in 15 seconds: propose a game, vote in secret, let the picker decide, schedule it and watch the backlog shrink." width="820">
   </a>
   <br>
-  <sub>▶ <a href="promo/animation/dist/nextquest-promo.mp4">Watch the 47-second tour</a> (MP4, sound on) · made in plain JavaScript — see <a href="promo/animation/">promo/animation</a></sub>
+  <sub>▶ <a href="promo/videos/nextquest-reel-1080p60.mp4"><b>Watch the 15-second reel with sound</b></a> (1080p60 MP4) · or the <a href="promo/videos/nextquest-tour-handdrawn-1080p.mp4">47-second hand-drawn tour</a> · both made in code, see <a href="promo/">promo/</a></sub>
 </p>
 
 ## Feature tour

@@ -1,6 +1,6 @@
 // Export the animation to MP4 by stepping the built page frame-by-frame.
 // Needs: playwright (+ a Chromium), ffmpeg with libx264.
-// Usage: FFMPEG=/path/to/ffmpeg CHROMIUM=/path/to/chrome node render.mjs [out.mp4] [fps]
+// Usage: FFMPEG=/path/to/ffmpeg CHROMIUM=/path/to/chrome [CRF=17] [ABR=256k] node render.mjs [out.mp4] [fps]
 import { chromium } from "playwright";
 import { spawn } from "child_process";
 import fs from "fs";
@@ -30,8 +30,8 @@ const ff = spawn(ffmpeg, [
 	"-y", "-loglevel", "error",
 	"-f", "image2pipe", "-framerate", String(fps), "-c:v", "png", "-i", "-",
 	"-i", wavPath,
-	"-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-tune", "animation",
-	"-c:a", "aac", "-b:a", "256k",
+	"-c:v", "libx264", "-preset", "slow", "-crf", process.env.CRF ?? "17", "-pix_fmt", "yuv420p", "-tune", "animation",
+	"-c:a", "aac", "-b:a", process.env.ABR ?? "256k", "-ar", "48000",
 	"-movflags", "+faststart", "-shortest", out,
 ], { stdio: ["pipe", "inherit", "inherit"] });
 
