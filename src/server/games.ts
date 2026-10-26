@@ -1,36 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
-import { notifyDiscord } from "@/lib/discord";
+import type { GameMode } from "@/lib/game-modes";
 import { fetchGameMetadata } from "@/lib/metadata";
 import { parseBggExternalId } from "@/lib/metadata/bgg";
 import { deriveGameModes } from "@/lib/metadata/steam";
-import type { GameMode } from "@/lib/pick";
-import {
-	computePoints,
-	tabletopLengthHours,
-	type Difficulty,
-	type TtrpgLengthBand,
-} from "@/lib/points";
+import { tabletopLengthHours, type Difficulty, type TtrpgLengthBand } from "@/lib/points";
+import { notifyDiscord } from "@/server/discord";
+import { applyStatusTransition, type GameStatus } from "@/server/game-status";
 import { buildMetadataUpdates } from "@/server/metadata-write";
-import { requireAdmin, requireApprovedUser } from "@/server/session";
-import { getAppSettings } from "@/server/settings";
-
-type GameStatus = (typeof schema.gameStatus.enumValues)[number];
-
-// The full lifecycle. Anything not listed here is an illegal transition.
-const ALLOWED_TRANSITIONS: Record<GameStatus, GameStatus[]> = {
-	proposed: ["backlog", "rejected"],
-	backlog: ["playing", "abandoned"],
-	playing: ["completed", "backlog", "abandoned"],
-	completed: [],
-	abandoned: ["backlog"],
-	rejected: ["proposed"],
-};
+import { requireAdmin, requireMember } from "@/server/session";
 
 const proposeSchema = z.object({
 	title: z.string().trim().min(1, "Title is required").max(200),
@@ -58,7 +41,7 @@ function parseSteamAppId(input?: string): number | undefined {
 }
 
 export async function proposeGame(formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const input = proposeSchema.parse({
 		title: formData.get("title"),
 		steam: formData.get("steam") || undefined,
@@ -94,49 +77,50 @@ export async function proposeGame(formData: FormData): Promise<void> {
 
 	const lengthHours = metadata.hltbMainExtra ?? metadata.hltbMain;
 
-	const [game] = await db
-		.insert(schema.games)
-		.values({
+	// One atomic batch (Neon HTTP runs db.batch as a single transaction): a
+	// game never exists without its metadata row and first history entry.
+	const game = { id: crypto.randomUUID() };
+	await db.batch([
+		db.insert(schema.games).values({
+			id: game.id,
 			title: metadata.title ?? input.title,
 			status: "proposed",
 			proposedBy: user.id,
 			pitch: input.pitch,
 			steamAppId,
 			lengthHours: lengthHours !== undefined ? String(lengthHours) : undefined,
-		})
-		.returning({ id: schema.games.id });
-
-	await db.insert(schema.gameMetadata).values({
-		gameId: game.id,
-		source:
-			sources.length === 0
-				? "manual"
-				: sources.length > 1
-					? "mixed"
-					: (sources[0] as (typeof schema.metadataSource.enumValues)[number]),
-		coverUrl: metadata.coverUrl,
-		headerUrl: metadata.headerUrl,
-		description: metadata.description,
-		genres: metadata.genres,
-		gameModes: metadata.gameModes as GameMode[] | undefined,
-		releaseDate: metadata.releaseDate,
-		steamReviewScore: metadata.steamReviewScore,
-		steamReviewCount: metadata.steamReviewCount,
-		metacriticScore: metadata.metacriticScore,
-		hltbMain: metadata.hltbMain !== undefined ? String(metadata.hltbMain) : undefined,
-		hltbMainExtra: metadata.hltbMainExtra !== undefined ? String(metadata.hltbMainExtra) : undefined,
-		hltbCompletionist:
-			metadata.hltbCompletionist !== undefined ? String(metadata.hltbCompletionist) : undefined,
-		raw: metadata.raw,
-		fetchedAt: sources.length > 0 ? new Date() : undefined,
-	});
-
-	await db.insert(schema.gameStatusHistory).values({
-		gameId: game.id,
-		fromStatus: null,
-		toStatus: "proposed",
-		changedBy: user.id,
-	});
+		}),
+		db.insert(schema.gameMetadata).values({
+			gameId: game.id,
+			source:
+				sources.length === 0
+					? "manual"
+					: sources.length > 1
+						? "mixed"
+						: (sources[0] as (typeof schema.metadataSource.enumValues)[number]),
+			coverUrl: metadata.coverUrl,
+			headerUrl: metadata.headerUrl,
+			description: metadata.description,
+			genres: metadata.genres,
+			gameModes: metadata.gameModes as GameMode[] | undefined,
+			releaseDate: metadata.releaseDate,
+			steamReviewScore: metadata.steamReviewScore,
+			steamReviewCount: metadata.steamReviewCount,
+			metacriticScore: metadata.metacriticScore,
+			hltbMain: metadata.hltbMain !== undefined ? String(metadata.hltbMain) : undefined,
+			hltbMainExtra: metadata.hltbMainExtra !== undefined ? String(metadata.hltbMainExtra) : undefined,
+			hltbCompletionist:
+				metadata.hltbCompletionist !== undefined ? String(metadata.hltbCompletionist) : undefined,
+			raw: metadata.raw,
+			fetchedAt: sources.length > 0 ? new Date() : undefined,
+		}),
+		db.insert(schema.gameStatusHistory).values({
+			gameId: game.id,
+			fromStatus: null,
+			toStatus: "proposed",
+			changedBy: user.id,
+		}),
+	]);
 
 	notifyDiscord(
 		`🎮 ${user.name} proposed **${metadata.title ?? input.title}**${input.pitch ? ` — “${input.pitch}”` : ""}`
@@ -195,7 +179,7 @@ const tabletopProposeSchema = z
  * rides the difficulty column so computePoints applies unchanged.
  */
 export async function proposeTabletopGame(formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const input = tabletopProposeSchema.parse({
 		gameType: formData.get("gameType"),
 		title: formData.get("title"),
@@ -252,18 +236,15 @@ export async function proposeTabletopGame(formData: FormData): Promise<void> {
 		playtimeMinutes,
 	});
 
-	let points: number | undefined;
-	if (lengthHours && crunch) {
-		const settings = await getAppSettings();
-		points = computePoints(lengthHours, crunch as Difficulty, settings.difficultyMultipliers, {
-			weight: settings.qualityWeight,
-			signals: { bggRating: meta?.bggRating },
-		});
-	}
+	// Effort points are frozen history since the 2026-09 redesign: new games
+	// keep their length/crunch for display but earn no stored points.
 
-	const [game] = await db
-		.insert(schema.games)
-		.values({
+	const game = { id: crypto.randomUUID() };
+	const bggFetched = (fetched?.sources.length ?? 0) > 0;
+	// Atomic: game + tabletop sidecar + metadata + first history row.
+	await db.batch([
+		db.insert(schema.games).values({
+			id: game.id,
 			title: meta?.title ?? input.title,
 			gameType: input.gameType,
 			status: "proposed",
@@ -271,42 +252,37 @@ export async function proposeTabletopGame(formData: FormData): Promise<void> {
 			pitch: input.pitch,
 			lengthHours: lengthHours !== undefined ? String(lengthHours) : undefined,
 			difficulty: crunch,
-			points,
-		})
-		.returning({ id: schema.games.id });
-
-	await db.insert(schema.tabletopDetails).values({
-		gameId: game.id,
-		bggId: bggNumericId,
-		system,
-		format: input.format,
-		platform: input.platform,
-		gmUserId: input.gameType === "ttrpg" && input.gmMe ? user.id : undefined,
-		minPlayers,
-		maxPlayers,
-		lengthBand: input.lengthBand,
-		playtimeMinutes,
-	});
-
-	const bggFetched = (fetched?.sources.length ?? 0) > 0;
-	await db.insert(schema.gameMetadata).values({
-		gameId: game.id,
-		source: bggFetched ? "bgg" : "manual",
-		coverUrl: input.coverUrl ?? meta?.coverUrl,
-		description: meta?.description,
-		genres: meta?.genres,
-		bggRating: meta?.bggRating,
-		bggWeight: meta?.bggWeight !== undefined ? String(meta.bggWeight) : undefined,
-		raw: meta?.raw,
-		fetchedAt: bggFetched ? new Date() : undefined,
-	});
-
-	await db.insert(schema.gameStatusHistory).values({
-		gameId: game.id,
-		fromStatus: null,
-		toStatus: "proposed",
-		changedBy: user.id,
-	});
+		}),
+		db.insert(schema.tabletopDetails).values({
+			gameId: game.id,
+			bggId: bggNumericId,
+			system,
+			format: input.format,
+			platform: input.platform,
+			gmUserId: input.gameType === "ttrpg" && input.gmMe ? user.id : undefined,
+			minPlayers,
+			maxPlayers,
+			lengthBand: input.lengthBand,
+			playtimeMinutes,
+		}),
+		db.insert(schema.gameMetadata).values({
+			gameId: game.id,
+			source: bggFetched ? "bgg" : "manual",
+			coverUrl: input.coverUrl ?? meta?.coverUrl,
+			description: meta?.description,
+			genres: meta?.genres,
+			bggRating: meta?.bggRating,
+			bggWeight: meta?.bggWeight !== undefined ? String(meta.bggWeight) : undefined,
+			raw: meta?.raw,
+			fetchedAt: bggFetched ? new Date() : undefined,
+		}),
+		db.insert(schema.gameStatusHistory).values({
+			gameId: game.id,
+			fromStatus: null,
+			toStatus: "proposed",
+			changedBy: user.id,
+		}),
+	]);
 
 	const flavor =
 		input.gameType === "ttrpg"
@@ -318,155 +294,38 @@ export async function proposeTabletopGame(formData: FormData): Promise<void> {
 	revalidatePath("/backlog");
 }
 
-// The ONLY way to change a game's status (CLAUDE.md #3): validates the
-// transition, maintains started/completed timestamps, appends history, and
-// clears votes when a game leaves the backlog (frees vote budget).
+/**
+ * The public status action (CLAUDE.md #3 — the core lives in
+ * game-status.ts, which appends history atomically). One rule on top: a
+ * proposal needs a second — the proposer can't add their own game to the
+ * backlog (a second member marking it keen promotes it automatically).
+ */
 export async function transitionGameStatus(gameId: string, toStatus: GameStatus): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 
-	const [game] = await db
-		.select({
-			id: schema.games.id,
-			status: schema.games.status,
-			title: schema.games.title,
-			proposedBy: schema.games.proposedBy,
-		})
-		.from(schema.games)
-		.where(eq(schema.games.id, gameId));
-	if (!game) throw new Error("Game not found.");
-
-	if (!ALLOWED_TRANSITIONS[game.status].includes(toStatus)) {
-		throw new Error(`Can't move a ${game.status} game to ${toStatus}.`);
+	if (toStatus === "backlog") {
+		const [game] = await db
+			.select({ status: schema.games.status, proposedBy: schema.games.proposedBy })
+			.from(schema.games)
+			.where(eq(schema.games.id, gameId));
+		if (game?.status === "proposed" && game.proposedBy === user.id) {
+			throw new Error("Someone else has to add your proposal to the backlog.");
+		}
 	}
 
-	// A proposal needs a second: the proposer can't add their own game to the
-	// backlog. Every other transition stays open to any member.
-	if (game.status === "proposed" && toStatus === "backlog" && game.proposedBy === user.id) {
-		throw new Error("Someone else has to add your proposal to the backlog.");
-	}
-
-	await db
-		.update(schema.games)
-		.set({
-			status: toStatus,
-			...(toStatus === "playing" ? { startedAt: new Date() } : {}),
-			...(toStatus === "completed" ? { completedAt: new Date() } : {}),
-			updatedAt: new Date(),
-		})
-		// Guard against a concurrent transition having already moved it.
-		.where(and(eq(schema.games.id, gameId), eq(schema.games.status, game.status)));
-
-	await db.insert(schema.gameStatusHistory).values({
-		gameId,
-		fromStatus: game.status,
-		toStatus,
-		changedBy: user.id,
-	});
-
-	if (game.status === "backlog") {
-		await db.delete(schema.votes).where(eq(schema.votes.gameId, gameId));
-	}
+	const result = await applyStatusTransition(db, gameId, toStatus, user.id);
+	if (!result.ok) throw new Error(result.reason);
 
 	if (toStatus === "completed") {
-		// Phase 21: point at the rating prompt while the win is fresh.
-		notifyDiscord(`🏆 The group finished **${game.title}**! Rate it on the game page.`);
+		notifyDiscord(`🏆 The group finished **${result.title}**! Rate it on the game page.`);
 	} else if (toStatus === "playing") {
-		notifyDiscord(`▶️ Now playing: **${game.title}**`);
+		notifyDiscord(`▶️ Now playing: **${result.title}**`);
 	}
 
 	revalidatePath("/backlog");
-	revalidatePath("/pick");
+	revalidatePath(`/backlog/${gameId}`);
 	revalidatePath("/");
-}
-
-const scoringSchema = z.object({
-	lengthHours: z.coerce.number().positive().max(9999).optional(),
-	// Tabletop length inputs — the UI shows band/minutes, never raw hours.
-	lengthBand: z.enum(["one_shot", "arc", "mini_campaign", "campaign"]).optional(),
-	playtimeMinutes: z.coerce.number().int().positive().max(1440).optional(),
-	// "Crunch" in the tabletop UI; same column, same multipliers.
-	difficulty: z.coerce.number().int().min(1).max(5).optional(),
-	pointsOverride: z.coerce.number().int().min(0).max(999).optional(),
-});
-
-// Recomputes stored points whenever the inputs change (CLAUDE.md #2);
-// an explicit override always wins, and clearing it falls back to the formula.
-export async function updateGameScoring(gameId: string, formData: FormData): Promise<void> {
-	await requireApprovedUser();
-	const input = scoringSchema.parse({
-		lengthHours: formData.get("lengthHours") || undefined,
-		lengthBand: formData.get("lengthBand") || undefined,
-		playtimeMinutes: formData.get("playtimeMinutes") || undefined,
-		difficulty: formData.get("difficulty") || undefined,
-		pointsOverride: formData.get("pointsOverride") || undefined,
-	});
-
-	const db = getDb();
-	const [game] = await db
-		.select({
-			gameType: schema.games.gameType,
-			lengthHours: schema.games.lengthHours,
-			difficulty: schema.games.difficulty,
-			steamReviewScore: schema.gameMetadata.steamReviewScore,
-			metacriticScore: schema.gameMetadata.metacriticScore,
-			bggRating: schema.gameMetadata.bggRating,
-			lengthBand: schema.tabletopDetails.lengthBand,
-			playtimeMinutes: schema.tabletopDetails.playtimeMinutes,
-		})
-		.from(schema.games)
-		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
-		.leftJoin(schema.tabletopDetails, eq(schema.games.id, schema.tabletopDetails.gameId))
-		.where(eq(schema.games.id, gameId));
-	if (!game) throw new Error("Game not found.");
-
-	// Tabletop games edit length via band/minutes; the server derives the
-	// hour-equivalent so raw hours never round-trip through the UI.
-	let lengthHours: number | undefined;
-	if (game.gameType === "video") {
-		lengthHours = input.lengthHours ?? (game.lengthHours ? Number(game.lengthHours) : undefined);
-	} else {
-		const lengthBand = (input.lengthBand ?? game.lengthBand ?? undefined) as
-			| TtrpgLengthBand
-			| undefined;
-		const playtimeMinutes = input.playtimeMinutes ?? game.playtimeMinutes ?? undefined;
-		lengthHours = tabletopLengthHours({ gameType: game.gameType, lengthBand, playtimeMinutes });
-		await db
-			.update(schema.tabletopDetails)
-			.set({
-				...(game.gameType === "ttrpg" && lengthBand ? { lengthBand } : {}),
-				...(game.gameType === "boardgame" && playtimeMinutes ? { playtimeMinutes } : {}),
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.tabletopDetails.gameId, gameId));
-	}
-	const difficulty = (input.difficulty ?? game.difficulty ?? undefined) as Difficulty | undefined;
-
-	let points: number | undefined;
-	if (lengthHours && difficulty) {
-		const settings = await getAppSettings();
-		points = computePoints(lengthHours, difficulty, settings.difficultyMultipliers, {
-			weight: settings.qualityWeight,
-			signals: {
-				steamReviewScore: game.steamReviewScore,
-				metacriticScore: game.metacriticScore,
-				bggRating: game.bggRating,
-			},
-		});
-	}
-
-	await db
-		.update(schema.games)
-		.set({
-			lengthHours: lengthHours !== undefined ? String(lengthHours) : null,
-			difficulty: difficulty ?? null,
-			points: points ?? null,
-			pointsOverride: input.pointsOverride ?? null,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.games.id, gameId));
-
-	revalidatePath("/backlog");
 }
 
 // A valid https:// image URL, or "" to clear the field back to null.
@@ -486,7 +345,7 @@ const artworkSchema = z.object({
 // proposed (issue #14). updateGameScoring only writes the games table, so image
 // URLs — which live on game_metadata — had no editor before. Empty input clears.
 export async function updateGameArtwork(gameId: string, formData: FormData): Promise<void> {
-	await requireApprovedUser();
+	await requireMember();
 	const input = artworkSchema.parse({
 		coverUrl: formData.get("coverUrl") ?? undefined,
 		headerUrl: formData.get("headerUrl") ?? undefined,
@@ -511,60 +370,8 @@ export async function updateGameArtwork(gameId: string, formData: FormData): Pro
 			set: { coverUrl, headerUrl },
 		});
 
-	// The vote page and dashboard also render cover art.
 	revalidatePath("/backlog");
-	revalidatePath("/vote");
-	revalidatePath("/");
-}
-
-/**
- * Admin-only bulk refresh after tuning the formula settings: re-runs
- * computePoints for proposed and backlog games only. Playing, completed,
- * abandoned, and rejected games are never touched (CLAUDE.md #2 — burn-rate
- * history stays stable), and pointsOverride is left alone (it wins over
- * points everywhere it's read).
- */
-export async function recomputeUnplayedPoints(): Promise<void> {
-	await requireAdmin();
-	const settings = await getAppSettings();
-	const db = getDb();
-
-	const rows = await db
-		.select({
-			gameId: schema.games.id,
-			lengthHours: schema.games.lengthHours,
-			difficulty: schema.games.difficulty,
-			steamReviewScore: schema.gameMetadata.steamReviewScore,
-			metacriticScore: schema.gameMetadata.metacriticScore,
-			bggRating: schema.gameMetadata.bggRating,
-		})
-		.from(schema.games)
-		.leftJoin(schema.gameMetadata, eq(schema.games.id, schema.gameMetadata.gameId))
-		.where(inArray(schema.games.status, ["proposed", "backlog"]));
-
-	for (const row of rows) {
-		if (!row.lengthHours || !row.difficulty) continue;
-		const points = computePoints(
-			Number(row.lengthHours),
-			row.difficulty as Difficulty,
-			settings.difficultyMultipliers,
-			{
-				weight: settings.qualityWeight,
-				signals: {
-					steamReviewScore: row.steamReviewScore,
-					metacriticScore: row.metacriticScore,
-					bggRating: row.bggRating,
-				},
-			}
-		);
-		await db
-			.update(schema.games)
-			.set({ points, updatedAt: new Date() })
-			.where(eq(schema.games.id, row.gameId));
-	}
-
-	revalidatePath("/backlog");
-	revalidatePath("/pick");
+	revalidatePath(`/backlog/${gameId}`);
 	revalidatePath("/");
 }
 
@@ -576,7 +383,7 @@ export async function recomputeUnplayedPoints(): Promise<void> {
  * touches games.* (CLAUDE.md #2).
  */
 export async function refreshGameMetadata(gameId: string): Promise<void> {
-	await requireApprovedUser();
+	await requireMember();
 	const db = getDb();
 
 	const [row] = await db
@@ -624,7 +431,7 @@ export async function refreshGameMetadata(gameId: string): Promise<void> {
 		.where(eq(schema.gameMetadata.gameId, gameId));
 
 	revalidatePath("/backlog");
-	revalidatePath("/pick");
+	revalidatePath(`/backlog/${gameId}`);
 }
 
 /**
@@ -660,6 +467,5 @@ export async function backfillGameModes(): Promise<void> {
 			.where(eq(schema.gameMetadata.gameId, row.gameId));
 	}
 
-	revalidatePath("/pick");
-	revalidatePath("/backlog");
+		revalidatePath("/backlog");
 }

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-// Wrapper for bare <form action={serverAction}> usages (admin approve/
-// reject/role/maintenance buttons): catches a thrown action error and shows
-// it inline instead of crashing to the route error boundary. The propose/
-// event forms do this ad hoc with local state — this is the same pattern for
-// button-only forms.
+import { cn } from "@/lib/utils";
+
+// Wraps <form action={serverAction}>: a thrown action error shows inline
+// instead of crashing to the route error boundary, and the controls dim while
+// the action runs. Works for button-only forms and forms with fields alike —
+// the action receives the FormData either way.
 
 /** Next's redirect()/notFound() work by throwing — never swallow those. */
 function isNextControlFlowError(error: unknown): boolean {
@@ -21,38 +22,63 @@ function isNextControlFlowError(error: unknown): boolean {
 	);
 }
 
-function PendingScope({ children }: { children: React.ReactNode }) {
+function PendingScope({ children, block }: { children: React.ReactNode; block?: boolean }) {
 	const { pending } = useFormStatus();
-	return <span className={pending ? "pointer-events-none opacity-60" : undefined}>{children}</span>;
+	const Tag = block ? "div" : "span";
+	return (
+		<Tag
+			className={cn(block && "contents", pending && "pointer-events-none opacity-60")}
+			aria-busy={pending || undefined}
+		>
+			{children}
+		</Tag>
+	);
 }
 
 export function ActionForm({
 	action,
 	className,
+	formClassName,
 	children,
+	resetOnSuccess = false,
+	block = false,
 }: {
-	action: () => Promise<void>;
+	action: (formData: FormData) => Promise<unknown>;
 	className?: string;
+	/** Classes for the <form> itself (layout of fields). */
+	formClassName?: string;
 	children: React.ReactNode;
+	/** Clear the fields after a successful submit (composer-style forms). */
+	resetOnSuccess?: boolean;
+	/** Render the pending wrapper as a block (forms with field layouts). */
+	block?: boolean;
 }) {
 	const [error, setError] = useState<string | null>(null);
+	const formRef = useRef<HTMLFormElement>(null);
 
 	return (
 		<div className={className}>
 			<form
-				action={async () => {
+				ref={formRef}
+				className={formClassName}
+				action={async (formData) => {
 					setError(null);
 					try {
-						await action();
+						await action(formData);
+						if (resetOnSuccess) formRef.current?.reset();
 					} catch (err) {
 						if (isNextControlFlowError(err)) throw err;
 						setError(err instanceof Error ? err.message : "Something went wrong — try again.");
 					}
 				}}
 			>
-				<PendingScope>{children}</PendingScope>
+				<PendingScope block={block}>{children}</PendingScope>
 			</form>
-			{error && <p className="text-destructive mt-1 max-w-52 text-xs">{error}</p>}
+			{error && (
+				<p role="alert" className="text-destructive mt-1 text-xs">
+					{error}
+				</p>
+			)}
 		</div>
 	);
 }

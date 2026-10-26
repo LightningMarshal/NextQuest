@@ -101,8 +101,12 @@ to enable them later.
 - **Adding admins later**: the `ADMIN_EMAILS` bootstrap only affects
   *first-ever* sign-ins. To promote an existing member, use the **Admin**
   page's "Make admin" button instead.
-- Set up your group: open **Admin → Group settings** to name the group and
-  tune the voting budget; then propose your first real games.
+- Set up your group: open **Admin → Group settings** to name the group,
+  add your Discord webhooks under **Admin → Discord**, then **Post a
+  session** — the fastest way to show friends what the app is for.
+- Bringing in the wider circle: members make invite links under their
+  account menu → **Invite friends**; people who open one sign in and join
+  open sessions as guests, no approval needed.
 
 ---
 

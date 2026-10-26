@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { format } from "date-fns";
 import { CrownIcon, FlameIcon, QuoteIcon, TrophyIcon } from "lucide-react";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { getYearInReview } from "@/server/review";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 export const metadata: Metadata = { title: "Year in review" };
 
@@ -33,7 +33,7 @@ export default async function ReviewPage({
 }: {
 	searchParams: Promise<{ year?: string }>;
 }) {
-	await requireApprovedUser();
+	await requireMember();
 	const { year: yearParam } = await searchParams;
 	const currentYear = new Date().getUTCFullYear();
 	const parsed = Number(yearParam);
@@ -105,7 +105,7 @@ export default async function ReviewPage({
 							<div className="flex flex-col sm:flex-row">
 								{goty.art ? (
 									<div className="relative h-36 w-full shrink-0 sm:h-auto sm:w-56">
-										<Image src={goty.art} alt="" fill className="object-cover" sizes="224px" />
+										<GameArt src={goty.art} alt="" fill className="object-cover" sizes="224px" />
 									</div>
 								) : (
 									<div className="bg-muted h-36 w-full shrink-0 sm:h-auto sm:w-56" />
@@ -151,7 +151,7 @@ export default async function ReviewPage({
 										<li key={game.id} className="flex items-center gap-3 py-2 text-sm">
 											{game.art ? (
 												<div className="relative h-10 w-20 shrink-0 overflow-hidden rounded">
-													<Image
+													<GameArt
 														src={game.art}
 														alt=""
 														fill

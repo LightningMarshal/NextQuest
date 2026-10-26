@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { timingSafeEqual } from "@/lib/ids";
 import { sendEventReminders } from "@/server/cron/event-reminders";
 import { refreshStaleMetadata } from "@/server/cron/metadata-refresh";
 
@@ -22,7 +23,7 @@ const TASKS: Record<string, () => Promise<Record<string, number>>> = {
 export async function GET(request: Request): Promise<Response> {
 	const { env } = getCloudflareContext();
 	const secret = (env as { CRON_SECRET?: string }).CRON_SECRET;
-	if (!secret || request.headers.get("x-cron-secret") !== secret) {
+	if (!secret || !timingSafeEqual(request.headers.get("x-cron-secret") ?? "", secret)) {
 		return Response.json({ error: "unauthorized" }, { status: 401 });
 	}
 

@@ -201,6 +201,9 @@ async function buildSnapshot() {
 		polls,
 		options,
 		responses,
+		marks,
+		ratings,
+		comments,
 	] = await Promise.all([
 		db.select().from(schema.appSettings),
 		db
@@ -253,11 +256,14 @@ async function buildSnapshot() {
 		db.select().from(schema.availabilityPolls).orderBy(asc(schema.availabilityPolls.createdAt)),
 		db.select().from(schema.availabilityOptions),
 		db.select().from(schema.availabilityResponses),
+		db.select().from(schema.availabilityMarks),
+		db.select().from(schema.gameRatings),
+		db.select().from(schema.gameComments).orderBy(asc(schema.gameComments.createdAt)),
 	]);
 
 	return {
 		app: "NextQuest",
-		exportVersion: 1,
+		exportVersion: 2,
 		exportedAt: new Date().toISOString(),
 		settings: settings[0] ?? null,
 		members,
@@ -275,5 +281,8 @@ async function buildSnapshot() {
 		availabilityPolls: polls,
 		availabilityOptions: options,
 		availabilityResponses: responses,
+		availabilityMarks: marks,
+		gameRatings: ratings,
+		gameComments: comments,
 	};
 }
