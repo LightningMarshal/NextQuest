@@ -4,6 +4,8 @@
 # migration-check applies drizzle/ against a disposable Postgres service
 # container (hardcoded local creds, not a secret) so a broken generated
 # migration fails the PR, not the deploy.
+# npm is pinned to 11: Node 22's bundled npm 10.9 can't read lockfiles
+# written by newer npm (Dependabot's) and fails `npm ci` before any test runs.
 name: CI
 
 on:
@@ -24,6 +26,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Use npm 11
+        run: npm install -g npm@11.21.1
 
       - name: Install dependencies
         run: npm ci
@@ -65,6 +70,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Use npm 11
+        run: npm install -g npm@11.21.1
 
       - name: Install dependencies
         run: npm ci
