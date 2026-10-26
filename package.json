@@ -42,7 +42,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
     "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.5",
