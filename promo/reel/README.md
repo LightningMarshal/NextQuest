@@ -11,19 +11,25 @@ perspective UI, kinetic typography, and every cut landing on a 120 BPM beat.
 
 ## Structure (120 BPM, 0.5 s per beat)
 
+Updated in 2026-10 for the sessions-first redesign (Phase 24).
+
 | Time | Beat | What happens |
 | --- | --- | --- |
-| 0.0–1.5 s | 0–3 | A laser line splits the dark; a 3D wall of game covers tilts in while a counter rolls to **247 games in your group's backlog** |
-| 1.5–3.5 s | 3–7 | **WHAT / DO WE / PLAY / NEXT?** One word per beat, hard cuts, RGB-split hits, the wall accelerating, then imploding |
-| 3.5–4.5 s | 7–9 | Impact. The chevron mark draws, the wordmark rises letter by letter, a light sweep, then the camera zooms through the mark |
-| 4.5–12.5 s | 9–25 | Four 2-second features, each a headline plus a live 3D app panel: **01 Propose** (search, metadata, effort stamped 29), **02 Vote** (10 secret votes, group totals, anonymous), **03 Pick** (scores fill and re-rank, *Gloomkeep* is NEXT UP), **04 Play** (availability heatmap, RSVP toast, burn-up chart to the finish flag) |
-| 12.5–13.5 s | 25–27 | The four panels fan out in 3D: **VIDEO GAMES / TTRPGS / BOARD GAMES / ONE BACKLOG.** |
-| 13.5–15 s | 27–30 | Final impact and lockup: logo, *Stop scrolling the backlog. Start playing it.*, repo URL |
+| 0.0–1.5 s | 0–3 | A laser line splits the dark; a 3D wall of group-chat messages ("anyone on tonight?", "link?", "sorry just saw this") tilts in while a counter rolls to **99+ unread in the group chat** |
+| 1.5–3.5 s | 3–7 | **ANYONE / UP FOR / A GAME / TONIGHT?** One word per beat, hard cuts, RGB-split hits, the wall accelerating, then imploding |
+| 3.5–4.5 s | 7–9 | Impact. The chevron mark draws, the wordmark rises, *play more games with more people*, then the camera zooms through the mark |
+| 4.5–12.5 s | 9–25 | Four 2-second features, each a headline plus a live 3D panel modelled on the app's components: **01 Post** (game, the *Tonight 8pm* chip, *Open to the circle*, posted), **02 Discord** (the session card edited in place as Drew, Sam and Riley join, then the one-hour reminder), **03 Join** (This week, a guest arriving from an invite link, *I'm in*), **04 Wrap up** (who came, stars, one line, same time next week) |
+| 12.5–13.5 s | 25–27 | The four panels fan out in 3D: **VIDEO GAMES / TTRPGS / BOARD GAMES / ANY NIGHT.** |
+| 13.5–15 s | 27–30 | Final impact and lockup: logo, *Play more games with more people.*, repo URL |
+
+The panels use the app's own typefaces (Space Grotesk, Hanken Grotesk,
+JetBrains Mono) and colours; Unbounded is reserved for the reel's kinetic type.
 
 ## How it's built
 
 ```
-index.html          stage, all styles (fonts: Unbounded, Geist, Geist Mono, OFL)
+index.html          stage, all styles (fonts: Unbounded, Space Grotesk, Hanken
+                    Grotesk, JetBrains Mono; all OFL)
 src/reel.js         DOM construction + render(t): a pure function of time, no CSS
                     transitions, so playback and the frame export are identical
 src/reel-audio.js   120 BPM cue (supersaw pads, sidechained sub bass, plucks, drums,
@@ -39,6 +45,10 @@ node build.mjs
 FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
 ```
 
-The game titles (*Dragon's Peak*, *Gloomkeep*, *Meeple Mayhem*, *Starfall
-Salvage* and the cover wall) are fictional, so the reel can be posted anywhere
-without third-party artwork.
+The panels are hand-built in HTML to look like the app, so they need updating
+when the UI changes. The plan for the longer video
+([docs/plans/2026-10-walkthrough-video.md](../../docs/plans/2026-10-walkthrough-video.md))
+avoids that by filming the real app.
+
+The games (*Starfall Salvage*, *Gloomkeep*) and people are fictional, so the
+reel can be posted anywhere without third-party artwork.

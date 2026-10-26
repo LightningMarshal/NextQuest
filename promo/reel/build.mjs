@@ -11,7 +11,7 @@ const font = (name, file, weights) =>
 	`@font-face { font-family: '${name}'; src: url(data:font/woff2;base64,${read(file).toString("base64")}) format('woff2'); font-weight: ${weights}; font-display: block; }`;
 html = html.replace(
 	/<!--FONTS-->[\s\S]*?<!--\/FONTS-->/,
-	`<style>\n${font("Unbounded", "assets/Unbounded.woff2", "400 900")}\n${font("Geist", "assets/Geist.woff2", "400 800")}\n${font("Geist Mono", "assets/GeistMono.woff2", "400 700")}\n</style>`,
+	`<style>\n${font("Unbounded", "assets/Unbounded.woff2", "400 900")}\n${font("Space Grotesk", "assets/SpaceGrotesk.woff2", "300 700")}\n${font("Hanken Grotesk", "assets/HankenGrotesk.woff2", "300 800")}\n${font("JetBrains Mono", "assets/JetBrainsMono.woff2", "400 700")}\n</style>`,
 );
 // the reel reuses the DSP toolkit from the hand-drawn film
 const scripts = ["../animation/src/audio.js", "src/reel.js", "src/reel-audio.js", "src/player.js"].map((p) => read(p).toString());

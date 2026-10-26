@@ -126,6 +126,18 @@ async function buildReelSoundtrack() {
 	play(() => whoosh(0.5, 3000, 300), 0.0, "sfx", 0.25, 0, 0.2);
 	RA.act1.forEach((n, i) => play(() => supersaw(hz(n), 3.3, { att: 0.6, cut: 1400, sus: 0.8, rel: 0.2, sweep: 3 }), 0.05, "pump", 0.16, i - 1, 0.35, "pad1" + n));
 	for (let b = 0; b < 12; b++) play(() => hat(55, 9000), 0.25 + b * 0.25, "drums", 0.08 + b * 0.008, 0.4, 0.05, "hat");
+	// notification pings from the group chat
+	[0.22, 0.48, 0.71, 0.9, 1.08, 1.21, 1.33].forEach((t, k) => {
+		const fr = [988, 1175, 880, 1319, 1047, 1175, 1397][k];
+		play(() => {
+			const x = blip(fr, 0.07, 1);
+			const y = blip(fr * 1.5, 0.09, 0.8);
+			const out = buf(0.2);
+			for (let n = 0; n < x.length; n++) out[n] += x[n];
+			for (let n = 0; n < y.length; n++) out[Math.floor(0.06 * SR) + n] += y[n];
+			return out;
+		}, t, "sfx", 0.13 + k * 0.012, k % 2 ? 0.55 : -0.55, 0.15);
+	});
 	// counter blips (one per value change bucket)
 	for (let k = 0; k < 26; k++) {
 		const u = k / 26;
@@ -188,34 +200,48 @@ async function buildReelSoundtrack() {
 	}
 	// UI sound design (times mirror reel.js)
 	const f = TL.feats;
-	for (let i = 0; i < P1_QUERY.length; i++) play(() => clickSfx(2200 + ((i * 397) % 1200)), f[0] + P1_TYPE(i), "sfx", 0.22, 0.3, 0.02);
-	play(() => pop(520, 0.12), f[0] + 0.7, "sfx", 0.25, 0.3, 0.1);
-	[0.9, 1.0, 1.1].forEach((u, k) => play(() => blip(1100 + k * 330, 0.06), f[0] + u, "sfx", 0.28, 0.4, 0.12));
-	play(() => pop(260, 0.18), f[0] + 1.18, "sfx", 0.35, 0.4, 0.1);
-	for (let k = 0; k < 12; k++) play(() => blip(2400 + k * 60, 0.025), f[0] + 1.2 + 0.42 * (1 - Math.pow(1 - k / 12, 1 / 5)), "sfx", 0.1, 0.4, 0.02);
-	VOTE_STEPS.forEach((s, k) => play(() => blip(900 + k * 90, 0.07), f[1] + s.u, "sfx", 0.3, 0.35, 0.1));
+	const ping = (fr) => {
+		// two-tone chat notification
+		const x = blip(fr, 0.07, 1);
+		const y = blip(fr * 1.5, 0.09, 0.8);
+		const s0 = Math.floor(0.06 * SR);
+		const out = buf(0.2);
+		for (let n = 0; n < x.length; n++) out[n] += x[n];
+		for (let n = 0; n < y.length && s0 + n < out.length; n++) out[s0 + n] += y[n];
+		return out;
+	};
+	// 01 post: type the game, tap a time, choose open, post
+	for (let i = 0; i < P1_QUERY.length; i++) play(() => clickSfx(2200 + ((i * 397) % 1200)), f[0] + P1_TYPE(i), "sfx", 0.2, 0.3, 0.02);
+	play(() => pop(560, 0.12), f[0] + P1_TYPE(P1_QUERY.length - 1) + 0.05, "sfx", 0.22, 0.3, 0.1);
+	[0, 1, 2].forEach((k) => play(() => clickSfx(3000), f[0] + P1_WHEN_T - 0.16 + k * 0.08, "sfx", 0.1, 0.35, 0.02));
+	play(() => blip(1320, 0.07), f[0] + P1_WHEN_T, "sfx", 0.3, 0.35, 0.12);
+	play(() => blip(1760, 0.07), f[0] + P1_VIS_T, "sfx", 0.3, 0.35, 0.12);
 	play(() => {
 		const x = clickSfx(1500);
 		const y = kick({ f1: 300, f2: 120, decay: 30, len: 0.15 });
 		for (let n = 0; n < x.length; n++) y[n] += x[n];
 		return y;
-	}, f[1] + 1.45, "sfx", 0.55, 0.4, 0.1);
-	PICK_STAGE.forEach((u, k) => play(() => whoosh(0.32, 600 + k * 400, 3000 + k * 600), f[2] + u, "sfx", 0.16, 0.4, 0.1));
-	[PICK_STAGE[1] + 0.25, PICK_STAGE[2] + 0.25].forEach((u) => play(() => swish(0.3, 1800), f[2] + u, "sfx", 0.25, 0.3, 0.1));
-	["C6", "E6", "G6", "C7"].forEach((n, k) => play(() => mallet(hz(n), 0.2, GLOCK), f[2] + PICK_WIN + k * 0.05, "sfx", 0.2, 0.3, 0.35));
-	for (let k = 0; k < 9; k++) play(() => blip(mtof(72 + [0, 2, 4, 7, 9, 12, 14, 16, 19][k]), 0.05), f[3] + 0.05 + k * 0.06, "sfx", 0.14, -0.2 + k * 0.08, 0.15);
-	play(() => pop(700, 0.12), f[3] + 0.72, "sfx", 0.28, -0.2, 0.1);
-	play(() => {
-		const x = buf(0.75);
-		let ph = 0;
-		for (let n = 0; n < x.length; n++) {
-			const t = n / SR;
-			ph += (2 * Math.PI * (500 + 1300 * (t / 0.75))) / SR;
-			x[n] = Math.sin(ph) * 0.3 * Math.min(1, t / 0.05) * Math.min(1, (0.75 - t) / 0.1);
-		}
-		return x;
-	}, f[3] + 0.45, "sfx", 0.18, 0.4, 0.2);
-	play(() => mallet(hz("G6"), 0.3, GLOCK), f[3] + 1.4, "sfx", 0.25, 0.4, 0.4);
+	}, f[0] + P1_POST_T, "sfx", 0.5, 0.35, 0.1);
+	["C6", "E6", "G6"].forEach((n, k) => play(() => mallet(hz(n), 0.2, GLOCK), f[0] + P1_POST_T + 0.08 + k * 0.05, "sfx", 0.18, 0.35, 0.35));
+	// 02 discord: the card lands, then gets edited as people join, then the reminder
+	play(() => ping(988), f[1] + 0.16, "sfx", 0.3, 0.3, 0.15);
+	P2_JOIN.forEach((j, k) => {
+		play(() => blip(1046 + k * 196, 0.06), f[1] + j.u, "sfx", 0.28, 0.3, 0.12);
+		play(() => swish(0.18, 2600), f[1] + j.u - 0.04, "sfx", 0.1, 0.3, 0.05);
+	});
+	play(() => ping(880), f[1] + P2_REMIND_T, "sfx", 0.25, 0.3, 0.15);
+	// 03 join: a guest arrives from an invite link, then you tap I'm in
+	play(() => pop(700, 0.12), f[2] + P3_GUEST_T, "sfx", 0.26, 0.4, 0.1);
+	play(() => blip(1568, 0.06), f[2] + P3_GUEST_T + 0.15, "sfx", 0.2, 0.4, 0.12);
+	play(() => clickSfx(1800), f[2] + P3_IN_T, "sfx", 0.45, 0.35, 0.05);
+	["E6", "A6"].forEach((n, k) => play(() => mallet(hz(n), 0.2, GLOCK), f[2] + P3_IN_T + 0.05 + k * 0.06, "sfx", 0.2, 0.35, 0.35));
+	// 04 wrap up: ticks, stars, a line of text, same time next week
+	for (let k = 0; k < 5; k++) play(() => clickSfx(2600 + k * 150), f[3] + 0.2 + k * 0.06, "sfx", 0.14, -0.2 + k * 0.1, 0.03);
+	P4_STARS.forEach((u, k) => play(() => blip(mtof(76 + [0, 4, 7, 12][k]), 0.06), f[3] + u, "sfx", 0.26, 0.35, 0.15));
+	for (let i = 0; i < P4_RECAP.length; i += 2) play(() => clickSfx(2000 + ((i * 263) % 1500)), f[3] + P4_RECAP_T(i), "sfx", 0.12, 0.3, 0.02);
+	play(() => clickSfx(1400), f[3] + P4_REPEAT_T, "sfx", 0.35, 0.35, 0.05);
+	play(() => pop(820, 0.12), f[3] + P4_STATS_T, "sfx", 0.24, 0.35, 0.1);
+	for (let k = 0; k < 10; k++) play(() => blip(2400 + k * 60, 0.025), f[3] + P4_STATS_T + 0.4 * (1 - Math.pow(1 - k / 10, 1 / 5)), "sfx", 0.08, 0.4, 0.02);
 
 	// ---------- act 4: build + final
 	play(() => whoosh(0.55, 250, 3500), TL.fanIn - 0.05, "sfx", 0.45, 0, 0.2);

@@ -55,110 +55,100 @@ const TL = {
 	collapse: 13.32,
 	final: 13.5,
 };
-const WORDS = ["WHAT", "DO WE", "PLAY", "NEXT?"];
+const WORDS = ["ANYONE", "UP FOR", "A GAME", "TONIGHT?"];
 const KINDS = [
 	["VIDEO GAMES", "#34d1e6"],
 	["TTRPGS", "#8b7cff"],
 	["BOARD GAMES", "#3fcf8e"],
-	["ONE BACKLOG.", "#ffffff"],
+	["ANY NIGHT.", "#ffffff"],
 ];
 
-// panel 1: typing
-const P1_QUERY = "Dragon's Peak";
-const P1_TYPE = (i) => 0.2 + i * 0.034;
-// panel 2: vote allocations (local times)
-const VOTE_ROWS = [
-	{ id: "gloom", t: "Gloomkeep", k: "TTRPG", c: "#8b7cff", base: 0.62 },
-	{ id: "dragon", t: "Dragon's Peak", k: "VIDEO", c: "#34d1e6", base: 0.48 },
-	{ id: "meeple", t: "Meeple Mayhem", k: "BOARD GAME", c: "#3fcf8e", base: 0.36 },
-	{ id: "star", t: "Starfall Salvage", k: "VIDEO", c: "#34d1e6", base: 0.2 },
+// act 1: the group chat NextQuest replaces
+const PEOPLE = { Casey: "#34d1e6", Drew: "#8b7cff", Sam: "#ffc94a", Riley: "#3fcf8e", Jordan: "#ff6b6b", Alex: "#5aa8ff", Morgan: "#ff8fb1", Taylor: "#f2994a" };
+const CHAT = [
+	["Casey", "anyone on tonight?"],
+	["Drew", "who's up for Starfall?"],
+	["Sam", "I'm free after 9"],
+	["Riley", "maybe saturday?"],
+	["Jordan", "did we ever finish the campaign"],
+	["Alex", "is it still on??"],
+	["Morgan", "what time again"],
+	["Casey", "link?"],
+	["Taylor", "I thought it was tomorrow"],
+	["Sam", "can my friend join?"],
+	["Drew", "who's hosting"],
+	["Riley", "sorry just saw this"],
+	["Jordan", "next week then"],
+	["Alex", "ok who's in"],
+	["Morgan", "+1"],
+	["Taylor", "still need a 4th"],
+	["Casey", "scroll up, it's in there somewhere"],
+	["Drew", "wait which game"],
 ];
-const VOTE_STEPS = [0, 0, 1, 2, 0, 1, 3, 0, 1, 2].map((row, i) => ({ row, u: 0.32 + i * 0.105 }));
-// panel 3: picker scores (cumulative after interest, time fit, party fit)
-const PICK = [
-	{ id: "dragon", t: "Dragon's Peak", k: "VIDEO", c: "#34d1e6", s: [0.4, 0.5, 0.54] },
-	{ id: "gloom", t: "Gloomkeep", k: "TTRPG", c: "#8b7cff", s: [0.34, 0.56, 0.84] },
-	{ id: "star", t: "Starfall Salvage", k: "VIDEO", c: "#34d1e6", s: [0.3, 0.4, 0.47] },
-	{ id: "meeple", t: "Meeple Mayhem", k: "BOARD GAME", c: "#3fcf8e", s: [0.26, 0.52, 0.72] },
+
+// panel 1: post a session (local times within the 2 s feature)
+const P1_QUERY = "Starfall Salvage";
+const P1_TYPE = (i) => 0.12 + i * 0.026;
+const P1_WHEN = ["Now", "Tonight 8pm", "Tomorrow 8pm", "Saturday 2pm"];
+const P1_WHEN_T = 0.66;
+const P1_VIS_T = 0.9;
+const P1_POST_T = 1.2;
+// panel 2: the Discord card, edited in place as people join
+const P2_JOIN = [
+	{ u: 0.62, name: "Drew" },
+	{ u: 0.98, name: "Sam" },
+	{ u: 1.34, name: "Riley" },
 ];
-const PICK_STAGE = [0.25, 0.55, 0.85]; // when each factor starts filling (local)
-const PICK_WIN = 1.32;
-// panel 4: availability heat (Mon..Fri x 5pm..9pm), 0..4 people free
-const HEAT = [
-	[0, 1, 1, 0, 1],
-	[1, 2, 1, 2, 3],
-	[1, 3, 2, 3, 4],
-	[0, 2, 3, 2, 3],
-	[0, 1, 1, 1, 2],
+const P2_REMIND_T = 1.45;
+// panel 3: This week — a guest arrives via invite, then you tap I'm in
+const P3_GUEST_T = 0.45;
+const P3_IN_T = 1.05;
+// panel 4: wrap-up
+const P4_WHO = [
+	["Casey", false],
+	["Drew", false],
+	["Sam", false],
+	["Riley", true],
+	["You", false],
 ];
+const P4_STARS = [0.62, 0.7, 0.78, 0.86];
+const P4_RECAP = "Finally beat the raid boss. Casey carried.";
+const P4_RECAP_T = (i) => 0.9 + i * 0.0085;
+const P4_REPEAT_T = 1.36;
+const P4_STATS_T = 1.48;
 
 // ------------------------------------------------------------------ art
 const ICONS = {
-	ctrl: '<path d="M-50,-20 C-40,-38 40,-38 50,-20 C62,0 68,34 48,38 C34,41 28,20 16,16 L-16,16 C-28,20 -34,41 -48,38 C-68,34 -62,0 -50,-20 Z"/>',
-	d20: '<path d="M0,-44 L38,-22 L38,22 L0,44 L-38,22 L-38,-22 Z M0,-26 L22,14 L-22,14 Z"/>',
-	meeple: '<path d="M0,-38 C12,-38 16,-28 13,-19 C26,-17 40,-11 40,-2 C40,6 30,6 22,4 L32,34 L8,34 L0,20 L-8,34 L-32,34 L-22,4 C-30,6 -40,6 -40,-2 C-40,-11 -26,-17 -13,-19 C-16,-28 -12,-38 0,-38 Z"/>',
-	star: '<path d="M0,-40 L11,-12 L40,-12 L17,6 L25,36 L0,18 L-25,36 L-17,6 L-40,-12 L-11,-12 Z"/>',
-	sword: '<path d="M-4,-44 L4,-44 L5,16 L18,16 L18,22 L5,22 L5,40 L-5,40 L-5,22 L-18,22 L-18,16 L-5,16 Z"/>',
 	planet: '<circle r="22"/><ellipse rx="44" ry="10" fill="none" stroke-width="5" transform="rotate(-20)"/>',
 };
 const SVGI = (k, fill, size = 120, extra = "") =>
 	`<svg viewBox="-50 -50 100 100" width="${size}" height="${size}" style="${extra}" fill="${fill}" stroke="${fill}">${ICONS[k]}</svg>`;
 
-const PALETTES = [
-	["#ff8a5c", "#6d3bd1"],
-	["#2fd6c3", "#1c3d8f"],
-	["#ffcf5a", "#e8456b"],
-	["#8b7cff", "#0e1a40"],
-	["#3fcf8e", "#0c4b55"],
-	["#ff6b9a", "#3a1d6e"],
-	["#5aa8ff", "#121c3a"],
-	["#f2994a", "#4b1e1e"],
-	["#a3e635", "#14532d"],
-	["#38bdf8", "#312e81"],
-];
-const WALL_TITLES = [
-	"Dragon's Peak", "Gloomkeep", "Meeple Mayhem", "Starfall Salvage", "Hollow Crown", "Neon Drift", "Tidebound", "Ashen Vale",
-	"Cosmic Caravan", "Lantern Keep", "Pixel Rogue", "Frostline", "Wyrm Hunt", "Moonrise Market", "Clockwork Isles", "Sky Sail",
-	"Deep Delve", "Ember & Oak", "Verdant", "Night Shift", "Quarry Kings", "Spellbound Inn", "Rustbelt Racers", "Sunken Choir",
-];
-
-function coverArt(kind, seed = 0) {
+/** Cover art for the two fictional games: "gloom" (a TTRPG campaign) and the default (Starfall Salvage). */
+function coverArt(kind) {
 	switch (kind) {
-		case "dragon":
-			return `<div class="art" style="background:linear-gradient(180deg,#ffb38a,#ff7d6b 50%,#6d4bb8)"></div>
-<div class="art" style="background:radial-gradient(circle at 70% 28%,#ffe9a8 0 11%,transparent 12%)"></div>
-<div class="art" style="background:#2b1f5c;clip-path:polygon(0 100%,0 66%,14% 58%,30% 68%,52% 30%,68% 56%,82% 46%,100% 66%,100% 100%)"></div>
-<div class="art" style="background:#efe6ff;clip-path:polygon(45% 41%,52% 30%,59% 41%,55% 39%,52% 42%,49% 39%)"></div>
-<div class="art" style="background:#1d1440;clip-path:polygon(22% 26%,30% 22%,38% 14%,36% 22%,46% 20%,38% 27%,28% 30%)"></div>`;
 		case "gloom":
 			return `<div class="art" style="background:linear-gradient(180deg,#2a3b63,#0f1a2b)"></div>
 <div class="art" style="background:radial-gradient(circle at 26% 24%,#eef4ff 0 9%,rgba(238,244,255,.15) 10% 16%,transparent 17%)"></div>
 <div class="art" style="background:#070b14;clip-path:polygon(18% 100%,18% 62%,26% 62%,26% 68%,34% 68%,34% 40%,44% 26%,54% 40%,54% 58%,62% 58%,62% 64%,70% 64%,70% 56%,80% 56%,80% 100%)"></div>
 <div class="art" style="background:radial-gradient(circle at 42% 48%,#ffc94a 0 1.6%,transparent 2%),radial-gradient(circle at 66% 70%,#ffc94a 0 1.6%,transparent 2%)"></div>
 <div class="art" style="background:linear-gradient(0deg,rgba(139,124,255,.45),transparent 30%)"></div>`;
-		case "meeple":
-			return `<div class="art" style="background:repeating-conic-gradient(#2fae76 0 25%,#46d494 0 50%) 0 0/25% 20%"></div>
-<div class="art" style="display:grid;place-items:center">${SVGI("meeple", "#ff6b6b", 150, "filter:drop-shadow(0 8px 10px rgba(0,0,0,.35))")}</div>`;
-		case "star":
+		default:
 			return `<div class="art" style="background:radial-gradient(circle at 30% 20%,#3b2a7a,#0a0a1f 70%)"></div>
 <div class="art" style="background-image:radial-gradient(#fff 1px,transparent 1.5px);background-size:23px 29px;opacity:.6"></div>
 <div class="art" style="display:grid;place-items:center">${SVGI("planet", "#ffb86b", 150)}</div>`;
-		default: {
-			const p = PALETTES[seed % PALETTES.length];
-			const icon = ["ctrl", "d20", "meeple", "star", "sword", "planet"][Math.floor(hsh(seed * 3.1) * 6)];
-			const ang = Math.floor(hsh(seed * 1.7) * 360);
-			return `<div class="art" style="background:linear-gradient(${ang}deg,${p[0]},${p[1]})"></div>
-<div class="art" style="background:radial-gradient(circle at ${20 + hsh(seed) * 60}% ${15 + hsh(seed + 4) * 40}%,rgba(255,255,255,.35),transparent 45%)"></div>
-<div class="art" style="display:grid;place-items:center;opacity:.55">${SVGI(icon, "rgba(0,0,0,.45)", 120)}</div>`;
-		}
 	}
 }
-const KIND_OF = (title) =>
-	title === "Gloomkeep" ? "TTRPG" : title === "Meeple Mayhem" ? "BOARD GAME" : title === "Dragon's Peak" || title === "Starfall Salvage" ? "VIDEO" : null;
-const ART_OF = (title) => ({ "Dragon's Peak": "dragon", Gloomkeep: "gloom", "Meeple Mayhem": "meeple", "Starfall Salvage": "star" })[title];
-
 const SVG_SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="#8a93a3" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
 const SVG_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+const SVG_GLOBE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg>';
+const SVG_PAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.96 3.4L2 15.6A3 3 0 0 0 7.2 18l1.6-2h6.4l1.6 2a3 3 0 0 0 5.2-2.4l-.74-7.2A4 4 0 0 0 17.3 5Z"/></svg>';
+const SVG_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17 19 7"/></svg>';
+const SVG_STAR = '<svg viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8Z"/></svg>';
+const SVG_HASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>';
+const SVG_REPEAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
+const face = (name, size = 40, extra = "") =>
+	`<i class="face" style="width:${size}px;height:${size}px;background:${PEOPLE[name] ?? "#e7ebf1"};font-size:${Math.round(size * 0.42)}px;${extra}">${name === "You" ? "Y" : name[0]}</i>`;
 const CHEV_SVG = (sw = 6) =>
 	`<svg viewBox="0 0 58 58"><polyline class="c1" points="14,16 26,29 14,42" fill="none" stroke="#e7ebf1" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="36" stroke-dashoffset="0"/><polyline class="c2" points="28,16 40,29 28,42" fill="none" stroke="#34d1e6" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="36" stroke-dashoffset="0"/></svg>`;
 
@@ -186,13 +176,12 @@ function buildReel() {
 	// --- act 1
 	const wallWrap = add(world, '<div id="wallWrap" class="abs"></div>', "wallWrap");
 	const wall = add(wallWrap, '<div id="wall" class="abs"></div>', "wall");
-	for (let r = 0; r < 13; r++)
-		for (let c = 0; c < 12; c++) {
-			const i = r * 12 + c;
-			const title = WALL_TITLES[(i * 7 + r) % WALL_TITLES.length];
-			const art = ART_OF(title);
-			const kind = KIND_OF(title) ?? ["VIDEO", "TTRPG", "BOARD GAME"][Math.floor(hsh(i * 5.3) * 3)];
-			wall.insertAdjacentHTML("beforeend", `<div class="tile">${coverArt(art, i)}<div class="t">${title}</div><div class="k">${kind}</div></div>`);
+	for (let r = 0; r < 28; r++)
+		for (let c = 0; c < 8; c++) {
+			const i = r * 8 + c;
+			const [who, text] = CHAT[(i * 5 + r * 3) % CHAT.length];
+			const unread = hsh(i * 2.3) < 0.18 ? `<em>${2 + Math.floor(hsh(i) * 9)}</em>` : "";
+			wall.insertAdjacentHTML("beforeend", `<div class="msg">${face(who, 44)}<div><b style="color:${PEOPLE[who]}">${who}</b><span>${text}</span></div>${unread}</div>`);
 		}
 	add(world, '<div id="laser" class="abs"></div>', "laser");
 	const count = add(world, '<div id="count" class="abs"><div id="countNum">0</div><div id="countLbl"></div></div>', "count");
@@ -203,7 +192,7 @@ function buildReel() {
 
 	// --- logo (act 2) and lockup (act 4) share a builder
 	R.ring = add(world, '<div id="ring" class="abs"><i></i><i></i></div>', "ring");
-	R.logo = buildLogo(world, "logo", 540, 200, 150, "THE BACKLOG APP FOR YOUR GAMING GROUP");
+	R.logo = buildLogo(world, "logo", 540, 200, 150, "PLAY MORE GAMES WITH MORE PEOPLE");
 	R.logo.sub.style.fontSize = "30px";
 	R.logo.sub.style.top = "160px";
 	R.logo.sub.style.color = "#aab3c2";
@@ -211,10 +200,10 @@ function buildReel() {
 	// --- act 3
 	const heads = add(world, '<div id="heads" class="abs"></div>', "heads");
 	const HEADS = [
-		["PROPOSE", ["Drop in", "<em>any</em> game."], "Steam, BoardGameGeek and HowLongToBeat fill in the rest. Effort is sized for you."],
-		["VOTE", ["Ten secret", "votes <em>each.</em>"], "Spend them on what you actually want to play. Only the group totals are ever shown."],
-		["PICK", ["The picker", "<em>calls it.</em>"], "Interest, time fit and who's around tonight, blended into one ranked answer."],
-		["PLAY", ["Schedule it.", "<em>Finish</em> it."], "Paint when you're free, RSVP, and watch the burn-up chart close in on the finish."],
+		["POST", ["Post it in", "<em>three taps.</em>"], "Pick a game, tap a time, and open it to the whole circle or keep it to the group."],
+		["DISCORD", ["Discord", "<em>keeps up.</em>"], "One card per session, edited in place as people join. Nobody scrolls for the link."],
+		["JOIN", ["Friends", "<em>hop in.</em>"], "Invite links and Discord sign-in bring friends-of-friends into open sessions."],
+		["WRAP UP", ["Wrap up in", "<em>ten seconds.</em>"], "Who came, how it went, same time next week. Forgotten nights close themselves."],
 	];
 	R.hl = HEADS.map(([idx, lines, sub], i) =>
 		add(
@@ -227,7 +216,7 @@ function buildReel() {
 	R.panels = add(world, '<div id="panels" class="abs"></div>', "panels");
 	R.p = [buildP1(R.panels), buildP2(R.panels), buildP3(R.panels), buildP4(R.panels)];
 	const rail = add(world, '<div id="rail" class="abs"></div>', "rail");
-	R.seg = ["PROPOSE", "VOTE", "PICK", "PLAY"].map((n, i) =>
+	R.seg = ["POST", "DISCORD", "JOIN", "WRAP UP"].map((n, i) =>
 		add(rail, `<div class="seg"><div class="lb">0${i + 1} ${n}</div><div class="tr"><i></i></div></div>`),
 	);
 
@@ -236,8 +225,8 @@ function buildReel() {
 	R.kd = KINDS.map(([w, c]) => add(kinds, `<div class="kd" style="color:${c}">${w}</div>`));
 	R.lock = buildLogo(world, "lock", 430, 230, 170, "");
 	const lk = R.lock.root;
-	R.tag1 = add(lk, `<div class="tag" style="top:200px;color:#e7ebf1">${wordsMasked("Stop scrolling the backlog.")}</div>`);
-	R.tag2 = add(lk, `<div class="tag" style="top:272px;color:#34d1e6">${wordsMasked("Start playing it.")}</div>`);
+	R.tag1 = add(lk, `<div class="tag" style="top:200px;color:#e7ebf1">${wordsMasked("Play more games")}</div>`);
+	R.tag2 = add(lk, `<div class="tag" style="top:272px;color:#34d1e6">${wordsMasked("with more people.")}</div>`);
 	R.meta = add(lk, '<div class="meta" style="top:390px"></div>');
 	R.meta2 = add(lk, '<div class="meta" style="top:430px;color:#34d1e6"></div>');
 }
@@ -277,125 +266,92 @@ function panelShell(parent, crumb) {
 	);
 }
 
+function fld(label, inner) {
+	return `<div class="fld"><div class="flab">${label}</div>${inner}</div>`;
+}
+
 function buildP1(parent) {
-	const el = panelShell(parent, "Backlog");
+	const el = panelShell(parent, "Post a session");
 	const pb = el.querySelector(".pb");
 	const o = { el };
-	o.search = add(pb, `<div class="search">${SVG_SEARCH}<span class="q"></span><span class="caret"></span><span class="ph" style="color:#5d6676">Paste a Steam or BGG link, or type a title</span><span class="kbd">/</span></div>`);
+	o.game = add(pb, fld("Game", `<div class="search">${SVG_SEARCH}<span class="q"></span><span class="caret"></span><span class="ph" style="color:#5d6676">Search the library or type a new one</span><span class="gpick"><span class="thumb">${coverArt("star")}</span>Video · Co-op</span></div>`));
+	o.search = o.game.querySelector(".search");
 	o.q = o.search.querySelector(".q");
 	o.caret = o.search.querySelector(".caret");
 	o.ph = o.search.querySelector(".ph");
-	o.chips = add(pb, '<div class="chips"><span class="chip">VIDEO</span><span class="chip">TTRPG</span><span class="chip">BOARD GAME</span><span class="chip" style="margin-left:auto;border-color:transparent">STEAM · BGG · HLTB</span></div>');
-	o.chipEls = [...o.chips.children];
-	o.card = add(
-		pb,
-		`<div class="gcard"><div class="cover">${coverArt("dragon")}</div><div class="ginfo"><div class="gtitle">Dragon's Peak</div><div class="gmeta">Action RPG · Open world · Single-player</div><div class="stats"><div class="stat"><b>~100 h</b><i>Length</i></div><div class="stat"><b class="pips">●●●●●</b><i>Difficulty</i></div><div class="stat"><b>94%</b><i>Acclaim</i></div></div></div><div class="form"></div><div class="effort"><div class="effn">0</div><div class="effl">EFFORT</div></div></div>`,
-	);
-	o.stats = [...o.card.querySelectorAll(".stat")];
-	o.effort = o.card.querySelector(".effort");
-	o.effn = o.card.querySelector(".effn");
-	o.form = o.card.querySelector(".form");
+	o.gpick = o.search.querySelector(".gpick");
+	o.when = add(pb, fld("When", `<div class="chips">${P1_WHEN.map((w) => `<span class="chip wc">${w}</span>`).join("")}<span class="chip wc" style="border-style:dashed">Pick a date…</span></div>`));
+	o.whenEls = [...o.when.querySelectorAll(".wc")];
+	o.vis = add(pb, fld("Who can join", `<div class="vis"><div class="opt"><span class="oi">${SVG_GLOBE}</span><b>Open to the circle</b><span>Members plus invited friends and Discord-server guests.</span></div><div class="opt"><span class="oi">${SVG_LOCK}</span><b>Members only</b><span>Just the group.</span></div></div>`));
+	o.opts = [...o.vis.querySelectorAll(".opt")];
+	o.more = add(pb, `<div class="more"><span class="mono">▸</span>Length, seats, where, join link, notes<span class="mv">3 hrs · 6 seats · Discord voice</span></div>`);
+	o.post = add(pb, `<div class="postrow"><span class="btn">+ Post session</span><span class="note"><span class="ok">${SVG_CHECK}</span>You're in. Announced to every connected Discord.</span></div>`);
+	o.btn = o.post.querySelector(".btn");
+	o.note = o.post.querySelector(".note");
 	return o;
 }
 
 function buildP2(parent) {
-	const el = panelShell(parent, "What's next? · Ballot");
-	const pb = el.querySelector(".pb");
+	const el = add(parent, `<div class="panel discord"><div class="dbar"><span class="dh">${SVG_HASH}</span><b>game-night</b><span class="dtopic">Sessions from NextQuest</span></div><div class="dchat"></div></div>`);
+	const chat = el.querySelector(".dchat");
 	const o = { el };
-	o.head = add(pb, `<div class="vhead"><div class="vleft"><span class="vn">10</span><small>VOTES LEFT</small></div><div class="lock">${SVG_LOCK}ANONYMOUS</div></div>`);
-	o.vn = o.head.querySelector(".vn");
-	o.lock = o.head.querySelector(".lock");
-	o.rows = VOTE_ROWS.map((r) => {
-		const row = add(pb, `<div class="vrow"><div class="thumb">${coverArt(r.id === "star" ? "star" : r.id)}</div><div class="vt">${r.t}<small style="color:${r.c}">${r.k}</small></div><div class="step"><i class="m">−</i><b>0</b><i class="p">+</i></div><div><div class="mono" style="font-size:13px;letter-spacing:.12em;color:#8a93a3;margin-bottom:8px">GROUP TOTAL</div><div class="tot"><i></i></div></div></div>`);
-		return { row, n: row.querySelector(".step b"), plus: row.querySelector(".p"), bar: row.querySelector(".tot i") };
-	});
+	o.old = add(chat, `<div class="dline">${face("Morgan", 40)}<div><div class="dhead"><b style="color:${PEOPLE.Morgan}">Morgan</b><span class="dtime">Today at 5:58 PM</span></div><div class="dtext">anyone on tonight?</div></div></div>`);
+	o.msg = add(chat, `<div class="dline"><span class="dav">${CHEV_SVG(7)}</span><div class="dbody"><div class="dhead"><b>NextQuest</b><span class="app">APP</span><span class="dtime">Today at 6:12 PM</span></div>
+<div class="embed"><div class="ebar"></div><div class="ein"><div class="etitle"><span class="pad">${SVG_PAD}</span>Starfall Salvage</div><div class="edesc">New season tonight. Bring snacks.</div>
+<div class="efields"><div class="ef"><b>When</b><span>Tonight 8:00 PM (in 2 hours)</span></div><div class="ef"><b>Game</b><span>Starfall Salvage</span></div><div class="ef"><b>Host</b><span>Casey</span></div><div class="ef wide in"><b class="incount">In (1/6)</b><span class="innames">Casey</span></div></div>
+<div class="efoot">Open session — anyone in the circle can join. Tap the title to hop in.</div></div></div>
+<div class="edited">(edited)</div></div></div>`);
+	o.remind = add(chat, `<div class="dline"><span class="dav">${CHEV_SVG(7)}</span><div class="dbody"><div class="dhead"><b>NextQuest</b><span class="app">APP</span><span class="dtime">Today at 7:00 PM</span></div><div class="dtext"><b style="color:#f2f3f5">Starting in 1 hour:</b> Starfall Salvage. In: Casey, Drew, Sam, Riley.</div></div></div>`);
+	o.embed = o.msg.querySelector(".embed");
+	o.inField = o.msg.querySelector(".ef.in");
+	o.incount = o.msg.querySelector(".incount");
+	o.innames = o.msg.querySelector(".innames");
+	o.edited = o.msg.querySelector(".edited");
 	return o;
 }
 
 function buildP3(parent) {
-	const el = panelShell(parent, "What's next?");
+	const el = panelShell(parent, "Home");
 	const pb = el.querySelector(".pb");
 	const o = { el };
-	o.ctx = add(pb, '<div class="ctx">Tonight <span class="chip">3 HRS</span><span class="chip">4 PLAYERS</span><span class="chip">ANY KIND</span><div class="legend"><span><i style="background:#ff6b6b"></i>INTEREST</span><span><i style="background:#34d1e6"></i>TIME FIT</span><span><i style="background:#8b7cff"></i>PARTY FIT</span></div></div>');
-	o.legend = [...o.ctx.querySelectorAll(".legend span")];
-	o.rows = PICK.map((g) => {
-		const row = add(el, `<div class="prow"><div class="thumb">${coverArt(g.id)}</div><div class="vt">${g.t}<small style="color:${g.c}">${g.k}</small></div><div class="bar"><i style="background:#ff6b6b"></i><i style="background:#34d1e6"></i><i style="background:#8b7cff"></i></div><div class="score">0</div></div>`);
-		const badge = g.id === "gloom" ? add(row, '<div class="nextup">NEXT UP</div>') : null;
-		return { g, row, segs: [...row.querySelectorAll(".bar i")], score: row.querySelector(".score"), badge };
+	add(pb, `<div class="wk"><div class="wkh">This week</div><div class="wks">What's on, who's in — tap to join.</div></div>`);
+	o.card = add(pb, `<div class="scard"><div class="sart">${coverArt("star")}</div><div class="sinfo"><div class="stt">Starfall Salvage <span class="vb open">${SVG_GLOBE}Open</span></div><div class="swhen">Tonight 8:00 PM <span class="mono">· in 2 hours · 3 hrs</span></div><div class="shost">hosted by Casey</div><div class="roster"><span class="faces"></span><span class="rcount"></span></div><div class="rsvp"><span class="rb yes">I'm in</span><span class="rb">Maybe</span><span class="rb">Out</span></div></div></div>`);
+	o.faces = o.card.querySelector(".faces");
+	o.rcount = o.card.querySelector(".rcount");
+	o.yes = o.card.querySelector(".rb.yes");
+	o.faceEls = ["Casey", "Drew", "Sam", "Riley", "You"].map((n) => {
+		const f = h(face(n, 46, "margin-left:-10px;border:3px solid #1a1f27"));
+		o.faces.appendChild(f);
+		return f;
 	});
+	o.card2 = add(pb, `<div class="scard small"><div class="sart">${coverArt("gloom")}</div><div class="sinfo"><div class="stt">Gloomkeep — session 4 <span class="vb">${SVG_LOCK}Members</span></div><div class="swhen">Saturday 2:00 PM <span class="mono">· 4 hrs</span></div><div class="roster"><span class="faces">${["Jordan", "Alex", "Casey"].map((n) => face(n, 34, "margin-left:-8px;border:3px solid #1a1f27")).join("")}</span><span class="rcount">3 in</span></div></div></div>`);
+	o.toast = add(el, `<div class="itoast">${face("Riley", 44)}<div><b>Riley joined from an invite link</b><span>Guest · can see and join open sessions</span></div></div>`);
 	return o;
 }
 
 function buildP4(parent) {
-	const el = panelShell(parent, "Events · Dashboard");
+	const el = panelShell(parent, "Starfall Salvage · Played");
 	const pb = el.querySelector(".pb");
 	const o = { el };
-	const split = add(pb, '<div class="split"></div>');
-	const heat = add(split, '<div class="card"><h4>When can everyone play? <span>FREE / 4</span></h4><div class="heat"></div><div class="toast"><div><div class="when">FRI · 7:00 PM</div><div style="font:500 16px Geist;color:#8a93a3">Gloomkeep · session 1</div></div><div class="who"></div></div></div>');
-	const grid = heat.querySelector(".heat");
-	grid.insertAdjacentHTML("beforeend", "<div></div>" + ["MON", "TUE", "WED", "THU", "FRI"].map((d) => `<div class="d">${d}</div>`).join(""));
-	o.cells = [];
-	["5 PM", "6 PM", "7 PM", "8 PM", "9 PM"].forEach((hr, r) => {
-		grid.insertAdjacentHTML("beforeend", `<div class="h">${hr}</div>`);
-		for (let c = 0; c < 5; c++) {
-			const cell = h('<div class="c"></div>');
-			grid.appendChild(cell);
-			o.cells.push({ cell, r, c, v: HEAT[r][c] });
-		}
-	});
-	o.toast = heat.querySelector(".toast");
-	const who = heat.querySelector(".who");
-	o.who = ["#34d1e6", "#8b7cff", "#ffc94a", "#3fcf8e"].map((c) => {
-		const i = h(`<i style="background:${c}"></i>`);
-		who.appendChild(i);
-		return i;
-	});
-	const chart = add(split, '<div class="card chart"><h4>Burn-up <span>EFFORT · WEEKLY</span></h4></div>');
-	// chart geometry
-	const Wc = 480;
-	const Hc = 300;
-	const vals = [0, 0.05, 0.09, 0.15, 0.19, 0.26, 0.31, 0.37, 0.42];
-	const xs = (i) => 20 + (i / 15) * (Wc - 40);
-	const ys = (v) => Hc - 20 - v * (Hc - 60);
-	const pts = vals.map((v, i) => [xs(i), ys(v)]);
-	const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-	const last = pts[pts.length - 1];
-	const fin = [xs(14.6), ys(0.92)];
-	const area = `${d} L${last[0]},${ys(0)} L${pts[0][0]},${ys(0)} Z`;
-	chart.insertAdjacentHTML(
-		"beforeend",
-		`<svg viewBox="0 0 ${Wc} ${Hc}" preserveAspectRatio="none">
-<defs><linearGradient id="ar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34d1e6" stop-opacity=".35"/><stop offset="1" stop-color="#34d1e6" stop-opacity="0"/></linearGradient></defs>
-${[0.25, 0.5, 0.75].map((g) => `<line x1="20" x2="${Wc - 20}" y1="${ys(g)}" y2="${ys(g)}" stroke="#262d38" stroke-width="1"/>`).join("")}
-<line x1="20" x2="${Wc - 20}" y1="${ys(0.92)}" y2="${ys(0.92)}" stroke="#ff6b6b" stroke-width="2" stroke-dasharray="6 6" class="tot"/>
-<text x="${Wc - 20}" y="${ys(0.92) - 10}" fill="#ff6b6b" font-family="Geist Mono" font-size="13" text-anchor="end" letter-spacing="1.5" class="totl">BACKLOG TOTAL</text>
-<path d="${area}" fill="url(#ar)" class="area"/>
-<path d="${d}" fill="none" stroke="#34d1e6" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" class="line"/>
-<path d="M${last[0]},${last[1]} L${fin[0]},${fin[1]}" fill="none" stroke="#8b7cff" stroke-width="3" stroke-dasharray="8 8" class="proj"/>
-<g class="flag" transform="translate(${fin[0]},${fin[1]})"><line x1="0" y1="0" x2="0" y2="-44" stroke="#e7ebf1" stroke-width="3"/><path d="M0,-44 L30,-36 L0,-27 Z" fill="#ffc94a"/></g>
-<circle cx="${last[0]}" cy="${last[1]}" r="7" fill="#34d1e6" class="dot"/>
-</svg>`,
-	);
-	o.svg = chart.querySelector("svg");
-	o.line = o.svg.querySelector(".line");
-	o.lineLen = 0;
-	o.area = o.svg.querySelector(".area");
-	o.proj = o.svg.querySelector(".proj");
-	o.flag = o.svg.querySelector(".flag");
-	o.dot = o.svg.querySelector(".dot");
-	o.tot = o.svg.querySelector(".tot");
-	o.totl = o.svg.querySelector(".totl");
-	o.kpis = add(chart, '<div class="kpis"><div class="kpi"><b class="k1">0%</b><i>complete</i></div><div class="kpi"><b class="k2" style="color:#34d1e6">0.0</b><i>effort / week</i></div><div class="kpi"><b class="k3">—</b><i>projected finish</i></div></div>');
+	add(pb, `<div class="wuh"><b>How did it go?</b><span class="mono">TUESDAY · 8:00 PM · 3 HRS</span></div>`);
+	o.who = add(pb, `<div class="came">${P4_WHO.map(([n, g]) => `<span class="cw">${face(n, 34)}${n}${g ? '<small>GUEST</small>' : ""}<span class="tick">${SVG_CHECK}</span></span>`).join("")}</div>`);
+	o.cw = [...o.who.querySelectorAll(".cw")];
+	o.stars = add(pb, `<div class="stars">${[0, 1, 2, 3, 4].map(() => `<span class="st">${SVG_STAR}</span>`).join("")}<span class="srate mono"></span></div>`);
+	o.st = [...o.stars.querySelectorAll(".st")];
+	o.srate = o.stars.querySelector(".srate");
+	o.recap = add(pb, `<div class="search recap"><span class="q"></span><span class="caret"></span></div>`);
+	o.rq = o.recap.querySelector(".q");
+	o.rcaret = o.recap.querySelector(".caret");
+	o.row = add(pb, `<div class="wrow"><span class="tog"><i></i></span><span class="tl">${SVG_REPEAT}Same time next week</span><span class="btn">Save wrap-up</span></div>`);
+	o.tog = o.row.querySelector(".tog");
+	o.kpis = add(pb, '<div class="kpis"><div class="kpi"><b class="k1">0</b><i>sessions this month</i></div><div class="kpi"><b class="k2" style="color:#34d1e6">0 h</b><i>played together</i></div><div class="kpi"><b class="k3">0.0</b><i>average rating</i></div></div>');
 	o.k = [...o.kpis.querySelectorAll("b")];
-	o.fin = fin;
 	return o;
 }
 
 function layoutReel() {
 	layoutLogo(R.logo);
 	layoutLogo(R.lock);
-	R.p[3].lineLen = R.p[3].line.getTotalLength();
-	R.p[3].projLen = R.p[3].proj.getTotalLength();
 }
 
 // ------------------------------------------------------------------ style helpers
@@ -478,7 +434,7 @@ function renderAct1(t) {
 	if (t < TL.hit + 0.05) {
 		const appear = pr(t, TL.wall, 0.9, Ez.oc);
 		const scroll = 260 * t + 2200 * Math.pow(Math.max(0, t - 1.4), 2);
-		const rowH = 264;
+		const rowH = 118;
 		const off = -(scroll % rowH);
 		let snap = 0;
 		TL.words.forEach((w, i) => {
@@ -492,15 +448,15 @@ function renderAct1(t) {
 			s: mix(1.1, 1, appear) * (1 - imp * 0.6),
 			o: appear * 0.62 * (1 - imp),
 		});
-		T(R.wall, { y: off - 132, blur: Math.min(6, Math.max(0, t - 1.4) * 4) });
+		T(R.wall, { y: off - 59, blur: Math.min(6, Math.max(0, t - 1.4) * 4) });
 	} else hide(R.wallWrap);
 
 	// counter
 	if (t > TL.count - 0.05 && t < 1.55) {
 		const p = pr(t, TL.count, 0.85, Ez.oq);
 		const out = pr(t, 1.32, 0.18, Ez.ic);
-		setText(R.countNum, String(Math.round(247 * p)));
-		setText(R.countLbl, decode("GAMES IN YOUR GROUP'S BACKLOG", pr(t, 0.62, 0.55, Ez.lin), t, 3));
+		setText(R.countNum, p >= 0.999 ? "99+" : String(Math.round(99 * p)));
+		setText(R.countLbl, decode("UNREAD IN THE GROUP CHAT", pr(t, 0.62, 0.55, Ez.lin), t, 3));
 		T(R.count, { s: mix(1.25, 1, pr(t, TL.count, 0.5, Ez.oe)) * (1 + out * 0.15), blur: (1 - pr(t, TL.count, 0.35, Ez.oc)) * 14 + out * 14, o: pr(t, TL.count, 0.15, Ez.lin) * (1 - out), y: -out * 40 });
 	} else hide(R.count);
 
@@ -611,7 +567,7 @@ function renderAct3(t) {
 			ln.style.transform = `translate3d(0,${((1 - uin) * 112 - uout * 112).toFixed(1)}%,0)`;
 		});
 		const idx = hl.querySelector(".idxt");
-		setText(idx, decode(["PROPOSE", "VOTE", "PICK", "PLAY"][i], pr(t, t0, 0.3, Ez.lin), t, i));
+		setText(idx, decode(["POST", "DISCORD", "JOIN", "WRAP UP"][i], pr(t, t0, 0.3, Ez.lin), t, i));
 		const sub = hl.querySelector(".sub");
 		T(sub, { o: pr(t, t0 + 0.3, 0.35, Ez.oc) * (1 - pr(t, tOut - 0.05, 0.15, Ez.lin)), y: (1 - pr(t, t0 + 0.3, 0.5, Ez.oe)) * 24 });
 		T(hl.querySelector(".idx"), { o: 1 - pr(t, tOut, 0.25, Ez.lin) });
@@ -664,134 +620,104 @@ function renderPanel(i, P, u) {
 	[renderP1, renderP2, renderP3, renderP4][i](P, u);
 }
 
+function typed(str, u, at) {
+	let n = 0;
+	for (let i = 0; i < str.length; i++) if (u >= at(i)) n = i + 1;
+	return str.slice(0, n);
+}
+
 function renderP1(P, u) {
-	const n = P1_QUERY.length;
-	let typed = 0;
-	for (let i = 0; i < n; i++) if (u >= P1_TYPE(i)) typed = i + 1;
-	setText(P.q, P1_QUERY.slice(0, typed));
-	P.ph.style.display = typed ? "none" : "";
-	P.search.classList.toggle("focus", u > 0.12);
-	P.caret.style.opacity = u > 0.12 && (u > 0.7 ? Math.floor(u * 4) % 2 === 0 : true) ? "1" : "0";
-	P.chipEls.slice(0, 3).forEach((c, k) => {
-		const on = u > 0.05 + k * 0.12;
-		c.className = "chip" + (on ? [" on-v", " on-t", " on-b"][k] : "");
+	const q = typed(P1_QUERY, u, P1_TYPE);
+	setText(P.q, q);
+	P.ph.style.display = q ? "none" : "";
+	const done = u >= P1_TYPE(P1_QUERY.length - 1) + 0.06;
+	P.search.classList.toggle("focus", u > 0.06 && !done);
+	P.caret.style.opacity = u > 0.06 && !done && Math.floor(u * 5) % 2 === 0 ? "1" : "0";
+	const gp = pr(u, P1_TYPE(P1_QUERY.length - 1) + 0.04, 0.25, Ez.oe);
+	T(P.gpick, { o: gp, x: (1 - gp) * 30 });
+	// when-chips: a quick hover across, landing on "Tonight 8pm"
+	const hov = Math.floor(cl((u - (P1_WHEN_T - 0.16)) / 0.08));
+	P.whenEls.forEach((c, k) => {
+		const sel = k === 1 && u >= P1_WHEN_T;
+		c.className = "chip wc" + (sel ? " on-v" : !sel && u >= P1_WHEN_T - 0.16 && u < P1_WHEN_T && k === hov ? " hov" : "");
+		T(c, { s: sel ? 1 + 0.12 * spr(u, P1_WHEN_T, 3, 9) : 1 });
 	});
-	const cu = pr(u, 0.7, 0.45, Ez.oe);
-	T(P.card, { o: cu, y: (1 - cu) * 40, s: mix(0.96, 1, cu) });
-	P.stats.forEach((s, k) => {
-		const su = pr(u, 0.9 + k * 0.1, 0.35, (x) => Ez.ob(x, 2));
-		T(s, { s: mix(0.6, 1, su), o: cl(su * 2) });
+	P.opts.forEach((op, k) => {
+		const on = k === 0 && u >= P1_VIS_T;
+		op.className = "opt" + (on ? " on" : "");
+		T(op, { s: on ? 1 + 0.05 * spr(u, P1_VIS_T, 3, 9) : 1 });
 	});
-	const eu = pr(u, 1.18, 0.38, (x) => Ez.ob(x, 2.2));
-	T(P.effort, { s: mix(0.2, 1, eu), o: cl(eu * 2), rz: (1 - eu) * -40 });
-	setText(P.effn, String(Math.round(29 * pr(u, 1.2, 0.42, Ez.oq))));
-	setText(P.form, decode("13 × 2.0 × 1.12 =", pr(u, 1.3, 0.35, Ez.lin), u + 7, 5));
+	const press = u >= P1_POST_T ? 1 - 0.07 * Math.max(0, spr(u, P1_POST_T, 2.5, 10)) - 0.06 * decay(u, P1_POST_T, 18) : 1;
+	T(P.btn, { s: press });
+	P.btn.classList.toggle("done", u >= P1_POST_T + 0.06);
+	setText(P.btn, u >= P1_POST_T + 0.06 ? "Posted" : "+ Post session");
+	const nu = pr(u, P1_POST_T + 0.1, 0.35, Ez.oe);
+	T(P.note, { o: nu, x: (1 - nu) * -20 });
+	P.more.classList.toggle("on", u >= 1.0);
 }
 
 function renderP2(P, u) {
-	const done = VOTE_STEPS.filter((s) => u >= s.u);
-	setText(P.vn, String(10 - done.length));
-	P.rows.forEach((r, k) => {
-		const mine = done.filter((s) => s.row === k).length;
-		setText(r.n, String(mine));
-		const hot = VOTE_STEPS.some((s) => s.row === k && u >= s.u && u < s.u + 0.08);
-		r.plus.className = "p" + (hot ? " hot" : "");
-		const ru = pr(u, 0.1 + k * 0.05, 0.4, Ez.oe);
-		T(r.row, { o: ru, x: (1 - ru) * 60 });
-		const w = r.row.querySelector(".tot i");
-		w.style.width = `${((VOTE_ROWS[k].base + mine * 0.05) * 100 * pr(u, 0.15, 0.6, Ez.oc)).toFixed(2)}%`;
-	});
-	const lu = pr(u, 1.45, 0.3, (x) => Ez.ob(x, 2.4));
-	T(P.lock, { s: mix(1.8, 1, lu), o: cl(lu * 3), rz: (1 - lu) * 10 });
+	T(P.old, { o: pr(u, 0.0, 0.25, Ez.oc) * 0.55 });
+	const mu = pr(u, 0.14, 0.42, Ez.oe);
+	T(P.msg, { o: mu, y: (1 - mu) * 50 });
+	const joined = P2_JOIN.filter((j) => u >= j.u);
+	const names = ["Casey", ...joined.map((j) => j.name)];
+	setText(P.incount, `In (${names.length}/6)`);
+	setText(P.innames, names.join(", "));
+	const last = joined.length ? joined[joined.length - 1].u : -9;
+	const fl = decay(u, last, 5);
+	P.inField.style.background = `rgba(46,204,113,${(0.22 * fl).toFixed(3)})`;
+	P.inField.style.boxShadow = fl > 0.02 ? `0 0 0 2px rgba(46,204,113,${(0.7 * fl).toFixed(3)})` : "";
+	T(P.edited, { o: joined.length ? pr(u, P2_JOIN[0].u, 0.2, Ez.lin) : 0 });
+	T(P.embed, { s: 1 + 0.012 * fl });
+	const ru = pr(u, P2_REMIND_T, 0.35, Ez.oe);
+	T(P.remind, { o: ru, y: (1 - ru) * 30 });
 }
 
-function pickScore(g, u) {
-	let s = 0;
-	const prev = [0, ...g.s];
-	for (let k = 0; k < 3; k++) s += (prev[k + 1] - prev[k]) * pr(u, PICK_STAGE[k], 0.3, Ez.oc);
-	return s;
-}
-function pickRank(u) {
-	// rank positions with smooth swaps after each factor lands
-	const ord = (cut) =>
-		PICK.map((g, i) => ({ i, v: cut < 0 ? g.s[0] : g.s[cut] }))
-			.sort((a, b) => b.v - a.v)
-			.map((x) => x.i);
-	const stages = [
-		[-1, 0],
-		[1, PICK_STAGE[1] + 0.25],
-		[2, PICK_STAGE[2] + 0.25],
-	];
-	const pos = new Array(PICK.length).fill(0);
-	let base = ord(-1);
-	base.forEach((gi, r) => (pos[gi] = r));
-	for (let s = 1; s < stages.length; s++) {
-		const next = ord(stages[s][0]);
-		const w = pr(u, stages[s][1], 0.35, Ez.ioc);
-		next.forEach((gi, r) => (pos[gi] = mix(pos[gi], r, w)));
-	}
-	return pos;
-}
 function renderP3(P, u) {
-	const cu = pr(u, 0.05, 0.35, Ez.oe);
-	T(P.ctx, { o: cu, y: (1 - cu) * 20 });
-	P.legend.forEach((l, k) => (l.style.color = u > PICK_STAGE[k] ? "#e7ebf1" : "#5d6676"));
-	const pos = pickRank(u);
-	const win = pr(u, PICK_WIN, 0.35, (x) => Ez.ob(x, 2.2));
-	P.rows.forEach((r, k) => {
-		const s = pickScore(r.g, u);
-		const prev = [0, ...r.g.s];
-		r.segs.forEach((seg, j) => {
-			const a = prev[j];
-			const b = Math.min(prev[j + 1], Math.max(a, s));
-			seg.style.left = `${a * 100}%`;
-			seg.style.width = `${Math.max(0, b - a) * 100}%`;
-		});
-		setText(r.score, String(Math.round(s * 100)));
-		const isWin = r.g.id === "gloom";
-		const ru = pr(u, 0.12 + k * 0.05, 0.4, Ez.oe);
-		T(r.row, {
-			y: 150 + pos[k] * 122,
-			x: (1 - ru) * 80,
-			o: ru * (isWin ? 1 : 1 - 0.55 * pr(u, PICK_WIN, 0.3, Ez.lin)),
-			s: isWin ? 1 + 0.035 * win : 1,
-			z: isWin ? 30 * win : 0,
-		});
-		r.row.style.borderColor = isWin && u > PICK_WIN ? "#ffc94a" : "";
-		r.row.style.boxShadow = isWin && u > PICK_WIN ? `0 0 ${(40 * win).toFixed(0)}px rgba(255,201,74,.35)` : "";
-		if (r.badge) T(r.badge, { s: mix(2, 1, win), o: cl(win * 3), rz: (1 - win) * -12 });
+	const cu = pr(u, 0.08, 0.4, Ez.oe);
+	T(P.card, { o: cu, y: (1 - cu) * 30 });
+	const c2 = pr(u, 0.22, 0.4, Ez.oe);
+	T(P.card2, { o: c2 * 0.85, y: (1 - c2) * 30 });
+	const tu = pr(u, P3_GUEST_T, 0.4, Ez.oe) * (1 - pr(u, P3_GUEST_T + 1.1, 0.3, Ez.ic));
+	T(P.toast, { o: tu, y: (1 - pr(u, P3_GUEST_T, 0.4, Ez.oe)) * -40, x: 0 });
+	const show = [true, true, true, u >= P3_GUEST_T + 0.15, u >= P3_IN_T + 0.05];
+	P.faceEls.forEach((f, k) => {
+		const t0 = k === 3 ? P3_GUEST_T + 0.15 : k === 4 ? P3_IN_T + 0.05 : 0;
+		const s = k < 3 ? 1 : pr(u, t0, 0.3, (x) => Ez.ob(x, 2.6));
+		T(f, { s, o: show[k] ? 1 : 0 });
 	});
+	const n = show.filter(Boolean).length;
+	setText(P.rcount, `${n} in · ${6 - n} seat${6 - n === 1 ? "" : "s"} left`);
+	const pressed = u >= P3_IN_T;
+	P.yes.classList.toggle("on", pressed);
+	T(P.yes, { s: pressed ? 1 - 0.08 * decay(u, P3_IN_T, 14) + 0.05 * spr(u, P3_IN_T + 0.05, 3, 9) : 1 });
 }
 
 function renderP4(P, u) {
-	P.cells.forEach((c) => {
-		const cu = pr(u, 0.05 + (c.r + c.c) * 0.035, 0.3, (x) => Ez.ob(x, 2));
-		const a = (c.v / 4) * 0.95;
-		const best = c.v === 4 && u > 0.62;
-		c.cell.style.background = `rgba(52,209,230,${(a * cl(cu)).toFixed(3)})`;
-		c.cell.style.transform = `scale(${mix(0.4, 1, cu).toFixed(3)})`;
-		c.cell.style.boxShadow = best ? "0 0 0 3px #ffc94a, 0 0 24px rgba(255,201,74,.55)" : "";
+	P.cw.forEach((c, k) => {
+		const cu = pr(u, 0.08 + k * 0.06, 0.3, Ez.oe);
+		T(c, { o: cu, y: (1 - cu) * 16 });
+		c.classList.toggle("on", u >= 0.2 + k * 0.06);
 	});
-	const tu = pr(u, 0.72, 0.45, Ez.oe);
-	T(P.toast, { y: (1 - tu) * 120, o: tu });
-	P.who.forEach((w, k) => T(w, { s: pr(u, 0.85 + k * 0.06, 0.25, (x) => Ez.ob(x, 2.5)) }));
-	const lu = pr(u, 0.45, 0.7, Ez.ioc);
-	P.line.style.strokeDasharray = `${P.lineLen}`;
-	P.line.style.strokeDashoffset = `${(P.lineLen * (1 - lu)).toFixed(2)}`;
-	P.area.style.opacity = (lu * 0.9).toFixed(3);
-	P.dot.style.opacity = lu > 0.98 ? "1" : "0";
-	P.tot.style.opacity = P.totl.style.opacity = pr(u, 0.3, 0.3, Ez.lin).toFixed(3);
-	const pu = pr(u, 1.05, 0.4, Ez.oc);
-	P.proj.style.strokeDasharray = `8 8`;
-	P.proj.style.opacity = pu > 0 ? "1" : "0";
-	P.proj.setAttribute("stroke-dasharray", `${(P.projLen * pu).toFixed(1)} 9999`);
-	P.proj.style.strokeDasharray = "";
-	const fu = pr(u, 1.4, 0.3, (x) => Ez.ob(x, 2.5));
-	P.flag.setAttribute("transform", `translate(${P.fin[0]},${P.fin[1]}) scale(${fu.toFixed(3)})`);
-	const ku = pr(u, 0.55, 0.7, Ez.oq);
-	setText(P.k[0], `${Math.round(42 * ku)}%`);
-	setText(P.k[1], (6.5 * ku).toFixed(1));
-	setText(P.k[2], u > 1.4 ? "Mar 14" : decode("Mar 14", pr(u, 1.1, 0.3, Ez.lin), u, 2));
+	P.st.forEach((s, k) => {
+		const on = k < 4 && u >= P4_STARS[k];
+		s.classList.toggle("on", on);
+		T(s, { s: on ? 1 + 0.35 * Math.max(0, spr(u, P4_STARS[k], 3, 8)) : 1 });
+	});
+	setText(P.srate, u >= P4_STARS[3] ? "4 / 5" : "");
+	const r = typed(P4_RECAP, u, P4_RECAP_T);
+	setText(P.rq, r || "One line about it (optional)");
+	P.rq.style.color = r ? "" : "#5d6676";
+	const typing = u > P4_RECAP_T(0) - 0.05 && u < P4_RECAP_T(P4_RECAP.length - 1) + 0.08;
+	P.recap.classList.toggle("focus", typing);
+	P.rcaret.style.opacity = typing ? "1" : "0";
+	P.tog.classList.toggle("on", u >= P4_REPEAT_T);
+	const ku = pr(u, P4_STATS_T, 0.4, Ez.oq);
+	T(P.kpis, { o: pr(u, P4_STATS_T - 0.05, 0.2, Ez.lin), y: (1 - pr(u, P4_STATS_T - 0.05, 0.4, Ez.oe)) * 20 });
+	setText(P.k[0], String(Math.round(12 * ku)));
+	setText(P.k[1], `${Math.round(31 * ku)} h`);
+	setText(P.k[2], (4.4 * ku).toFixed(1));
 }
 
 function renderAct4(t) {
@@ -819,7 +745,7 @@ function renderAct4(t) {
 			w.style.transform = `translate3d(0,${((1 - u) * 112).toFixed(1)}%,0)`;
 		});
 	});
-	setText(R.meta, decode("OPEN SOURCE · VIDEO GAMES · TTRPGS · BOARD GAMES", pr(t, 14.15, 0.45, Ez.lin), t, 21));
+	setText(R.meta, decode("OPEN SOURCE · SESSIONS · DISCORD · VIDEO GAMES · TTRPGS · BOARD GAMES", pr(t, 14.15, 0.5, Ez.lin), t, 21));
 	setText(R.meta2, decode("GITHUB.COM/LIGHTNINGMARSHAL/NEXTQUEST", pr(t, 14.35, 0.4, Ez.lin), t, 29));
 	T(R.meta, { o: pr(t, 14.1, 0.1, Ez.lin) });
 	T(R.meta2, { o: pr(t, 14.3, 0.1, Ez.lin) });

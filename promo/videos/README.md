@@ -22,37 +22,42 @@ Both masters meet YouTube's recommended upload settings for SDR 1080p
 **Title**
 
 ```
-NextQuest in 15 seconds — the backlog app for your gaming group
+NextQuest in 15 seconds: post a session, friends hop in
 ```
 
 **Description**
 
 ```
-Your group's backlog has 247 games. Which one's next?
+"Anyone on tonight?" 99+ unread in the group chat, and still no plan.
 
-NextQuest is a free, open-source web app for one gaming group: a shared backlog
-for video games, tabletop RPGs and board games.
+NextQuest is a free, open-source web app that helps a gaming group play
+more games with more people: video games, tabletop RPGs and board games.
 
-01 Propose — paste a Steam or BoardGameGeek link; effort is sized from
-   HowLongToBeat playtime, difficulty and acclaim.
-02 Vote — everyone gets ten secret votes. Only group totals are ever shown.
-03 Pick — the picker blends interest, time fit and who's around tonight.
-04 Play — availability polls, RSVPs, and a burn-up chart that shows the pile
-   actually shrinking.
+01 Post: pick a game, tap a time, open it to the circle. Three taps.
+02 Discord: one card per session, edited in place as people join, plus
+   reminders a day and an hour before.
+03 Join: invite links and Discord sign-in bring friends-of-friends into
+   open sessions. Tap I'm in.
+04 Wrap up: who came, how it went, same time next week. Ten seconds.
 
-Stop scrolling the backlog. Start playing it.
+Play more games with more people.
 
 Source: https://github.com/LightningMarshal/NextQuest
 Animation and music were generated in code (HTML/CSS 3D + Web Audio).
 ```
 
-**Tags:** `NextQuest, game backlog, gaming group, board games, TTRPG, D&D group, game night, what to play next, open source, self-hosted`
+**Tags:** `NextQuest, gaming group, game night, Discord, LFG, looking for group, board games, TTRPG, D&D group, open source, self-hosted`
 
 **Category:** Gaming · **Shorts:** this is 16:9; YouTube will treat it as a regular video, not a Short.
 
 ---
 
-## 2. NextQuest — hand-drawn tour (47 s)
+## 2. NextQuest — hand-drawn tour (47 s) · outdated
+
+> Shows the pre-2026 design (budget voting, the picker, effort). It is due
+> to be replaced by a real-app walkthrough; see
+> [docs/plans/2026-10-walkthrough-video.md](../../docs/plans/2026-10-walkthrough-video.md).
+> Don't upload it as current marketing.
 
 **Title**
 
