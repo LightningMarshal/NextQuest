@@ -1,8 +1,7 @@
 # NextQuest reel
 
 A 15-second motion-graphics spot for NextQuest, built to sit at the top of the
-repo README and to go on YouTube. Where the [hand-drawn tour](../animation) is
-whimsical, this one is precise: the app's own dark "Nova" palette, true 3D
+repo README and to go on YouTube: the app's own dark "Nova" palette, true 3D
 perspective UI, kinetic typography, and every cut landing on a 120 BPM beat.
 
 - **Watch:** [`../videos/nextquest-reel-1080p60.mp4`](../videos/nextquest-reel-1080p60.mp4) (1080p60, sound on)
@@ -36,8 +35,8 @@ src/reel-audio.js   120 BPM drift-phonk / trap cue (pitched cowbell hook, distor
                     808 with slides, hard kick and claps, hat rolls, stop-time
                     drops, tape-stop ending) + game-UI sound design (clicks,
                     8-bit selects, zaps, glitches, phone buzzes) synced to
-                    on-screen events; reuses the DSP toolkit in
-                    ../animation/src/audio.js
+                    on-screen events; the instruments live in
+                    ../shared/dsp.js, shared with the walkthrough
 src/player.js       realtime player and the window.REEL export hooks
 build.mjs           inline everything into dist/nextquest-reel.html
 render.mjs          screenshot every frame with Playwright → ffmpeg → MP4
@@ -49,9 +48,8 @@ FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
 ```
 
 The panels are hand-built in HTML to look like the app, so they need updating
-when the UI changes. The plan for the longer video
-([docs/plans/2026-10-walkthrough-video.md](../../docs/plans/2026-10-walkthrough-video.md))
-avoids that by filming the real app.
+when the UI changes. The longer [walkthrough](../walkthrough) avoids that by
+filming the real app.
 
 The games (*Starfall Salvage*, *Gloomkeep*) and people are fictional, so the
 reel can be posted anywhere without third-party artwork.

@@ -1,0 +1,62 @@
+[
+ {
+  "id": "chat1",
+  "text": "Every gaming group has the same problem."
+ },
+ {
+  "id": "chat2",
+  "text": "Ninety-nine messages, and still nobody knows who's on tonight."
+ },
+ {
+  "id": "logo",
+  "text": "This is NextQuest.",
+  "speed": 0.92
+ },
+ {
+  "id": "post1",
+  "text": "Playing Hell Divers tonight? Post it in three taps.",
+  "caption": "Playing Helldivers tonight? Post it in three taps."
+ },
+ {
+  "id": "post2",
+  "text": "Pick the game, tap a time, and choose who can join: just the group, or the whole circle."
+ },
+ {
+  "id": "disc1",
+  "text": "It lands in Discord as one live card."
+ },
+ {
+  "id": "disc2",
+  "text": "As friends join, the same card updates, and reminders go out a day and an hour before."
+ },
+ {
+  "id": "join1",
+  "text": "Friends of friends get an invite link, or sign in with Discord."
+ },
+ {
+  "id": "join2",
+  "text": "They see your open sessions, tap I'm in, and add it to their calendar."
+ },
+ {
+  "id": "wrap1",
+  "text": "When the night's over, wrap it up in ten seconds."
+ },
+ {
+  "id": "wrap2",
+  "text": "Who came, how it went, same time next week?"
+ },
+ {
+  "id": "more1",
+  "text": "Plus a library of every game you play, polls to find a time, and stats for your group."
+ },
+ {
+  "id": "end1",
+  "text": "NextQuest.",
+  "speed": 0.9
+ },
+ {
+  "id": "end2",
+  "text": "Play more games, with more people.",
+  "speed": 0.95
+ }
+]

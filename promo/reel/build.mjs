@@ -14,7 +14,7 @@ html = html.replace(
 	`<style>\n${font("Unbounded", "assets/Unbounded.woff2", "400 900")}\n${font("Space Grotesk", "assets/SpaceGrotesk.woff2", "300 700")}\n${font("Hanken Grotesk", "assets/HankenGrotesk.woff2", "300 800")}\n${font("JetBrains Mono", "assets/JetBrainsMono.woff2", "400 700")}\n</style>`,
 );
 // the reel reuses the DSP toolkit from the hand-drawn film
-const scripts = ["../animation/src/audio.js", "src/reel.js", "src/reel-audio.js", "src/player.js"].map((p) => read(p).toString());
+const scripts = ["../shared/dsp.js", "src/reel.js", "src/reel-audio.js", "src/player.js"].map((p) => read(p).toString());
 html = html.replace(/<!--SCRIPTS-->[\s\S]*?<!--\/SCRIPTS-->/, () => `<script>\n${scripts.join("\n")}\n</script>`);
 fs.mkdirSync(path.join(dir, "dist"), { recursive: true });
 fs.writeFileSync(path.join(dir, "dist/nextquest-reel.html"), html);
