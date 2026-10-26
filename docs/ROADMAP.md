@@ -370,29 +370,29 @@ and wants more people. Audit + rebuild on `claude/nextquest-redesign-audit-d8y1j
 Superseded by this phase: Phases 3 (voting), 8 and 10 (the picker), and the
 effort-editing parts of 2 and 9 — their data remains, their UI is gone.
 
-## Phase 22 (proposed) — Production confidence
+## Phase 22 (in progress) — Production confidence
 
 The app now has CI, tests, and error pages — but production is still a
 black box: a crashed cron logs to a console nobody retains, and the only
 backup is an admin remembering to click "Everything (JSON)".
 
-- Error visibility: ship Worker logs somewhere durable (Workers Logs /
-  Logpush or a lightweight Sentry via `@sentry/cloudflare`); at minimum,
-  cron task failures should post to the existing Discord webhook — the
-  plumbing is already there (`console.warn` today = silent in prod)
+- Error visibility: ✅ cron task failures now post to Discord
+  (`src/app/api/cron/route.ts` → `notifyDiscord`: `DISCORD_WEBHOOK_URL` plus
+  "all"-audience webhooks from /admin, no-op when none); shipping Worker
+  logs somewhere durable (Workers Logs / Logpush or a lightweight Sentry via
+  `@sentry/cloudflare`) is still open — needs a new external account this repo can't provision unattended
 - Automated backups: a weekly cron task that writes the /api/export
   snapshot to an R2 bucket with a retention window — the export route
   already builds the payload; this schedules it. Document Neon PITR
   alongside as the point-in-time layer
 - E2E smoke suite in CI: `npm run seed` + local Postgres + the Neon-HTTP
   shim + Playwright against `next dev` — sign in via a test-only session
-  seam, walk propose → vote → schedule → wrap-up. Every verification
-  session so far has hand-rebuilt exactly this harness; commit it
-  (the shim itself is the missing piece — see Phase 23's local dev item)
-- Migration check in CI: apply `drizzle/` from zero against a scratch
-  Postgres service so a broken generated migration fails the PR, not the
-  deploy (the deploy script runs migrations first — today that's where
-  you'd find out)
+  seam, walk post a session → join → wrap-up. The shim is ✅ committed
+  (`scripts/neon-http-shim.mjs`, `npm run db:shim`, Phase 24); the
+  Playwright suite and CI wiring are still open
+- Migration check in CI: ✅ a `migration-check` job in `ci.yml` spins up a
+  disposable `postgres:17` service container and runs `npm run db:migrate`
+  (`drizzle-kit migrate`) against it from empty on every push/PR
 - PR preview deploys via `wrangler versions upload` — review a change on
   a real workerd runtime instead of trusting `npm run dev`
 
