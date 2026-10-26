@@ -1,8 +1,9 @@
 /*
  * Shared DSP toolkit for the NextQuest promo videos: deterministic noise,
- * biquad filters, wavetable oscillators, an FM instrument kit (glass and
- * metal tones, ticks, rims, a round kick, pulse bass, digital accents), a
- * generated reverb impulse, and a WAV encoder. Plain browser JS, no deps.
+ * biquad filters, wavetable oscillators, an electro kit (distorted saw bass,
+ * detuned stabs, stomp kick, claps, hats, risers), an FM kit (glass and
+ * metal tones, ticks, rims, pulse bass, digital accents), a generated
+ * reverb impulse, and a WAV encoder. Plain browser JS, no deps.
  * Each video's own score lives next to it (reel/src/reel-audio.js, …).
  */
 "use strict";
@@ -243,6 +244,115 @@ function grains(sec = 0.4, count = 18, base = 1800) {
 		mixInto(x, g, at, 0.5 * (0.4 + 0.6 * Math.abs(nrand())));
 	}
 	return x;
+}
+
+// ------------------------------------------------------------------ electro kit
+// French-electro weight for the reel: distorted saw bass, big detuned stabs,
+// a stomping kick, a roomy clap, hats, crashes and risers.
+
+const crush = (x, amt) => {
+	const k = Math.tanh(amt);
+	for (let n = 0; n < x.length; n++) x[n] = Math.tanh(x[n] * amt) / k;
+	return x;
+};
+
+/**
+ * Gritty electro bass: detuned saws over a square, driven hard into a
+ * resonant low-pass that snaps open on each note, then driven again.
+ * glideTo/glideAt slide the pitch late in the note.
+ */
+function grit(freq, dur, o = {}) {
+	const x = buf(dur + 0.03);
+	const to = o.glideTo ?? freq;
+	const at = o.glideAt ?? dur;
+	const f = (t) => (t < at ? freq : freq * Math.pow(to / freq, Math.min(1, (t - at) / 0.06)));
+	osc(x, "saw", f, 0.55);
+	osc(x, "saw", (t) => f(t) * 1.007, 0.55, 1300);
+	osc(x, "square", f, 0.35, 600);
+	crush(x, o.drive ?? 5);
+	const cut = o.cut ?? 1300;
+	filt(x, "lp", (t) => cut + (o.snap ?? 4500) * Math.exp(-t * (o.snapK ?? 12)), o.q ?? 3.2);
+	filt(x, "peak", 1300, 1, 5);
+	filt(x, "peak", 2600, 1.2, 4);
+	filt(x, "hp", 45, 0.7);
+	crush(x, 2.2);
+	// tame the fizz the drive folds back above the audible grit
+	filt(x, "lp", 9000, 0.7);
+	filt(x, "lp", 9000, 0.7);
+	for (let n = 0; n < x.length; n++) {
+		const t = n / SR;
+		x[n] *= Math.min(1, t / 0.003) * Math.min(1, (dur + 0.03 - t) / 0.02);
+	}
+	return x;
+}
+
+/** Big detuned saw stab (or swell, with a slow attack) through a filter envelope. */
+function stabChord(freqs, dur, o = {}) {
+	const x = buf(dur + (o.release ?? 0.2));
+	for (const f of freqs) for (const d of [-0.14, -0.05, 0.05, 0.14]) osc(x, "saw", f * Math.pow(2, d / 12), 0.16, f * 13 + d * 4000);
+	const atk = o.attack ?? 0.004;
+	if (o.swell) filt(x, "lp", (t) => 400 + 5200 * Math.min(1, t / dur), 1.4);
+	else filt(x, "lp", (t) => (o.floor ?? 1800) + (o.cut ?? 6500) * Math.exp(-t * (o.snapK ?? 7)), 1.3);
+	crush(x, o.drive ?? 2.6);
+	filt(x, "lp", 11000, 0.7);
+	for (let n = 0; n < x.length; n++) {
+		const t = n / SR;
+		const e = t < atk ? t / atk : t < dur ? 1 - (1 - (o.sustain ?? 0.7)) * Math.min(1, (t - atk) / 0.15) : (o.sustain ?? 0.7) * Math.max(0, 1 - (t - dur) / (o.release ?? 0.2));
+		x[n] *= e;
+	}
+	return x;
+}
+
+/** The stomp: a punchy, saturated kick with a click. */
+function stomp() {
+	const x = kick({ f1: 200, f2: 52, decay: 8.5, len: 0.38 });
+	for (let n = 0; n < 160; n++) x[n] += nrand() * 0.5 * (1 - n / 160);
+	return crush(x, 3);
+}
+/** A big clap: three quick bursts, a snare body and a short room tail. */
+function bigClap() {
+	const x = buf(0.42);
+	for (const at of [0, 0.011, 0.022]) {
+		const s0 = Math.floor(at * SR);
+		for (let n = 0; n < 0.02 * SR; n++) x[s0 + n] += nrand() * Math.exp(-n / SR * 180);
+	}
+	for (let n = Math.floor(0.03 * SR); n < x.length; n++) x[n] += nrand() * 0.45 * Math.exp(-(n / SR - 0.03) * 9);
+	filt(x, "bp", 1400, 0.7);
+	for (let n = 0; n < x.length; n++) x[n] += Math.sin(2 * Math.PI * 190 * (n / SR)) * 0.5 * Math.exp(-n / SR * 32);
+	return crush(x, 2.4);
+}
+function hatC() {
+	const x = noise(0.06);
+	for (let n = 0; n < x.length; n++) x[n] *= Math.exp(-n / SR * 60);
+	return filt(x, "hp", 7500, 0.8);
+}
+function hatO() {
+	const x = noise(0.32);
+	for (let n = 0; n < x.length; n++) x[n] *= Math.exp(-n / SR * 9) * Math.min(1, (x.length - n) / 400);
+	filt(x, "hp", 6500, 0.8);
+	return filt(x, "peak", 9500, 1, 4);
+}
+function crashHit(len = 1.8) {
+	const x = noise(len);
+	for (let n = 0; n < x.length; n++) {
+		const t = n / SR;
+		x[n] *= Math.exp(-t * 2) * 0.8 + Math.exp(-t * 14) * 0.5;
+	}
+	filt(x, "hp", 4000, 0.6);
+	return filt(x, "peak", 7000, 1, 4);
+}
+/** Noise and a saw climbing together into a drop. */
+function riseUp(sec, f0 = 250, f1 = 8000) {
+	const x = noise(sec);
+	filt(x, "bp", (t) => f0 * Math.pow(f1 / f0, t / sec), 1.6);
+	osc(x, "saw", (t) => 110 * Math.pow(8, t / sec), 0.12);
+	for (let n = 0; n < x.length; n++) x[n] *= Math.pow(n / x.length, 1.8);
+	return crush(x, 1.5);
+}
+/** A sub boom falling away: the floor dropping out. */
+function boom(len = 1.4) {
+	const x = kick({ f1: 120, f2: 30, decay: 2.4, len });
+	return crush(x, 2);
 }
 
 function makeIR(ctx, sec) {

@@ -1,38 +1,33 @@
 /*
- * Soundtrack for the NextQuest reel: procedural electronic sound design at
- * 120 BPM. FM glass and metal tones, micro-percussion (ticks, rims, a round
- * kick) in a syncopated 3-3-2 groove, a restrained pulse bass, short motifs
- * instead of a melody, and accents locked to the picture (reel.js timings).
- * Instruments come from ../shared/dsp.js; finished with a ping-pong echo, a
- * short room, gentle bus compression and a peak limiter.
+ * Soundtrack for the NextQuest reel, in the spirit of French electro
+ * (Justice's "Genesis"): a dramatic swelling open, a distorted saw-bass riff
+ * as the hook over a stomping beat, big detuned stabs on the cuts, heavy
+ * sidechain pump, and a hit for every moment on screen (timings from
+ * reel.js). Original material; instruments come from ../shared/dsp.js.
+ * 120 BPM, A minor.
  */
 "use strict";
 
 const STEP = RB / 4; // a 16th note
 const RA = {
-	// one 2 s bar per feature panel: A minor, F, C, G
-	bars: [
-		[4.5, 0],
-		[6.5, -4],
-		[8.5, 3],
-		[10.5, -2],
-	],
-	// 3-3-2 syncopation instead of four-on-the-floor
-	kickSteps: [0, 6, 11],
-	rimSteps: [4, 12],
-	bassSteps: [0, 3, 6, 10, 13],
-	// the motif: semitones above the bar's root, null = rest
-	motif: [0, 7, 12, null, 10, 7, 3, null, 0, 7, 15, 12, null, 10, 7, null],
-	motif2: [0, 7, 12, 15, 19, 15, 12, 7, 0, null, 12, 10, 15, null, 19, 22],
+	// the hook: [step, semitones above A1, length in steps, glide to]
+	call: [[0, 0, 3], [3, 12, 1], [4, 10, 2], [6, 7, 2], [8, 0, 2], [10, 3, 2], [12, 5, 1], [13, 7, 1], [14, 10, 2]],
+	answer: [[0, 0, 3], [3, 12, 1], [4, 10, 2], [6, 7, 2], [8, 8, 3], [11, 7, 1], [12, 5, 2], [14, 3, 1, 0], [15, 2, 1]],
+	// one 2 s bar per feature panel: call, answer, call (doubled up an octave), answer
+	bars: [4.5, 6.5, 8.5, 10.5],
+	chords: [["A2", "C3", "E3"], ["F2", "A2", "C3"], ["A2", "C3", "E3"], ["F2", "A2", "C3"]],
+	kickSteps: [0, 4, 8, 12],
+	clapSteps: [4, 12],
+	stabSteps: [0, 10],
 };
 
 async function buildReelSoundtrack() {
 	_seed = 777;
 	const len = Math.ceil(REEL_DUR * SR);
 	const stereo = () => [new Float32Array(len), new Float32Array(len)];
-	const bus = { tone: stereo(), bass: stereo(), perc: stereo(), sfx: stereo(), echo: stereo(), rev: stereo() };
+	const bus = { music: stereo(), bass: stereo(), drums: stereo(), sfx: stereo(), rev: stereo() };
 	const cache = new Map();
-	function play(fn, when, which, gain = 1, pan = 0, rev = 0.06, key = null, echo = 0) {
+	function play(fn, when, which, gain = 1, pan = 0, rev = 0.08, key = null) {
 		if (when < 0 || when >= REEL_DUR) return;
 		let d;
 		if (key && cache.has(key)) d = cache.get(key);
@@ -54,175 +49,191 @@ async function buildReelSoundtrack() {
 				bus.rev[0][s0 + k] += v * gl * rev;
 				bus.rev[1][s0 + k] += v * gr * rev;
 			}
-			if (echo) {
-				bus.echo[0][s0 + k] += v * gl * echo;
-				bus.echo[1][s0 + k] += v * gr * echo;
-			}
 		}
 	}
-	const A3 = hz("A3");
-	const semi = (s, base = A3) => base * Math.pow(2, s / 12);
-	const T = (t, f = 6000, g = 0.18, pan = 0) => play(() => tick(f), t, "perc", g * 1.35, pan, 0.02, "t" + f);
-	const K = (t, g = 0.65) => play(() => roundKick(), t, "perc", g * 0.85, 0, 0.01, "k");
-	const Rim = (t, g = 0.32, pan = 0.15) => play(() => rim(1700), t, "perc", g, pan, 0.05, "rim");
-	const Bass = (s, t, dur = 0.2, g = 0.55) => play(() => pulseBass(semi(s, hz("A1")), dur), t, "bass", g, 0, 0, `b${s}${dur}`);
-	const Glass = (s, t, g = 0.2, pan = 0, dur = 0.45, echo = 0.35) => play(() => glass(semi(s, hz("A4")), dur), t, "tone", g, pan, 0.08, `g${s}${dur}`, echo);
-	const Metal = (s, t, g = 0.22, pan = 0, dur = 0.7) => play(() => metal(semi(s, hz("A3")), dur), t, "tone", g, pan, 0.12, `m${s}${dur}`, 0.15);
-	const Blip = (f, t, g = 0.16, pan = 0.3, up = 0.6) => play(() => fm(f, 0.07, { ratio: 2, index: 1.2, indexDecay: 30, decay: 40, sweep: up, sweepT: 0.04 }), t, "sfx", g, pan, 0.04, `bl${f}${up}`);
+	const kicks = [];
+	const K = (t, g = 0.9) => {
+		kicks.push(t);
+		play(() => stomp(), t, "drums", g, 0, 0.02, "k");
+	};
+	const Clap = (t, g = 0.55) => play(() => bigClap(), t, "drums", g, 0, 0.1, "clap");
+	const HC = (t, g = 0.12, pan = -0.3) => play(() => hatC(), t, "drums", g, pan, 0.02, "hc");
+	const HO = (t, g = 0.14, pan = 0.3) => play(() => hatO(), t, "drums", g, pan, 0.04, "ho");
+	const Crash = (t, g = 0.22) => play(() => crashHit(), t, "drums", g, -0.15, 0.2, "crash");
+	const A1 = hz("A1");
+	const Bass = (semi, t, steps, g = 0.62, glideSemi = null, o = {}) => {
+		const dur = steps * STEP - 0.01;
+		const f = A1 * Math.pow(2, semi / 12);
+		const glide = glideSemi === null ? {} : { glideTo: A1 * Math.pow(2, glideSemi / 12), glideAt: dur * 0.55 };
+		play(() => grit(f, dur, { ...glide, ...o }), t, "bass", g, 0, 0, `b${semi}${steps}${glideSemi}${o.cut ?? ""}`);
+	};
+	const chord = (names, oct = 0) => names.map((nm) => hz(nm) * Math.pow(2, oct));
+	const Stab = (names, t, dur = 0.22, g = 0.3, o = {}) => play(() => stabChord(chord(names), dur, o), t, "music", g, 0, 0.2, `s${names}${dur}${o.swell ?? ""}`);
+	const Pluck = (name, t, g = 0.16, pan = 0.35) => play(() => stabChord([hz(name)], 0.08, { cut: 5000, snapK: 25, sustain: 0.3, release: 0.1 }), t, "sfx", g, pan, 0.12, "p" + name);
+	const riff = (pattern, t0, from = 0, to = 16, g = 0.62, o = {}) => {
+		for (const [s, semi, steps, glide = null] of pattern) if (s >= from && s < to) Bass(semi, t0 + (s - from) * STEP, steps, g, glide, o);
+	};
 
-	// ---------- act 1: a line of light, then data pouring in
-	play(() => fm(1760, 0.5, { ratio: 1.5, index: 2.2, indexDecay: 6, decay: 5, sweep: 2.5, sweepT: 0.3 }), TL.laser, "sfx", 0.12, 0, 0.05);
-	play(() => roundKick(), TL.laser, "perc", 0.4);
-	play(() => grains(1.3, 34, 1100), TL.wall, "sfx", 0.22, -0.3, 0.05);
-	play(() => grains(1.2, 30, 1650), TL.wall + 0.15, "sfx", 0.18, 0.35, 0.05);
-	// counter ticks follow the digits, accelerating
+	// ---------- act 1: a dramatic swell over the group-chat wall
+	play(() => boom(1.6), TL.laser, "sfx", 0.45, 0, 0.1);
+	play(() => crashHit(2.4), TL.laser, "drums", 0.16, 0.2, 0.3);
+	Stab(["A1", "A2", "E3", "A3", "C4"], TL.laser + 0.05, 1.4, 0.34, { swell: true, attack: 1.1, sustain: 1, release: 0.15, drive: 3.2 });
+	play(() => riseUp(1.45, 200, 6000), 0.05, "sfx", 0.22, 0, 0.1);
+	// the counter ticks, hat by hat
 	for (let k = 0; k < 26; k++) {
 		const u = k / 26;
-		const t = TL.count + 0.85 * (1 - Math.pow(1 - u, 1 / 5)) * 0.999;
-		T(t, 5200 + (k % 4) * 600, 0.1 + u * 0.08, k % 2 ? 0.45 : -0.45);
+		HC(TL.count + 0.85 * (1 - Math.pow(1 - u, 1 / 5)) * 0.999, 0.06 + u * 0.08, k % 2 ? 0.45 : -0.45);
 	}
-	// a filtered pulse quietly sets the tempo under the wall
-	for (let s = 0; s < 12; s++) Bass(0, 0 + s * STEP, 0.08, 0.12 + s * 0.012);
-
-	// ANYONE / UP FOR / A GAME / TONIGHT?  one metallic hit per word, climbing
-	const wordSemis = [0, 3, 5, 7];
+	// ANYONE / UP FOR / A GAME / TONIGHT?  one huge hit per word, the last one a dominant
+	const wordChords = [["A2", "C3", "E3"], ["A2", "C3", "E3"], ["F2", "A2", "C3"], ["E2", "G#2", "B2"]];
+	const wordBass = [0, 0, -4, -5];
 	TL.words.forEach((t, i) => {
-		K(t, 0.8);
-		Metal(wordSemis[i], t, 0.26, i % 2 ? 0.2 : -0.2);
-		Bass(wordSemis[i], t, 0.3, 0.6);
-		play(() => airSweep(0.12, 3000, 9000), t - 0.02, "sfx", 0.06, i % 2 ? 0.6 : -0.6, 0.02);
-		// the 16ths between words fill in as the question builds
-		for (let s = 1; s < 4; s++) if (s !== 2 || i > 0) T(t + s * STEP, 7000, 0.07 + i * 0.03, s % 2 ? 0.5 : -0.5);
-		if (i >= 2) Rim(t + 2 * STEP, 0.22);
+		K(t, 1);
+		Clap(t, 0.5);
+		Stab(wordChords[i], t, 0.32, 0.36, { drive: 3 });
+		Bass(wordBass[i], t, 3, 0.7);
+		Bass(wordBass[i] + 12, t + 3 * STEP, 1, 0.45);
+		HO(t + 2 * STEP, 0.08 + i * 0.03);
 	});
-	// a 32nd ratchet and an upward FM sweep into the logo
-	for (let k = 0; k < 7; k++) T(3.0 + 0.25 + k * (STEP / 2), 6000 + k * 500, 0.06 + k * 0.025, k % 2 ? 0.4 : -0.4);
-	play(() => fm(330, 0.42, { ratio: 2.01, index: 3, floor: 1.5, indexDecay: 1, decay: 0.5, attack: 0.35, sweep: 0.5, sweepT: 0.42 }), 3.06, "sfx", 0.1, 0, 0.05);
+	// clap roll and riser into the logo, then a breath
+	for (let k = 0; k < 6; k++) Clap(3.0 + 0.125 + k * 0.0625 * (k > 2 ? 0.75 : 1), 0.12 + k * 0.06);
+	play(() => riseUp(0.5, 300, 9000), 3.0, "sfx", 0.3, 0, 0.1);
 
-	// ---------- act 2: the logo, a focal point with space around it
-	K(TL.hit, 0.9);
-	Bass(0, TL.hit, 0.9, 0.7);
-	[0, 3, 7, 14].forEach((s, i) => Glass(s, TL.hit + i * 0.012, 0.16, (i - 1.5) * 0.3, 1.6, 0.25));
-	Metal(12, TL.hit, 0.12, 0, 1.2);
-	T(TL.hit + 0.5, 8000, 0.12, 0.5);
-	T(TL.hit + 0.625, 8000, 0.08, -0.5);
-	play(() => airSweep(0.3, 1200, 10000), TL.zoom - 0.2, "sfx", 0.12, 0, 0.05);
-	play(() => fm(900, 0.25, { ratio: 1.5, index: 3, indexDecay: 10, decay: 10, sweep: 0.4, sweepT: 0.2 }), TL.zoom - 0.05, "sfx", 0.1, 0.2, 0.05);
+	// ---------- act 2: the drop on the logo, the riff arrives
+	Crash(TL.hit, 0.3);
+	K(TL.hit, 1);
+	Clap(TL.hit, 0.35);
+	play(() => boom(1.2), TL.hit, "sfx", 0.32, 0, 0.05);
+	Stab(["A2", "E3", "A3", "C4"], TL.hit, 0.5, 0.36, { drive: 3.2 });
+	riff(RA.call, TL.hit, 0, 8);
+	for (let s = 0; s < 8; s++) {
+		if (s % 4 === 0 && s) K(TL.hit + s * STEP, 0.85);
+		if (s === 4) Clap(TL.hit + s * STEP);
+		if (s % 4 === 2) HO(TL.hit + s * STEP);
+		HC(TL.hit + s * STEP, s % 2 ? 0.06 : 0.1);
+	}
+	play(() => riseUp(0.28, 1500, 10000), TL.zoom - 0.22, "sfx", 0.16, 0, 0.05);
 
-	// ---------- act 3: the groove, denser bar by bar
-	RA.bars.forEach(([t0, root], bi) => {
-		const motif = bi >= 2 ? RA.motif2 : RA.motif;
-		// a short accent on each panel cut
-		Metal(root + 12, t0, 0.14, bi % 2 ? 0.3 : -0.3, 0.5);
-		play(() => airSweep(0.18, 2000, 9000), t0 - 0.12, "sfx", 0.08, bi % 2 ? -0.5 : 0.5, 0.02);
+	// ---------- act 3: the groove; call, answer, call doubled, answer
+	RA.bars.forEach((t0, bi) => {
+		const pattern = bi % 2 ? RA.answer : RA.call;
+		riff(pattern, t0);
+		if (bi === 2) riff(pattern, t0, 0, 16, 0.22, { cut: 2600, snap: 2500 }); // the octave-up double
+		Crash(t0, bi === 0 ? 0.24 : 0.14);
+		for (const s of RA.stabSteps) Stab(RA.chords[bi], t0 + s * STEP, s ? 0.16 : 0.26, s ? 0.2 : 0.28);
 		for (let s = 0; s < 16; s++) {
 			const t = t0 + s * STEP;
-			if (RA.kickSteps.includes(s)) K(t, s === 0 ? 0.8 : 0.62);
-			if (RA.rimSteps.includes(s)) Rim(t, 0.3, s === 4 ? -0.2 : 0.2);
-			if (RA.bassSteps.includes(s)) Bass(root + (s === 10 ? 12 : 0), t, s === 0 ? 0.24 : 0.14, s === 0 ? 0.6 : 0.45);
-			// ticks: 8ths, then 16ths with accents, then ratchets
-			const accent = s % 4 === 2 ? 1 : s % 2 === 0 ? 0.6 : 0.4;
-			if (s % 2 === 0 || bi >= 1) T(t, s % 4 === 2 ? 8500 : 7000, 0.06 + accent * 0.07, s % 2 ? 0.55 : -0.55);
-			if (bi >= 2 && (s === 7 || s === 15)) for (let r = 1; r < 3; r++) T(t + r * (STEP / 3), 9000, 0.06, 0.3);
-			// the motif, thinner in the first bar
-			const m = motif[s];
-			if (m !== null && (bi > 0 || s % 2 === 0)) Glass(root + m, t, 0.13 + (s === 0 ? 0.05 : 0), s % 2 ? 0.4 : -0.4, 0.32);
+			if (RA.kickSteps.includes(s)) K(t, s === 0 ? 0.95 : 0.85);
+			if (RA.clapSteps.includes(s)) Clap(t);
+			if (s % 4 === 2) HO(t, 0.13);
+			HC(t, s % 2 ? 0.05 : 0.09, s % 2 ? 0.4 : -0.4);
 		}
-		if (bi === 3) for (let k = 0; k < 4; k++) Metal(root + 19 + k * 2, t0 + (12 + k) * STEP, 0.05 + k * 0.015, 0.2, 0.25);
+		// a fill into every cut
+		if (bi < 3) for (let k = 0; k < 3; k++) Clap(t0 + (13 + k) * STEP, 0.12 + k * 0.06);
 	});
 
-	// UI sound design (times mirror reel.js): taps are ticks, choices are blips
+	// UI hits (times mirror reel.js), small and gritty so the riff stays in front
 	const f = TL.feats;
 	// 01 post
-	for (let i = 0; i < P1_QUERY.length; i++) T(f[0] + P1_TYPE(i), 4200 + ((i * 397) % 1600), 0.07, 0.35);
-	Blip(1320, f[0] + P1_WHEN_T, 0.16, 0.35);
-	Blip(1760, f[0] + P1_VIS_T, 0.16, 0.35);
-	play(() => roundKick(), f[0] + P1_POST_T, "sfx", 0.3, 0.3);
-	Glass(19, f[0] + P1_POST_T, 0.14, 0.35, 0.4, 0.3);
-	Glass(24, f[0] + P1_POST_T + 0.06, 0.14, 0.35, 0.5, 0.3);
+	for (let i = 0; i < P1_QUERY.length; i += 2) HC(f[0] + P1_TYPE(i), 0.07, 0.4);
+	Pluck("E5", f[0] + P1_WHEN_T);
+	Pluck("A5", f[0] + P1_VIS_T);
+	Clap(f[0] + P1_POST_T, 0.3);
+	Stab(["A4", "C5", "E5"], f[0] + P1_POST_T, 0.12, 0.14);
 	// 02 discord: the card lands, edits as people join, then the reminder
-	Glass(12, f[1] + 0.14, 0.15, 0.3, 0.4);
-	Glass(19, f[1] + 0.2, 0.12, 0.3, 0.4);
-	P2_JOIN.forEach((j, k) => Blip(1100 * Math.pow(2, (k * 3) / 12), f[1] + j.u, 0.15, 0.35, 0.5));
-	play(() => grains(0.15, 6, 2600), f[1] + P2_REMIND_T, "sfx", 0.14, 0.3, 0.03);
+	Pluck("A4", f[1] + 0.14);
+	P2_JOIN.forEach((j, k) => Pluck(["C5", "E5", "G5"][k], f[1] + j.u));
+	for (let k = 0; k < 3; k++) HC(f[1] + P2_REMIND_T + k * 0.03, 0.1, 0.4);
+	Pluck("A5", f[1] + P2_REMIND_T + 0.09, 0.12);
 	// 03 join: a guest arrives from an invite link, then I'm in
-	play(() => fm(700, 0.2, { ratio: 1.5, index: 2, indexDecay: 8, decay: 12, sweep: 0.5, sweepT: 0.15 }), f[2] + P3_GUEST_T, "sfx", 0.14, 0.4, 0.04);
-	play(() => roundKick(), f[2] + P3_IN_T, "sfx", 0.3, 0.3);
-	Glass(15, f[2] + P3_IN_T, 0.13, 0.35, 0.4, 0.3);
-	Glass(22, f[2] + P3_IN_T + 0.06, 0.13, 0.35, 0.5, 0.3);
+	play(() => riseUp(0.2, 1200, 8000), f[2] + P3_GUEST_T - 0.15, "sfx", 0.12, 0.4, 0.05);
+	Clap(f[2] + P3_IN_T, 0.28);
+	Stab(["C5", "E5", "G5"], f[2] + P3_IN_T, 0.12, 0.13);
 	// 04 wrap up: ticks, rising stars, a line of text, same time next week, stats
-	for (let k = 0; k < 5; k++) T(f[3] + 0.2 + k * 0.06, 5000 + k * 400, 0.1, -0.2 + k * 0.1);
-	P4_STARS.forEach((u, k) => Glass([12, 15, 19, 24][k], f[3] + u, 0.11, 0.35, 0.3, 0.2));
-	for (let i = 0; i < P4_RECAP.length; i += 2) T(f[3] + P4_RECAP_T(i), 4500 + ((i * 263) % 1500), 0.05, 0.3);
-	Blip(990, f[3] + P4_REPEAT_T, 0.16, 0.35, 0.5);
-	play(() => grains(0.25, 10, 1600), f[3] + P4_STATS_T, "sfx", 0.16, 0.35, 0.03);
+	for (let k = 0; k < 5; k++) HC(f[3] + 0.2 + k * 0.06, 0.1, -0.2 + k * 0.1);
+	P4_STARS.forEach((u, k) => Pluck(["A4", "C5", "E5", "A5"][k], f[3] + u, 0.13));
+	for (let i = 0; i < P4_RECAP.length; i += 4) HC(f[3] + P4_RECAP_T(i), 0.05, 0.4);
+	Pluck("E5", f[3] + P4_REPEAT_T);
+	[0, 0.04, 0.08].forEach((d, k) => Pluck(["A5", "C6", "E6"][k], f[3] + P4_STATS_T + d, 0.1));
 
-	// ---------- act 4: the fan-out builds, a breath, then the resolve
-	play(() => airSweep(0.4, 800, 9000), TL.fanIn - 0.1, "sfx", 0.1, 0, 0.04);
-	const kindSemis = [0, 3, 7, 10];
+	// ---------- act 4: four rising hits, a roll, a breath, the final drop
+	play(() => riseUp(1.0, 250, 9000), TL.kinds[0] - 0.08, "sfx", 0.28, 0, 0.1);
+	const kindChords = [["A2", "C3", "E3"], ["C3", "E3", "G3"], ["D3", "F3", "A3"], ["E3", "G#3", "B3"]];
+	const kindBass = [0, 3, 5, 7];
 	TL.kinds.forEach((t, i) => {
-		K(t, 0.8);
-		Metal(kindSemis[i] + 12, t, 0.2, (i - 1.5) * 0.35, 0.35);
-		Bass(kindSemis[i], t, 0.16, 0.55);
-		for (let r = 1; r < 4; r++) T(t + r * (STEP / 1.5), 7000 + i * 600, 0.06 + i * 0.02, r % 2 ? 0.5 : -0.5);
+		K(t, 1);
+		Clap(t, 0.4);
+		Stab(kindChords[i], t, 0.2, 0.32);
+		Bass(kindBass[i], t, 2, 0.7);
 	});
-	K(TL.final, 0.9);
-	Bass(0, TL.final, 1.1, 0.7);
-	[0, 7, 12, 14, 19].forEach((s, i) => Glass(s, TL.final + i * 0.01, 0.14, (i - 2) * 0.28, 1.4, 0.2));
-	Metal(24, TL.final, 0.1, 0, 1.3);
-	// a last turn of the motif, descending, and one tick to close the system
-	[19, 15, 12, 7].forEach((s, k) => Glass(s, TL.final + 0.5 + k * STEP, 0.1, k % 2 ? 0.4 : -0.4, 0.4, 0.4));
-	[0.5, 0.75, 1.0].forEach((d) => T(TL.final + d, 8000, 0.07, d === 0.75 ? 0.5 : -0.5));
-	T(14.75, 3000, 0.22, 0);
-	play(() => pulseBass(hz("A1"), 0.12), 14.75, "bass", 0.4);
-
-	// ---------- stop-time breaths before the two focal points
-	for (const hit of [TL.hit, TL.final]) {
-		const a = Math.floor((hit - 0.12) * SR);
-		const b = Math.floor((hit - 0.004) * SR);
-		for (const k of ["tone", "bass", "perc", "echo"])
-			for (const ch of bus[k]) for (let n = a - 240; n < b; n++) ch[n] *= n < a ? 1 - (n - (a - 240)) / 240 : 0.03;
+	for (let k = 0; k < 6; k++) Clap(TL.final - 0.42 + k * 0.0625 * (k > 3 ? 0.8 : 1), 0.1 + k * 0.06);
+	Crash(TL.final, 0.34);
+	K(TL.final, 1);
+	Clap(TL.final, 0.4);
+	play(() => boom(1.5), TL.final, "sfx", 0.38, 0, 0.05);
+	Stab(["A2", "E3", "A3", "C4", "E4"], TL.final, 0.7, 0.38, { drive: 3.4 });
+	riff(RA.call, TL.final, 0, 8);
+	for (let s = 0; s < 8; s++) {
+		if (s % 4 === 0 && s) K(TL.final + s * STEP, 0.9);
+		if (s === 4) Clap(TL.final + s * STEP);
+		if (s % 4 === 2) HO(TL.final + s * STEP);
+		HC(TL.final + s * STEP, s % 2 ? 0.06 : 0.1);
 	}
+	// the last word: one big chord on the lockup, left to ring out
+	const end = TL.final + 1.0;
+	K(end, 1);
+	Clap(end, 0.35);
+	Crash(end, 0.26);
+	Stab(["A1", "A2", "E3", "A3", "C4"], end, 0.36, 0.36, { drive: 3.2, release: 0.12 });
+	Bass(0, end, 3, 0.75);
 
-	// ---------- ping-pong echo: dotted-8th, filtered, alternating sides
-	const dly = Math.round(3 * STEP * SR);
-	const [EL, ER] = bus.echo;
-	const outL = new Float32Array(len);
-	const outR = new Float32Array(len);
-	let lpL = 0;
-	let lpR = 0;
+	// ---------- heavy sidechain pump on the bass and synths
+	kicks.sort((a, b) => a - b);
+	let ki = 0;
 	for (let n = 0; n < len; n++) {
-		const inL = EL[n] + (n >= dly ? outR[n - dly] * 0.42 : 0);
-		const inR = ER[n] * 0.3 + (n >= dly ? outL[n - dly] * 0.42 : 0);
-		lpL += (inL - lpL) * 0.35;
-		lpR += (inR - lpR) * 0.35;
-		outL[n] = lpL;
-		outR[n] = lpR;
-	}
-	for (let n = dly; n < len; n++) {
-		bus.tone[0][n] += outL[n - dly] * 0.6;
-		bus.tone[1][n] += outR[n - dly] * 0.6;
+		const t = n / SR;
+		while (ki + 1 < kicks.length && kicks[ki + 1] <= t) ki++;
+		const since = kicks.length && t >= kicks[ki] ? t - kicks[ki] : 9;
+		const g = 0.22 + 0.78 * (1 - Math.exp(-since / 0.09));
+		for (const k of ["music", "bass"]) {
+			bus[k][0][n] *= g;
+			bus[k][1][n] *= g;
+		}
 	}
 
-	// ---------- graph: a short room, glue compression, master
+	// ---------- stop-time breaths before the two drops
+	for (const hit of [TL.hit, TL.final]) {
+		const a = Math.floor((hit - 0.08) * SR);
+		const b = Math.floor((hit - 0.004) * SR);
+		for (const k of ["music", "bass", "drums", "rev"])
+			for (const ch of bus[k]) for (let n = a - 240; n < b; n++) ch[n] *= n < a ? 1 - (n - (a - 240)) / 240 : 0.02;
+	}
+
+	// ---------- graph: a short room, presence, glue compression, saturation
 	const ctx = new OfflineAudioContext(2, len, SR);
 	const master = ctx.createGain();
 	const comp = ctx.createDynamicsCompressor();
-	comp.threshold.value = -16;
+	comp.threshold.value = -14;
 	comp.knee.value = 6;
 	comp.ratio.value = 2.5;
-	comp.attack.value = 0.002;
-	comp.release.value = 0.08;
+	comp.attack.value = 0.003;
+	comp.release.value = 0.1;
 	const hpf = ctx.createBiquadFilter();
 	hpf.type = "highpass";
-	hpf.frequency.value = 32;
+	hpf.frequency.value = 36;
+	const presence = ctx.createBiquadFilter();
+	presence.type = "peaking";
+	presence.frequency.value = 2400;
+	presence.Q.value = 0.8;
+	presence.gain.value = 3.5;
 	master.connect(hpf);
-	hpf.connect(comp);
+	hpf.connect(presence);
+	presence.connect(comp);
 	comp.connect(ctx.destination);
 	const reverb = ctx.createConvolver();
-	reverb.buffer = makeIR(ctx, 0.7);
+	reverb.buffer = makeIR(ctx, 1.1);
 	const rg = ctx.createGain();
-	rg.gain.value = 0.25;
+	rg.gain.value = 0.2;
 	reverb.connect(rg);
 	rg.connect(master);
 	const src = (arrs, dest, gain) => {
@@ -237,28 +248,28 @@ async function buildReelSoundtrack() {
 		g.connect(dest);
 		s.start(0);
 	};
-	src(bus.tone, master, 1.05);
-	src(bus.bass, master, 0.4);
-	src(bus.perc, master, 1.0);
-	src(bus.sfx, master, 0.9);
+	src(bus.bass, master, 0.5);
+	src(bus.music, master, 0.85);
+	src(bus.drums, master, 0.85);
+	src(bus.sfx, master, 0.8);
 	src(bus.rev, reverb, 1.0);
 	const out = await ctx.startRendering();
 
-	// gentle limiter + peak normalise, short fades at both ends
+	// saturating limiter + peak normalise, short fades at both ends
 	let peak = 0;
 	for (let ch = 0; ch < 2; ch++) {
 		const d = out.getChannelData(ch);
 		for (let n = 0; n < d.length; n++) {
-			d[n] = Math.tanh(d[n] * 1.05) / Math.tanh(1.05);
+			d[n] = Math.tanh(d[n] * 1.15) / Math.tanh(1.15);
 			peak = Math.max(peak, Math.abs(d[n]));
 		}
 	}
-	const norm = 0.89 / (peak || 1);
+	const norm = 0.84 / (peak || 1);
 	for (let ch = 0; ch < 2; ch++) {
 		const d = out.getChannelData(ch);
 		for (let n = 0; n < d.length; n++) d[n] *= norm;
 		for (let n = 0; n < 240; n++) d[n] *= n / 240;
-		for (let n = 0; n < 4800; n++) d[d.length - 1 - n] *= n / 4800;
+		for (let n = 0; n < 9600; n++) d[d.length - 1 - n] *= n / 9600;
 	}
 	return out;
 }

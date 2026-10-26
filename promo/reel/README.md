@@ -31,14 +31,13 @@ index.html          stage, all styles (fonts: Unbounded, Space Grotesk, Hanken
                     Grotesk, JetBrains Mono; all OFL)
 src/reel.js         DOM construction + render(t): a pure function of time, no CSS
                     transitions, so playback and the frame export are identical
-src/reel-audio.js   120 BPM procedural electronic score: FM glass and metal
-                    tones, micro-percussion (ticks, rims, a round kick) in a
-                    syncopated 3-3-2 groove, a restrained pulse bass, short
-                    motifs through a ping-pong echo, breaths before the logo
-                    and the end card; every UI moment on screen has its own
-                    accent (typing ticks, FM blips, glass confirms, data
-                    bursts). Instruments live in ../shared/dsp.js, shared
-                    with the walkthrough
+src/reel-audio.js   120 BPM French-electro score in the spirit of Justice's
+                    "Genesis": a swelling, distorted open over the chat wall,
+                    a huge hit per question word, then a gritty saw-bass riff
+                    (call and answer) as the hook over a stomping kick, claps
+                    and open hats with heavy sidechain pump; detuned stabs on
+                    every cut, small hits on the UI moments, a breath before
+                    each drop. Instruments live in ../shared/dsp.js
 src/player.js       realtime player and the window.REEL export hooks
 build.mjs           inline everything into dist/nextquest-reel.html
 render.mjs          screenshot every frame with Playwright → ffmpeg → MP4
