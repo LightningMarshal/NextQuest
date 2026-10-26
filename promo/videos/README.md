@@ -13,9 +13,8 @@ straight into the upload form. The sources that generate each video live in
 | `nextquest-walkthrough-thumbnail.jpg` | Thumbnail for the walkthrough | 1280×720 JPEG |
 | `nextquest-walkthrough.en.srt` | English captions for the walkthrough | SubRip |
 
-> The walkthrough files land here after the art pass: its demo group plays
-> real Steam games, and the capture needs network access to Steam's image
-> CDN to show their artwork. See [`../walkthrough`](../walkthrough).
+> The walkthrough files land here once the voiceover is in; see
+> [`../walkthrough`](../walkthrough). Its games and art are fictional.
 
 The masters meet YouTube's recommended upload settings for SDR 1080p
 (progressive, `yuv420p`, `+faststart`, 48 kHz stereo AAC). The hand-drawn
@@ -94,15 +93,14 @@ games with more people. This walkthrough is filmed from the real app:
 
 Source: https://github.com/LightningMarshal/NextQuest
 Composited and scored in code from screenshots of the running app (demo
-data). Narration: Kokoro TTS. Game names and artwork belong to their
-publishers.
+data; the games and their art are fictional).
 ```
 
 The chapter list satisfies YouTube's rules (starts at 0:00, at least three
 chapters, each at least 10 seconds). Upload `nextquest-walkthrough.en.srt`
 under **Subtitles → Upload file → With timing**.
 
-**Tags:** `NextQuest, gaming group, game night, Discord, LFG, looking for group, Helldivers 2, Lethal Company, Deep Rock Galactic, open source, self-hosted`
+**Tags:** `NextQuest, gaming group, game night, Discord, LFG, looking for group, co-op, multiplayer, open source, self-hosted`
 
 **Category:** Gaming
 

@@ -31,12 +31,14 @@ index.html          stage, all styles (fonts: Unbounded, Space Grotesk, Hanken
                     Grotesk, JetBrains Mono; all OFL)
 src/reel.js         DOM construction + render(t): a pure function of time, no CSS
                     transitions, so playback and the frame export are identical
-src/reel-audio.js   120 BPM drift-phonk / trap cue (pitched cowbell hook, distorted
-                    808 with slides, hard kick and claps, hat rolls, stop-time
-                    drops, tape-stop ending) + game-UI sound design (clicks,
-                    8-bit selects, zaps, glitches, phone buzzes) synced to
-                    on-screen events; the instruments live in
-                    ../shared/dsp.js, shared with the walkthrough
+src/reel-audio.js   120 BPM procedural electronic score: FM glass and metal
+                    tones, micro-percussion (ticks, rims, a round kick) in a
+                    syncopated 3-3-2 groove, a restrained pulse bass, short
+                    motifs through a ping-pong echo, breaths before the logo
+                    and the end card; every UI moment on screen has its own
+                    accent (typing ticks, FM blips, glass confirms, data
+                    bursts). Instruments live in ../shared/dsp.js, shared
+                    with the walkthrough
 src/player.js       realtime player and the window.REEL export hooks
 build.mjs           inline everything into dist/nextquest-reel.html
 render.mjs          screenshot every frame with Playwright → ffmpeg → MP4

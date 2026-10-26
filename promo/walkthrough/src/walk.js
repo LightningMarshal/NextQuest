@@ -39,7 +39,7 @@ const win = (t, t0, t1, a = 0.4, b = 0.4) => pr(t, t0, a, Ez.oc) * (1 - pr(t, t1
 
 // ------------------------------------------------------------------ timeline
 // Narration cues (seconds). Line lengths come from the audio files.
-const CUES = { chat1: 0.7, chat2: 3.6, logo: 7.7, post1: 10.5, post2: 13.9, disc1: 22.5, disc2: 25.5, join1: 34.4, join2: 38.6, wrap1: 48.4, wrap2: 51.7, more1: 60.3, end1: 66.6, end2: 67.7 };
+const CUES = { chat1: 0.7, chat2: 3.6, logo: 7.7, post1: 10.4, post2: 14.0, disc1: 22.5, disc2: 25.5, join1: 34.4, join2: 38.6, wrap1: 48.4, wrap2: 51.7, more1: 60.3, end1: 66.6, end2: 67.7 };
 const NO_CAPTION = new Set(["logo", "end1", "end2"]); // already on screen as the logo / end card
 
 const CHAPTERS = [
@@ -75,7 +75,7 @@ const WRAP_CLOCK = [50.0, 55.2]; // the stopwatch runs while the form is filled 
 
 const DESK = {
 	t0: 60.0, t1: 66.2,
-	shots: [["more-01-library", 60.0, "/backlog"], ["more-02-game", 61.9, "/backlog/elden-ring"], ["more-03-keen", 62.8, "/backlog/elden-ring"], ["more-04-poll", 63.4, "/sessions/plan"], ["more-05-stats", 64.4, "/stats"]],
+	shots: [["more-01-library", 60.0, "/backlog"], ["more-02-game", 61.9, "/backlog/ashen-crown"], ["more-03-keen", 62.8, "/backlog/ashen-crown"], ["more-04-poll", 63.4, "/sessions/plan"], ["more-05-stats", 64.4, "/stats"]],
 	taps: [[62.6, "more-02-game"]],
 };
 
@@ -90,9 +90,9 @@ const MINI = { t0: 42.9, t1: 48.0, from: "+jordan", to: "+frankie", at: 44.4 };
 const STEPS_OUT = { 34: 42.6 }; // chapter start → when its steps fade for the mini card
 
 const CHAT = [
-	["Casey", "anyone on tonight?"], ["Drew", "what are we playing"], ["Sam", "helldivers?"], ["Jordan", "i'm down after 9"],
+	["Casey", "anyone on tonight?"], ["Drew", "what are we playing"], ["Sam", "starfall?"], ["Jordan", "i'm down after 9"],
 	["Riley", "who's in"], ["Alex", "link?"], ["Brooke", "sorry just saw this"], ["Frankie", "can't tonight 😩"],
-	["Casey", "tomorrow?"], ["Sam", "lethal company again?"], ["Drew", "need one more for 4"], ["Jordan", "what time"],
+	["Casey", "tomorrow?"], ["Sam", "hollow creek again?"], ["Drew", "need one more for 4"], ["Jordan", "what time"],
 	["Riley", "8?"], ["Alex", "9 works"], ["Brooke", "wait which server"], ["Casey", "is this still happening"],
 	["Sam", "who has the discord link"], ["Drew", "nvm"], ["Frankie", "im on now"], ["Jordan", "where is everyone"],
 	["Riley", "rip"], ["Alex", "next week then"], ["Brooke", "ok what time saturday"], ["Casey", "anyone??"],

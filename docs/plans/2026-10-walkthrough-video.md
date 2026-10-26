@@ -1,8 +1,7 @@
 # Plan: replace the hand-drawn tour with a real-app walkthrough
 
 Status: **built** (2026-10); the pipeline lives in `promo/walkthrough/`.
-The final master waits on one thing: network access to Steam's image CDN
-for the game art (see "Decisions" at the end).
+The final master waits on the owner's voiceover (see "Decisions" at the end).
 
 ## Why the hand-drawn tour has to go
 
@@ -131,16 +130,13 @@ one-line change.
 ## Decisions (owner, 2026-10)
 
 1. **Length:** 70 seconds, five chapters plus the open.
-2. **Voice:** a new, strong male voice: Kokoro `am_onyx` blended with
-   `am_fenrir`.
-3. **Games:** real, popular multiplayer games of the last decade
-   (Helldivers 2, Deep Rock Galactic, Lethal Company, Baldur's Gate 3,
-   Elden Ring, Valheim, Sea of Thieves…) with their real Steam artwork.
-   The art is downloaded into a git-ignored cache at capture time
-   (`capture/art.mjs`), so the repo holds no third-party images; the
-   rendered video does. Steam's CDN was unreachable from the build
-   container, so the first cut has empty art frames and the master is
-   rendered once the CDN is allowed.
+2. **Voice:** the owner records the voiceover; a Kokoro placeholder
+   (`am_onyx` blended with `am_fenrir`) holds its place.
+3. **Games:** first real multiplayer hits with Steam art; Steam's CDN was
+   unreachable from the build container, so the owner switched to
+   **fictional demo games** with art painted in code (`games.json`,
+   `capture/art.mjs`). No third-party titles or artwork, so no copyright
+   questions later.
 4. **Vertical cut:** not now.
 5. **Old tour:** deleted (`promo/animation/` and its videos; git history
    keeps them). Its DSP toolkit moved to `promo/shared/dsp.js` first.
@@ -148,6 +144,6 @@ one-line change.
 What changed from the plan above: the seed is a separate promo fixture
 (`promo/walkthrough/seed-promo.ts`) rather than a `--promo` flag on
 `scripts/seed.ts`; the export is 30 fps; the music is a half-time cut of the
-reel's phonk/trap cue rather than a 100 BPM variant; and the invite page is
+reel's procedural FM cue rather than a 100 BPM variant; and the invite page is
 captured with placeholder Discord OAuth values so it shows the real
 *Continue with Discord* button.

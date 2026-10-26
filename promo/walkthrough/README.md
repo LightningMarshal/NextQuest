@@ -8,34 +8,38 @@ stale when the sessions-first redesign shipped. When the UI changes again,
 re-run the pipeline below and the video follows; only the timeline in
 `src/walk.js` may need nudging.
 
-The demo group plays real multiplayer hits (Helldivers 2, Deep Rock
-Galactic, Lethal Company, Baldur's Gate 3, Elden Ring, Valheim…) with their
-Steam artwork, as the owner asked.
+The demo group plays twenty fictional games (Starfall Salvage, Hollow Creek,
+Gloomkeep, Core Breakers…, listed in `games.json`) with cover art painted in
+code by `capture/art.mjs`, so the video contains no third-party titles or
+artwork and can be posted anywhere.
 
 ## Chapters
 
 | Time | Chapter | What's on screen |
 | --- | --- | --- |
 | 0:00 | The group chat | A 3D wall of unanswered messages, 99+ unread, *Anyone on tonight?*, the logo |
-| 0:10 | Post in three taps | Phone: Home → composer (Helldivers 2, **Tonight 8pm**, **Open to the circle**) → posted |
+| 0:10 | Post in three taps | Phone: Home → composer (Starfall Salvage, **Tonight 8pm**, **Open to the circle**) → posted |
 | 0:22 | Discord keeps up | The real embed, edited in place as Drew and Jordan join; the one-hour reminder |
 | 0:34 | Friends hop in | Phone, as a guest: invite link → Continue with Discord → This week → **I'm in** → Add to calendar; the card updates to 4/4 |
 | 0:48 | Wrap up in ten seconds | Phone: who came, stars, one line, same time next week, with a stopwatch; Recently played |
 | 1:00 | Everything around it | Desktop: Library, *I'd play this*, find-a-time poll, stats; end card |
 
-Narration: Kokoro v1.0 (local, no API), a blend of the `am_onyx` and
-`am_fenrir` voices. Music: a half-time cut of the reel's phonk/trap cue
-(same pitched-cowbell hook and 808), ducked under the voice, plus UI sound
-design driven by the picture's own taps, swaps and Discord edits.
+Narration: one clip per line in `narration/` (a human voiceover is being
+recorded; the placeholder is Kokoro v1.0, a blend of the `am_onyx` and
+`am_fenrir` voices). Music: the reel's procedural FM sound (glass and metal
+tones, ticks, rims, a round kick, pulse bass) as a lighter bed that keeps
+its motif to the gaps between lines and ducks under the voice, plus UI
+sound design driven by the picture's own taps, swaps and Discord edits.
 
 ## Pipeline
 
 ```
-seed-promo.ts          demo group: 8 people, 20 real games, 15 sessions at fixed
+games.json             the 20 fictional games: titles, genres, pitches, art specs
+seed-promo.ts          demo group: 8 people, 20 games, 15 sessions at fixed
                        offsets from now, a poll, "I'd play this" marks, an invite
 capture/auth.mjs       signs demo users in by minting a Better Auth session cookie
-capture/art.mjs        downloads the game art into art-cache/ and serves it to the
-                       capture browser (both direct and /_next/image requests)
+capture/art.mjs        paints each game's cover and header into art-cache/ and serves
+                       them to the capture browser (direct and /_next/image URLs)
 capture/capture.mjs    drives each flow in Playwright at phone (390×844 @3x) and
                        desktop (1440×900 @2x) sizes → captures/*.png + manifest.json
                        (screens, tap boxes, and Discord states after each RSVP)
@@ -64,10 +68,9 @@ with Chromium, and ffmpeg with libx264.
    The seed places "tonight" and "just ended" relative to the current time in
    `PROMO_TZ`, so capture soon after seeding, and pick a zone where it is
    afternoon (sessions read "Tonight 8:00 PM · in 5h").
-4. **Art.** `node promo/walkthrough/capture/art.mjs` downloads every game's
-   header and cover from Steam into `art-cache/` (git-ignored). It needs
-   network access to `cdn.cloudflare.steamstatic.com`; a capture without the
-   cache still works but shows empty art frames, and says so.
+4. **Art.** `CHROMIUM=<chrome> node promo/walkthrough/capture/art.mjs` paints
+   all 40 images into `art-cache/` (git-ignored) in a few seconds. A capture
+   without them still runs but shows empty art frames, and says so.
 5. **Capture.** `PROMO_TZ=… CHROMIUM=<chrome> node promo/walkthrough/capture/capture.mjs`
    (about four minutes). It posts a real session, so re-seed before each run.
 6. **Build and render.** From `promo/walkthrough`:
@@ -81,6 +84,10 @@ with Chromium, and ffmpeg with libx264.
    first. The export renders 30 fps (2,100 frames) and writes the captions
    next to the MP4 as `.en.srt`.
 
-To change the narration, edit `narration/lines.json` and run
-`narration/generate.py`, then check the cue times in `src/walk.js` (`CUES`)
+To use recorded voiceover, put one take per line in a folder, named by id
+(`chat1.wav`, `post1.m4a`…), and run `FFMPEG=ffmpeg python3
+narration/import.py <folder>`: it trims, levels and encodes each take over
+`narration/<id>.ogg` and flags any line that runs into the next cue. To
+change the words, edit `narration/lines.json` (and re-record, or run
+`generate.py` for the placeholder voice), then check the cue times in `src/walk.js` (`CUES`)
 against the new clip lengths.

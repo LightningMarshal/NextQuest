@@ -1,22 +1,23 @@
 /*
- * Soundtrack for the walkthrough: the narration (Kokoro clips cued by id),
- * a 120 BPM half-time cue built from the reel's trap kit (../shared/dsp.js)
- * that ducks under the voice, and UI sound design driven by the picture's
- * own events (walkEvents() in walk.js), mixed and mastered in JS.
+ * Soundtrack for the walkthrough: the narration (clips cued by id), a
+ * 120 BPM bed in the reel's procedural FM sound (../shared/dsp.js: glass and
+ * metal tones, ticks, rims, a round kick, pulse bass) that thins out and
+ * ducks under the voice, and UI sound design driven by the picture's own
+ * events (walkEvents() in walk.js), mixed and mastered in JS.
  */
 "use strict";
 
 const BEAT = 0.5;
 const STEP16 = BEAT / 4;
 const WA = {
-	// the reel's hook (semitones from A5, null = rest)
-	riff: [0, null, 0, 3, null, 0, -2, null, -5, null, -5, -2, 0, null, -2, -5],
-	riff2: [0, null, 0, 3, null, 5, 3, null, 0, null, 0, -2, 0, 3, 7, 5],
-	// half-time groove under the voice: kick on 1 and the "and" of 3, clap on 3
-	kickSteps: [0, 10, 11],
-	clapSteps: [8],
-	// one chord per 2 s bar, cycling i–VI–VII–i in A minor
-	roots: ["A", "F", "G", "A"],
+	// the reel's motif (semitones above the bar's root, null = rest)
+	motif: [0, 7, 12, null, 10, 7, 3, null, 0, 7, 15, 12, null, 10, 7, null],
+	// a light 3-3-2 groove under the voice
+	kickSteps: [0, 6, 11],
+	rimSteps: [12],
+	bassSteps: [0, 6, 10],
+	// one root per 2 s bar: A minor, F, C, G
+	roots: [0, -4, 3, -2],
 	logo: 7.5,
 	groove: [10, 66],
 	drops: [10, 22, 34, 48, 60],
@@ -76,117 +77,107 @@ async function buildWalkSoundtrack() {
 
 	// ---------- music
 	const kicks = [];
-	const K = (t, g = 0.85) => {
+	const A3 = hz("A3");
+	const semi = (n, base = A3) => base * Math.pow(2, n / 12);
+	const T = (t, f = 7000, g = 0.12, pan = 0) => play(() => tick(f), t, "drums", g, pan, 0.02, "t" + f);
+	const K = (t, g = 0.6) => {
 		kicks.push(t);
-		play(() => hardKick(), t, "drums", g, 0, 0.02, "k");
+		play(() => roundKick(), t, "drums", g, 0, 0.01, "k");
 	};
-	const A5 = hz("A5");
-	const bell = (semi, t, g = 0.24, pan = 0, muffle = false) =>
-		play(() => (muffle ? filt(cowbell(A5 * Math.pow(2, semi / 12)), "lp", 1100, 0.7) : cowbell(A5 * Math.pow(2, semi / 12))), t, "music", g, pan, 0.2, (muffle ? "m" : "cb") + semi);
-	const root = { A: hz("A1"), F: hz("F1"), G: hz("G1") };
-	const chord = { A: ["A3", "C4", "E4"], F: ["F3", "A3", "C4"], G: ["G3", "B3", "D4"] };
-	const pad = (r, t, dur, g) => chord[r].forEach((nm, i) => play(() => strings(hz(nm), dur, { cut: 1500, attack: 0.5 }), t, "music", g, (i - 1) * 0.5, 0.35, `pad${r}${dur}${i}`));
+	const Rim = (t, g = 0.24, pan = 0.15) => play(() => rim(1700), t, "drums", g, pan, 0.05, "rim");
+	const Bass = (n, t, dur = 0.2, g = 0.5) => play(() => pulseBass(semi(n, hz("A1")), dur), t, "bass", g, 0, 0, `b${n}${dur}`);
+	const Glass = (n, t, g = 0.16, pan = 0, dur = 0.45) => play(() => glass(semi(n, hz("A4")), dur), t, "music", g, pan, 0.12, `g${n}${dur}`);
+	const Metal = (n, t, g = 0.18, pan = 0, dur = 0.7) => play(() => metal(semi(n), dur), t, "music", g, pan, 0.15, `m${n}${dur}`);
 
-	// intro: the hook through a wall, the chat buzzing, a riser into the logo
-	for (let s = 0; s < 56; s++) {
-		const semi = WA.riff[s % 16];
-		if (semi !== null) bell(semi, s * STEP16 + 0.0, 0.1 + 0.08 * (s / 56), s % 2 ? 0.3 : -0.3, true);
-	}
-	pad("A", 0, 7.3, 0.05);
-	for (let b = 0; b < 26; b++) play(() => hat(70, 9000), 1 + b * 0.25, "drums", 0.03 + b * 0.002, 0.4, 0.02, "hat");
-	play(() => riser(1.8, 300, 9000), WA.logo - 1.8, "sfx", 0.45, 0, 0.2);
-	play(() => revCymbal(0.9), WA.logo - 0.9, "sfx", 0.3, 0, 0.2);
-	for (let k = 0; k < 8; k++) play(() => snare({ decay: 26 }), WA.logo - 1 + k * 0.125, "drums", 0.06 + k * 0.035, 0, 0.1, "sroll");
+	// intro: data pouring in under the chat wall, a sweep into the logo
+	play(() => grains(6.5, 90, 1100), 0.3, "sfx", 0.12, -0.3, 0.05);
+	play(() => grains(6.0, 80, 1650), 0.6, "sfx", 0.1, 0.35, 0.05);
+	for (let s = 0; s < 56; s++) if (s % 2 === 0 || s > 32) Bass(0, s * STEP16, 0.08, 0.08 + 0.12 * (s / 56));
+	for (let s = 8; s < 56; s++) if (s % 2 === 0 || s > 40) T(s * STEP16, s % 4 ? 7000 : 8500, 0.03 + 0.08 * (s / 56), s % 2 ? 0.5 : -0.5);
+	play(() => fm(330, 1.4, { ratio: 2.01, index: 3, floor: 1.5, indexDecay: 1, decay: 0.3, attack: 1.2, sweep: 0.5, sweepT: 1.4 }), WA.logo - 1.4, "sfx", 0.1, 0, 0.05);
+	for (let k = 0; k < 7; k++) T(WA.logo - 0.45 + k * (STEP16 / 2), 6000 + k * 500, 0.05 + k * 0.025, k % 2 ? 0.4 : -0.4);
 
-	// the logo drop
-	play(() => impact(), WA.logo, "sfx", 1.0, 0, 0.25);
-	play(() => crash(2.4), WA.logo, "drums", 0.26, 0.1, 0.3, "crash");
-	K(WA.logo, 1);
-	play(() => bass808(root.A * 2, 1.6, { decay: 1.1 }), WA.logo, "bass", 0.85, 0, 0);
-	play(() => stab([hz("A2"), hz("E3"), hz("A3"), hz("C4")], 0.7, { cut: 6000 }), WA.logo, "music", 0.22, 0, 0.35);
+	// the logo: a focal point with space around it
+	K(WA.logo, 0.9);
+	Bass(0, WA.logo, 1.2, 0.65);
+	[0, 3, 7, 14].forEach((n, i) => Glass(n, WA.logo + i * 0.012, 0.14, (i - 1.5) * 0.3, 1.8));
+	Metal(12, WA.logo, 0.1, 0, 1.4);
 	for (let s = 4; s < 16; s++) {
-		const semi = WA.riff2[s];
-		if (semi !== null) bell(semi, WA.logo + 0.5 + (s - 4) * STEP16, 0.22, s % 2 ? 0.25 : -0.25);
+		const m = WA.motif[s];
+		if (m !== null && s % 2 === 0) Glass(m, WA.logo + 0.5 + (s - 4) * STEP16, 0.1, s % 4 ? 0.35 : -0.35, 0.35);
 	}
-	play(() => whoosh(0.6, 300, 4500), 9.45, "sfx", 0.4, 0, 0.2);
+	play(() => airSweep(0.4, 1200, 10000), 9.55, "sfx", 0.12, 0, 0.05);
 
-	// the groove, one 2 s bar at a time
+	// the groove, one 2 s bar at a time; the motif only where nobody is talking
+	const talking = (t) => DATA.lines.some((l) => t >= CUES[l.id] - 0.2 && t <= CUES[l.id] + DATA.durs[l.id] + 0.1);
 	for (let t0 = WA.groove[0], bi = 0; t0 < WA.groove[1] - 0.01; t0 += 2, bi++) {
-		const r = WA.roots[bi % 4];
-		const nextR = WA.roots[(bi + 1) % 4];
+		const root = WA.roots[bi % 4];
 		const drop = WA.drops.includes(t0);
+		if (drop) {
+			Metal(root + 12, t0, 0.14, bi % 2 ? 0.3 : -0.3, 0.6);
+			if (t0 > WA.groove[0]) play(() => airSweep(0.3, 1500, 9000), t0 - 0.25, "sfx", 0.1, 0, 0.03);
+		}
 		for (let s = 0; s < 16; s++) {
 			const t = t0 + s * STEP16;
-			if (WA.kickSteps.includes(s)) K(t, s === 0 ? 0.9 : 0.7);
-			if (WA.clapSteps.includes(s)) play(() => hardClap(), t, "drums", 0.36, 0, 0.18, "clap");
-			if (s % 2 === 0) play(() => hat(85, 9000), t, "drums", s % 4 === 2 ? 0.09 : 0.055, -0.3, 0.02, "chat");
-			if (s === 14) play(() => hat(18, 7000), t, "drums", 0.07, 0.35, 0.05, "ohat");
-			// the hook only on each chapter's first bar, while the title lands
-			const semi = (bi % 2 ? WA.riff2 : WA.riff)[s];
-			if (drop && semi !== null) bell(semi + (r === "F" ? -4 : r === "G" ? -2 : 0), t, 0.2, s % 2 ? 0.25 : -0.25);
-		}
-		pad(r, t0, 1.9, 0.045);
-		play(() => bass808(root[r] * 2, 0.9, { decay: 1.4, drive: 2.4 }), t0, "bass", 0.6, 0, 0, "b" + r);
-		play(() => bass808(root[r] * 2, 0.62, { decay: 1.6, drive: 2.4, glideTo: root[nextR] * 2, glideAt: 0.5 }), t0 + 10 * STEP16, "bass", 0.5, 0, 0, "g" + r + nextR);
-		if (drop && t0 > WA.groove[0]) {
-			play(() => crash(1.6), t0, "drums", 0.14, -0.2, 0.25, "crash1");
-			play(() => riser(0.9, 400, 7000), t0 - 0.9, "sfx", 0.22, 0, 0.15);
+			if (WA.kickSteps.includes(s)) K(t, s === 0 ? 0.6 : 0.45);
+			if (WA.rimSteps.includes(s)) Rim(t);
+			if (WA.bassSteps.includes(s)) Bass(root + (s === 10 ? 12 : 0), t, s === 0 ? 0.24 : 0.14, s === 0 ? 0.5 : 0.36);
+			if (s % 2 === 0) T(t, s % 4 === 2 ? 8500 : 7000, s % 4 === 2 ? 0.1 : 0.06, s % 4 === 2 ? 0.5 : -0.5);
+			const m = WA.motif[s];
+			if (m !== null && !talking(t)) Glass(root + m, t, 0.11, s % 2 ? 0.4 : -0.4, 0.32);
 		}
 	}
 
-	// the end card
-	play(() => riser(1.4, 300, 10000), WA.final - 1.4, "sfx", 0.4, 0, 0.2);
-	for (let k = 0; k < 8; k++) play(() => snare({ decay: 28 }), WA.final - 0.5 + k * 0.0625, "drums", 0.05 + k * 0.03, 0.1, 0.1, "sroll");
-	play(() => impact(), WA.final, "sfx", 1.1, 0, 0.3);
-	play(() => crash(2.4), WA.final, "drums", 0.3, -0.1, 0.35, "crash");
-	K(WA.final, 1);
-	play(() => bass808(root.A * 2, 2.2, { decay: 0.9 }), WA.final, "bass", 0.85, 0, 0);
-	play(() => stab([hz("A2"), hz("E3"), hz("A3"), hz("C4")], 1.2, { cut: 7000, snap: 5 }), WA.final, "music", 0.24, 0, 0.4);
-	pad("A", WA.final, 3, 0.06);
+	// the end card: a breath, the resolve, one tick to close
+	for (let k = 0; k < 7; k++) T(WA.final - 0.45 + k * (STEP16 / 2), 6000 + k * 500, 0.05 + k * 0.025, k % 2 ? 0.4 : -0.4);
+	K(WA.final, 0.9);
+	Bass(0, WA.final, 1.4, 0.65);
+	[0, 7, 12, 14, 19].forEach((n, i) => Glass(n, WA.final + i * 0.01, 0.13, (i - 2) * 0.28, 2.2));
+	Metal(24, WA.final, 0.09, 0, 1.6);
 	for (let s = 0; s < 16; s++) {
 		const t = WA.final + 0.5 + s * STEP16;
-		if (WA.kickSteps.includes(s)) K(t, 0.7);
-		if (WA.clapSteps.includes(s)) play(() => hardClap(), t, "drums", 0.32, 0, 0.2, "clap");
-		if (s % 2 === 0) play(() => hat(80, 9000), t, "drums", 0.07, -0.3, 0.02, "chat");
-		const semi = WA.riff2[s];
-		if (semi !== null) bell(semi, t, 0.2, s % 2 ? 0.25 : -0.25);
+		if (WA.kickSteps.includes(s)) K(t, 0.4);
+		if (s % 2 === 0) T(t, 7000, 0.06, s % 4 ? 0.5 : -0.5);
 	}
+	T(WALK_DUR - 0.5, 3000, 0.18, 0);
+	Bass(0, WALK_DUR - 0.5, 0.12, 0.35);
 
 	// ---------- sound design from the picture
 	let bubble = 0;
 	for (const e of walkEvents()) {
 		switch (e.kind) {
 			case "tap":
-				play(() => uiClick(1700), e.t, "sfx", 0.42, 0.25, 0.05, "tap");
+				play(() => roundKick(), e.t, "sfx", 0.18, 0.25, 0.02, "tapk");
+				T(e.t, 4200, 0.16, 0.25);
 				break;
 			case "shot":
-				play(() => swish(0.22, 1600), e.t - 0.05, "sfx", 0.1, 0.2, 0.05, "swish");
+				play(() => airSweep(0.18, 2500, 9000), e.t - 0.08, "sfx", 0.06, 0.2, 0.03, "swish");
 				break;
 			case "whoosh":
-				play(() => whoosh(0.7, 300, 3800), e.t - 0.25, "sfx", 0.32, 0, 0.2, "wh");
+				play(() => airSweep(0.45, 800, 9000), e.t - 0.3, "sfx", 0.12, 0, 0.05, "wh");
 				break;
 			case "tick":
-				play(() => uiSelect(784), e.t, "sfx", 0.15, -0.35, 0.05, "tick");
+				play(() => fm(1320, 0.07, { ratio: 2, index: 1.2, indexDecay: 30, decay: 40, sweep: 0.6, sweepT: 0.04 }), e.t, "sfx", 0.14, -0.35, 0.04, "tick");
 				break;
 			case "ping":
-				play(() => uiConfirm(659), e.t, "sfx", 0.17, 0.35, 0.1, "ping");
-				play(() => glitch(1100), e.t + 0.12, "sfx", 0.05, 0.35, 0.02, "gl");
+				Glass(15, e.t, 0.12, 0.35, 0.4);
+				Glass(22, e.t + 0.06, 0.12, 0.35, 0.5);
 				break;
 			case "pop":
-				play(() => uiSelect(988), e.t, "sfx", 0.13, -0.3, 0.05, "pop");
+				play(() => fm(1760, 0.07, { ratio: 2, index: 1.2, indexDecay: 30, decay: 40, sweep: 0.6, sweepT: 0.04 }), e.t, "sfx", 0.12, -0.3, 0.04, "pop");
 				break;
 			case "bubble":
-				if (bubble++ % 4 === 0) play(() => buzz(), e.t, "sfx", 0.18, bubble % 2 ? 0.5 : -0.5, 0.05, "buzz");
-				else play(() => pop(700 + (bubble % 5) * 90, 0.08), e.t, "sfx", 0.1, bubble % 2 ? 0.4 : -0.4, 0.05);
+				if (bubble++ % 4 === 0) play(() => buzz(), e.t, "sfx", 0.14, bubble % 2 ? 0.5 : -0.5, 0.05, "buzz");
+				else T(e.t, 3500 + (bubble % 5) * 400, 0.1, bubble % 2 ? 0.4 : -0.4);
 				break;
 			case "thump":
-				K(e.t, 0.8);
-				play(() => stab([hz("A2"), hz("E3"), hz("A3")], 0.25), e.t, "music", 0.16, 0, 0.3);
+				K(e.t, 0.7);
+				Metal(7, e.t, 0.14, 0, 0.5);
 				break;
 		}
 	}
 
-	// ---------- sidechain: the kick pumps the music; the voice ducks the score
+	// ---------- sidechain: a light kick pump; the voice ducks the score
 	kicks.sort((a, b) => a - b);
 	const look = Math.round(0.06 * SR); // the duck starts just before each word
 	let held = 0;
@@ -198,7 +189,7 @@ async function buildWalkSoundtrack() {
 		const t = n / SR;
 		while (ki + 1 < kicks.length && kicks[ki + 1] <= t) ki++;
 		const since = kicks.length && t >= kicks[ki] ? t - kicks[ki] : 9;
-		const pump = 0.55 + 0.45 * (1 - Math.exp(-since / 0.07));
+		const pump = 0.8 + 0.2 * (1 - Math.exp(-since / 0.07));
 		for (const ch of [0, 1]) {
 			bus.music[ch][n] *= duck * pump;
 			bus.bass[ch][n] *= 0.35 + 0.65 * duck;
@@ -207,28 +198,13 @@ async function buildWalkSoundtrack() {
 		}
 	}
 
-	// ---------- stop-time before the two drops
+	// ---------- stop-time breaths before the two focal points
 	for (const hit of [WA.logo, WA.final]) {
-		const a = Math.floor((hit - 0.1) * SR);
+		const a = Math.floor((hit - 0.12) * SR);
 		const b = Math.floor((hit - 0.004) * SR);
 		for (const k of ["music", "bass", "drums"])
 			for (const ch of bus[k]) for (let n = a - 240; n < b; n++) ch[n] *= n < a ? 1 - (n - (a - 240)) / 240 : 0.02;
 	}
-
-	// ---------- tape stop on the music for the last 0.6 s
-	const tsStart = Math.floor((WALK_DUR - 0.6) * SR);
-	for (const k of ["music", "bass", "drums"])
-		for (const ch of bus[k]) {
-			const src = ch.slice(tsStart);
-			let pos = 0;
-			for (let n = tsStart; n < len; n++) {
-				const u = (n - tsStart) / (len - tsStart);
-				const i = Math.floor(pos);
-				const fr = pos - i;
-				ch[n] = (src[i] ?? 0) * (1 - fr) + (src[i + 1] ?? 0) * fr;
-				pos += Math.max(0, 1 - u * 1.15);
-			}
-		}
 
 	// ---------- graph: reverb, glue compression, master
 	const ctx = new OfflineAudioContext(2, len, SR);
@@ -246,7 +222,7 @@ async function buildWalkSoundtrack() {
 	hpf.connect(comp);
 	comp.connect(ctx.destination);
 	const reverb = ctx.createConvolver();
-	reverb.buffer = makeIR(ctx, 1.6);
+	reverb.buffer = makeIR(ctx, 0.9);
 	const rg = ctx.createGain();
 	rg.gain.value = 0.2;
 	reverb.connect(rg);
@@ -263,10 +239,10 @@ async function buildWalkSoundtrack() {
 		g.connect(dest);
 		s.start(0);
 	};
-	src(bus.music, master, 0.36);
-	src(bus.bass, master, 0.3);
-	src(bus.drums, master, 0.36);
-	src(bus.sfx, master, 0.45);
+	src(bus.music, master, 0.7);
+	src(bus.bass, master, 0.55);
+	src(bus.drums, master, 0.7);
+	src(bus.sfx, master, 0.6);
 	src(bus.voice, master, 1.0);
 	src(bus.rev, reverb, 1.0);
 	const out = await ctx.startRendering();
@@ -285,6 +261,7 @@ async function buildWalkSoundtrack() {
 		const d = out.getChannelData(ch);
 		for (let n = 0; n < d.length; n++) d[n] *= norm;
 		for (let n = 0; n < 480; n++) d[n] *= n / 480;
+		for (let n = 0; n < 12000; n++) d[d.length - 1 - n] *= n / 12000;
 	}
 	return out;
 }

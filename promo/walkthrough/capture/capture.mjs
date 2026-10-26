@@ -3,7 +3,7 @@
 // tapped, and write captures/manifest.json for the compositor.
 //
 // Prereqs (see ../README.md): Postgres + the Neon-HTTP shim, the promo seed,
-// `npm run dev` on :3000, and game art in art-cache/ (`node capture/art.mjs`).
+// `npm run dev` on :3000, and the generated game art (`node capture/art.mjs`).
 //
 //   CHROMIUM=/path/to/chrome node promo/walkthrough/capture/capture.mjs
 import { execFileSync } from "node:child_process";
@@ -26,7 +26,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const IDS = {
 	deepRock: "7a0e0002-0000-4000-8000-000000000003",
-	elden: "7a0e0001-0000-4000-8000-000000000017",
+	ashen: "7a0e0001-0000-4000-8000-000000000017",
 };
 const PHONE = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 const DESK = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 };
@@ -102,7 +102,7 @@ let sessionId;
 	const game = page.locator("#session-game");
 	await shot(page, "post-01-composer", { tap: game });
 	await game.click();
-	await game.pressSequentially("Helldivers 2", { delay: 40 });
+	await game.pressSequentially("Starfall Salvage", { delay: 40 });
 	await page.keyboard.press("Escape");
 	await page.waitForTimeout(200);
 	await shot(page, "post-02-game", { tap: game });
@@ -115,11 +115,11 @@ let sessionId;
 	await open.click();
 	await shot(page, "post-04-open", { tap: open });
 	await page.locator("details summary").click();
-	await page.locator("#session-title").fill("Helldivers 2 — dive night");
+	await page.locator("#session-title").fill("Starfall Salvage — wreck night");
 	await page.locator("#session-length").selectOption("180");
 	await page.locator("#session-capacity").selectOption("4");
 	await page.locator("#session-location").fill("Discord voice");
-	await page.locator("#session-notes").fill("Bring the orbital laser.");
+	await page.locator("#session-notes").fill("Bring spare fuel cells.");
 	const post = page.getByRole("button", { name: "Post session" });
 	await scrollTo(page, post, 520);
 	await shot(page, "post-05-details", { tap: post });
@@ -162,7 +162,7 @@ console.log("join");
 	const page = await ctx.newPage();
 	await page.goto(`${BASE}/`);
 	await settle(page);
-	const card = page.getByRole("link", { name: "Helldivers 2 — dive night" }).first();
+	const card = page.getByRole("link", { name: "Starfall Salvage — wreck night" }).first();
 	await shot(page, "join-01-guest-home", { tap: card });
 	await page.goto(`${BASE}/s/${sessionId}`);
 	await settle(page);
@@ -196,7 +196,7 @@ console.log("wrap");
 	await shot(page, "wrap-03-stars", { tap: five });
 	const recap = page.locator("#wrap-recap");
 	await recap.click();
-	await recap.pressSequentially("Hit the Bulk Detonator with our last grenade. Rock and stone.", { delay: 15 });
+	await recap.pressSequentially("Cracked the magma core with our last charge. Breakers forever.", { delay: 15 });
 	await shot(page, "wrap-04-recap", { tap: recap });
 	const next = form.locator("input[name=scheduleNext]");
 	await next.check();
@@ -226,7 +226,7 @@ console.log("more");
 	await page.goto(`${BASE}/backlog`);
 	await settle(page);
 	await shot(page, "more-01-library");
-	await page.goto(`${BASE}/backlog/${IDS.elden}`);
+	await page.goto(`${BASE}/backlog/${IDS.ashen}`);
 	await settle(page);
 	const keen = page.getByRole("button", { name: /I'd play this/ }).first();
 	await shot(page, "more-02-game", { tap: keen });
@@ -249,5 +249,5 @@ await browser.close();
 await db.end();
 manifest.missingArt = [...artMisses].sort();
 fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
-if (artMisses.size) console.warn(`⚠ ${artMisses.size} game images were not in art-cache/ and render blank (run capture/art.mjs with Steam reachable)`);
+if (artMisses.size) console.warn(`⚠ ${artMisses.size} game images were not in art-cache/ and render blank (run capture/art.mjs first)`);
 console.log(`captures → ${path.relative(root, OUT)} (${Object.keys(manifest.shots).length} shots, ${manifest.discord.length} Discord states)`);
