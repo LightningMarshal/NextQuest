@@ -32,9 +32,12 @@ index.html          stage, all styles (fonts: Unbounded, Space Grotesk, Hanken
                     Grotesk, JetBrains Mono; all OFL)
 src/reel.js         DOM construction + render(t): a pure function of time, no CSS
                     transitions, so playback and the frame export are identical
-src/reel-audio.js   120 BPM cue (supersaw pads, sidechained sub bass, plucks, drums,
-                    risers, impacts) + UI sound design synced to on-screen events;
-                    reuses the DSP toolkit in ../animation/src/audio.js
+src/reel-audio.js   120 BPM drift-phonk / trap cue (pitched cowbell hook, distorted
+                    808 with slides, hard kick and claps, hat rolls, stop-time
+                    drops, tape-stop ending) + game-UI sound design (clicks,
+                    8-bit selects, zaps, glitches, phone buzzes) synced to
+                    on-screen events; reuses the DSP toolkit in
+                    ../animation/src/audio.js
 src/player.js       realtime player and the window.REEL export hooks
 build.mjs           inline everything into dist/nextquest-reel.html
 render.mjs          screenshot every frame with Playwright → ffmpeg → MP4
