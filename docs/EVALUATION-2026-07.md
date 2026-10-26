@@ -1,5 +1,8 @@
 # Product evaluation — July 2026
 
+> **Historical.** Superseded by the 2026-09 redesign (docs/DECISIONS.md,
+> 2026-09-26; ROADMAP Phase 24). Kept for context.
+
 A walkthrough of NextQuest's end-to-end workflow, the friction in it, and
 what's missing. Written after the 2026-07 feature batch
 (`docs/plans/2026-07-feature-batch.md`, Phases 13–16); findings are from

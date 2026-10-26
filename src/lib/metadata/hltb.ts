@@ -114,11 +114,32 @@ async function fetchAuthToken(apiPath: string): Promise<HltbAuth> {
 	return auth;
 }
 
+// Endpoint discovery costs a homepage fetch plus up to one fetch per page
+// script, and it used to run on EVERY typeahead keystroke. Cache the result
+// per isolate (module state is fine for a derived public URL — nothing
+// request-scoped lives here); drop it whenever a search against it fails so
+// the next attempt rediscovers.
+const ENDPOINT_TTL_MS = 6 * 60 * 60 * 1000;
+let cachedEndpoint: { path: string; at: number } | null = null;
+
+async function searchEndpoint(): Promise<string> {
+	if (cachedEndpoint && Date.now() - cachedEndpoint.at < ENDPOINT_TTL_MS) return cachedEndpoint.path;
+	const path = await discoverSearchEndpoint();
+	cachedEndpoint = { path, at: Date.now() };
+	return path;
+}
+
+/** Test seam: forget the cached endpoint. */
+export function resetHltbEndpointCache(): void {
+	cachedEndpoint = null;
+}
+
 async function searchHltb(query: string): Promise<HltbResult[]> {
-	const apiPath = await discoverSearchEndpoint();
+	const apiPath = await searchEndpoint();
 	try {
 		return await postSearch(apiPath, query);
 	} catch (error) {
+		cachedEndpoint = null;
 		// A discovered endpoint the API rejects usually means the bundle regex
 		// grabbed the wrong path — retry once against the last-known static one.
 		if (apiPath === FALLBACK_ENDPOINT) throw error;

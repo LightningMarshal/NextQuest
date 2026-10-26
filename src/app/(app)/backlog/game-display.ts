@@ -28,7 +28,7 @@ export const FORMAT_LABELS: Record<NonNullable<Tabletop["format"]>, string> = {
 	hybrid: "hybrid",
 };
 
-export function playersLabel(tabletop: Tabletop): string | null {
+export function playersLabel(tabletop: Pick<Tabletop, "minPlayers" | "maxPlayers">): string | null {
 	const { minPlayers: min, maxPlayers: max } = tabletop;
 	if (min && max) return min === max ? `${min} players` : `${min}–${max} players`;
 	if (min) return `${min}+ players`;
@@ -41,7 +41,10 @@ export function playersLabel(tabletop: Tabletop): string | null {
  * length — the stored hour-equivalent is internal currency and never shown
  * raw (CLAUDE.md #2 footnote).
  */
-export function lengthLabel(game: Game, tabletop: Tabletop | null | undefined): string | null {
+export function lengthLabel(
+	game: Pick<Game, "gameType" | "lengthHours">,
+	tabletop: Pick<Tabletop, "lengthBand" | "playtimeMinutes"> | null | undefined
+): string | null {
 	if (game.gameType === "ttrpg") {
 		return tabletop?.lengthBand ? BAND_SHORT[tabletop.lengthBand] : null;
 	}
@@ -53,7 +56,10 @@ export function lengthLabel(game: Game, tabletop: Tabletop | null | undefined): 
 
 /** system · format · platform · GM · players — the tabletop info line. */
 export function tabletopInfoLine(
-	tabletop: Tabletop | null | undefined,
+	tabletop:
+		| Pick<Tabletop, "system" | "format" | "platform" | "minPlayers" | "maxPlayers">
+		| null
+		| undefined,
 	gmName: string | null | undefined
 ): string | null {
 	if (!tabletop) return null;
@@ -70,21 +76,21 @@ export function tabletopInfoLine(
 export const TRANSITION_LABELS: Partial<
 	Record<GameStatus, Partial<Record<GameStatus, string>>>
 > = {
-	proposed: { backlog: "Add to backlog", rejected: "Reject" },
-	backlog: { playing: "Start playing", abandoned: "Abandon" },
-	playing: { completed: "Mark completed", backlog: "Back to backlog", abandoned: "Abandon" },
-	abandoned: { backlog: "Back to backlog" },
-	rejected: { proposed: "Re-propose" },
+	proposed: { playing: "Start playing", backlog: "Add to want-to-play", rejected: "Shelve" },
+	backlog: { playing: "Start playing", abandoned: "Shelve" },
+	playing: { completed: "Mark finished", backlog: "Pause (back to want-to-play)", abandoned: "Drop it" },
+	abandoned: { backlog: "Back to want-to-play" },
+	rejected: { proposed: "Suggest again" },
 };
 
 export const STATUS_BADGE: Record<
 	GameStatus,
 	{ label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
-	proposed: { label: "proposed", variant: "outline" },
-	backlog: { label: "backlog", variant: "secondary" },
+	proposed: { label: "suggested", variant: "outline" },
+	backlog: { label: "want to play", variant: "secondary" },
 	playing: { label: "playing", variant: "default" },
-	completed: { label: "completed", variant: "secondary" },
-	abandoned: { label: "abandoned", variant: "outline" },
-	rejected: { label: "rejected", variant: "destructive" },
+	completed: { label: "played", variant: "secondary" },
+	abandoned: { label: "dropped", variant: "outline" },
+	rejected: { label: "shelved", variant: "outline" },
 };

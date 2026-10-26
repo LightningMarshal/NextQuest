@@ -9,12 +9,11 @@ import { useSyncExternalStore } from "react";
 
 const emptySubscribe = () => () => {};
 
-type Variant = "datetime" | "weekday-datetime" | "time";
+type Variant = "datetime" | "weekday-datetime" | "time" | "date";
 
 function formatTime(value: Date, variant: Variant, utc: boolean): string {
 	const options: Intl.DateTimeFormatOptions = {
-		hour: "numeric",
-		minute: "2-digit",
+		...(variant !== "date" ? { hour: "numeric", minute: "2-digit" } : {}),
 		...(variant !== "time" ? { month: "short", day: "numeric" } : {}),
 		...(variant === "weekday-datetime" ? { weekday: "short" } : {}),
 		...(utc ? { timeZone: "UTC" } : {}),
@@ -27,13 +26,21 @@ export function LocalTime({
 	date,
 	withWeekday = false,
 	timeOnly = false,
+	dateOnly = false,
 }: {
 	date: Date | string;
 	withWeekday?: boolean;
 	timeOnly?: boolean;
+	dateOnly?: boolean;
 }) {
 	const value = typeof date === "string" ? new Date(date) : date;
-	const variant: Variant = timeOnly ? "time" : withWeekday ? "weekday-datetime" : "datetime";
+	const variant: Variant = dateOnly
+		? "date"
+		: timeOnly
+			? "time"
+			: withWeekday
+				? "weekday-datetime"
+				: "datetime";
 	const text = useSyncExternalStore(
 		emptySubscribe,
 		() => formatTime(value, variant, false),

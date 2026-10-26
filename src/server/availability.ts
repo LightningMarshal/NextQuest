@@ -6,9 +6,9 @@ import { z } from "zod";
 
 import { getDb, schema } from "@/db";
 import { covers, mergeIntervals, overlaps, type Interval } from "@/lib/availability-grid";
-import { discordTimestamp, notifyDiscord } from "@/lib/discord";
+import { notifyDiscord, syncSessionAnnouncement } from "@/server/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
-import { requireApprovedUser } from "@/server/session";
+import { requireMember } from "@/server/session";
 
 type AvailabilityResponse = (typeof schema.availabilityResponseValue.enumValues)[number];
 
@@ -38,7 +38,7 @@ const createPollSchema = z.object({
 });
 
 export async function createAvailabilityPoll(formData: FormData): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = createPollSchema.safeParse({
 		title: formData.get("title"),
 		durationMinutes: formData.get("durationMinutes"),
@@ -72,7 +72,7 @@ export async function createAvailabilityPoll(formData: FormData): Promise<void> 
 		options.map((option) => ({ optionId: option.id, userId: user.id, response: "yes" as const }))
 	);
 
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 // --- Grid polls (issue #33, whenisgood-style) -------------------------------
@@ -117,7 +117,7 @@ export async function createGridPoll(input: {
 	sessionMinutes: number;
 	windows: { start: string; end: string }[];
 }): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = createGridPollSchema.safeParse(input);
 	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 	const { title, sessionMinutes, windows } = parsed.data;
@@ -154,7 +154,7 @@ export async function createGridPoll(input: {
 	notifyDiscord(
 		`🗓️ ${user.name} opened **${title}**${gameTitle ? ` (${gameTitle})` : ""} — paint the times that work on the events page`
 	);
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 /**
@@ -163,7 +163,7 @@ export async function createGridPoll(input: {
  * poll back-reference (set null).
  */
 export async function deletePoll(pollId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 	const [poll] = await db
 		.select({
@@ -178,7 +178,7 @@ export async function deletePoll(pollId: string): Promise<void> {
 		throw new Error("Only the poll's creator or an admin can delete it.");
 	}
 	await db.delete(schema.availabilityPolls).where(eq(schema.availabilityPolls.id, pollId));
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 const saveAvailabilitySchema = z.object({
@@ -204,7 +204,7 @@ export async function saveAvailability(
 	pollId: string,
 	intervals: { start: string; end: string }[]
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const parsed = saveAvailabilitySchema.safeParse({ pollId, intervals });
 	if (!parsed.success) throw new Error(parsed.error.issues[0].message);
 
@@ -251,7 +251,7 @@ export async function saveAvailability(
 			}))
 		);
 	}
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 /**
@@ -264,7 +264,7 @@ export async function scheduleGridWindow(
 	startIso: string,
 	endIso: string
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const start = new Date(startIso);
 	const end = new Date(endIso);
 	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
@@ -341,10 +341,11 @@ export async function scheduleGridWindow(
 		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, pollId));
 
-	notifyDiscord(
-		`📅 **${poll.title}** is happening ${discordTimestamp(start)} — the grid picked its winner`
-	);
-	revalidatePath("/events");
+	// The poll's winner is announced like any other session (one embed,
+	// edited as people RSVP).
+	syncSessionAnnouncement(event.id);
+	revalidatePath("/sessions/plan");
+	revalidatePath("/sessions");
 	revalidatePath("/");
 }
 
@@ -353,7 +354,7 @@ export async function respondToSlot(
 	optionId: string,
 	response: AvailabilityResponse
 ): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	if (!schema.availabilityResponseValue.enumValues.includes(response)) {
 		throw new Error("Invalid response.");
 	}
@@ -378,17 +379,25 @@ export async function respondToSlot(
 			set: { response, respondedAt: new Date() },
 		});
 
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 export async function closePoll(pollId: string): Promise<void> {
-	await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
+	const [poll] = await db
+		.select({ createdBy: schema.availabilityPolls.createdBy })
+		.from(schema.availabilityPolls)
+		.where(eq(schema.availabilityPolls.id, pollId));
+	if (!poll) throw new Error("Poll not found.");
+	if (poll.createdBy !== user.id && user.role !== "admin") {
+		throw new Error("Only the poll's creator or an admin can close it.");
+	}
 	await db
 		.update(schema.availabilityPolls)
 		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, pollId));
-	revalidatePath("/events");
+	revalidatePath("/sessions/plan");
 }
 
 /**
@@ -397,7 +406,7 @@ export async function closePoll(pollId: string): Promise<void> {
  * poll.
  */
 export async function createEventFromSlot(optionId: string): Promise<void> {
-	const user = await requireApprovedUser();
+	const user = await requireMember();
 	const db = getDb();
 
 	const [slot] = await db
@@ -452,9 +461,8 @@ export async function createEventFromSlot(optionId: string): Promise<void> {
 		.set({ status: "closed", closedAt: new Date() })
 		.where(eq(schema.availabilityPolls.id, slot.pollId));
 
-	notifyDiscord(
-		`📅 **${slot.pollTitle}** is happening ${discordTimestamp(slot.startsAt)} — the poll picked its winner`
-	);
-	revalidatePath("/events");
+	syncSessionAnnouncement(event.id);
+	revalidatePath("/sessions/plan");
+	revalidatePath("/sessions");
 	revalidatePath("/");
 }

@@ -334,29 +334,65 @@ pitch had been quietly impossible to build.
   game page, any status — arguing about a proposal is the point. Author
   (or admin) delete only; no edits, the thread is a record
 
-## Phase 22 (proposed) — Production confidence
+## Phase 24 — Redesign: sessions first, a wider circle ✅ (done, 2026-09)
+
+Adoption was low: the app served formal planning; the group plays ad hoc
+and wants more people. Audit + rebuild on `claude/nextquest-redesign-audit-d8y1jk`
+(rationale: DECISIONS 2026-09-26; runbook: deployment/12-redesign-migration.md).
+
+- **Sessions are the product**: "This week" home, a composer that posts in
+  seconds (game, when-chip, open/members), a page per session that is the
+  Discord link target (before: when/what/who/join; after: who came, how it
+  went, next), host/admin edit + cancel, capped seats, live-session RSVPs
+- **Discord**: one rich card per session per webhook, edited in place;
+  multiple webhooks with audiences (group server vs open-only wider server);
+  reminders with who's in and a link; mentions always disabled
+- **The circle**: guest tier (open sessions only); member invite links;
+  Discord sign-in admitting members of configured servers; membership
+  applications reviewed on /admin; sign-in returns you to the page you
+  clicked
+- **Wrap-up in ten seconds**, a nudge after the session ends, and 48h
+  auto-close so history has no holes
+- **Library** stays rich; "I'd play this" replaces budget voting; cards lost
+  their hidden forms (HTML −55%); curation moved to the game page
+- **Retired (data kept)**: the picker, budget voting, effort editing and
+  recompute; effort is frozen history behind a legacy burn-rate on /stats
+- **Calendar**: per-session .ics and a personal, resettable feed per user
+- **Fixes from the audit**: completed-game effort editable by anyone
+  (burn-rate history rewrite), Discord @everyone injection, open image
+  proxy, UTC dates on the dashboard, grid hydration mismatch, duplicate
+  status history on double-submit, incomplete export, HLTB re-scraping per
+  keystroke, 3× session lookups per page, self-rename via Better Auth
+- **Engineering**: additive migrations 0020/0021 with a tested rollback;
+  local Neon-HTTP shim committed (`npm run db:shim`); db.batch for atomic
+  multi-table writes
+
+Superseded by this phase: Phases 3 (voting), 8 and 10 (the picker), and the
+effort-editing parts of 2 and 9 — their data remains, their UI is gone.
+
+## Phase 22 (in progress) — Production confidence
 
 The app now has CI, tests, and error pages — but production is still a
 black box: a crashed cron logs to a console nobody retains, and the only
 backup is an admin remembering to click "Everything (JSON)".
 
-- Error visibility: ship Worker logs somewhere durable (Workers Logs /
-  Logpush or a lightweight Sentry via `@sentry/cloudflare`); at minimum,
-  cron task failures should post to the existing Discord webhook — the
-  plumbing is already there (`console.warn` today = silent in prod)
+- Error visibility: ✅ cron task failures now post to Discord
+  (`src/app/api/cron/route.ts` → `notifyDiscord`: `DISCORD_WEBHOOK_URL` plus
+  "all"-audience webhooks from /admin, no-op when none); shipping Worker
+  logs somewhere durable (Workers Logs / Logpush or a lightweight Sentry via
+  `@sentry/cloudflare`) is still open — needs a new external account this repo can't provision unattended
 - Automated backups: a weekly cron task that writes the /api/export
   snapshot to an R2 bucket with a retention window — the export route
   already builds the payload; this schedules it. Document Neon PITR
   alongside as the point-in-time layer
 - E2E smoke suite in CI: `npm run seed` + local Postgres + the Neon-HTTP
   shim + Playwright against `next dev` — sign in via a test-only session
-  seam, walk propose → vote → schedule → wrap-up. Every verification
-  session so far has hand-rebuilt exactly this harness; commit it
-  (the shim itself is the missing piece — see Phase 23's local dev item)
-- Migration check in CI: apply `drizzle/` from zero against a scratch
-  Postgres service so a broken generated migration fails the PR, not the
-  deploy (the deploy script runs migrations first — today that's where
-  you'd find out)
+  seam, walk post a session → join → wrap-up. The shim is ✅ committed
+  (`scripts/neon-http-shim.mjs`, `npm run db:shim`, Phase 24); the
+  Playwright suite and CI wiring are still open
+- Migration check in CI: ✅ a `migration-check` job in `ci.yml` spins up a
+  disposable `postgres:17` service container and runs `npm run db:migrate`
+  (`drizzle-kit migrate`) against it from empty on every push/PR
 - PR preview deploys via `wrangler versions upload` — review a change on
   a real workerd runtime instead of trusting `npm run dev`
 
@@ -365,15 +401,12 @@ backup is an admin remembering to click "Everything (JSON)".
 Nothing here is broken today at 13 games and 5 members; all of it starts
 to hurt at 100 games and year three.
 
-- Backlog text search: the filter row has tag/type/genre/mode/sort but no
-  free-text title search — fine now, not at 100 games
+- ~~Backlog text search~~ — shipped in Phase 24
 - Admin data hygiene: hard-delete for spam/typo proposals and a merge
   tool for duplicates (today the only exit is `rejected`, which keeps the
   row forever; merge must reconcile votes, tags, history, and events)
-- Local dev without a Neon account: commit the Neon-HTTP→Postgres shim
-  (`NEON_HTTP_PROXY_ENDPOINT` support already shipped in src/db/index.ts,
-  but the shim it points to lives in no repo) + a documented
-  Postgres-in-Docker path; pairs with `npm run seed`
+- ~~Local dev without a Neon account~~ — the shim shipped in Phase 24
+  (`npm run db:shim`); a Postgres-in-Docker doc is still open
 - PWA/installability: manifest + icons + a home-screen-worthy offline
   shell for the events page — promoted from future ideas now that the
   mobile nav works and the app gets used at the table
@@ -404,3 +437,6 @@ to hurt at 100 games and year three.
   webhook already exist; /review already assembles the content)
 - Notification opt-outs per member (would trigger the user_preferences
   table above)
+- A Discord bot (interactions endpoint) for one-tap "I'm in" buttons on the
+  session card — webhooks can't carry interactive components
+- Group chat / comments on a session page

@@ -148,10 +148,12 @@ the setting alone doesn't rescue an account that already exists.
 
 ## 9. Friends see "pending approval"
 
-**Not a bug.** New sign-ins wait for approval by design
-([the approval model →](01-what-you-are-about-to-do.md#the-approval-model)).
-Open **Admin** in the app and approve them. They get in on their next page
-load.
+**Not a bug.** A sign-in without an invite link waits for an admin by
+design ([the approval model →](01-what-you-are-about-to-do.md#the-approval-model)).
+They land on an application page; open **Admin** to approve their
+application (member) or let them in as a guest. Faster: send them an
+invite link (account menu → **Invite friends**) — opening it lets them
+straight in as a guest.
 
 ## 10. No event reminders, and game info never refreshes
 

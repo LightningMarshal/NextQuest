@@ -1,14 +1,18 @@
-import { boolean, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, pgEnum, pgTable, smallint, text, timestamp } from "drizzle-orm/pg-core";
 
 // Better Auth core tables. Shape matches what `npx @better-auth/cli generate`
 // emits for the Drizzle adapter, plus our membership fields on `user`.
 // If Better Auth plugins are added later, regenerate and merge — do not let
 // this file drift from the auth config in src/lib/auth.ts.
 
-export const userRole = pgEnum("user_role", ["admin", "member"]);
+// admin/member = the group (library, planning, stats). guest = "the circle":
+// friends-of-friends and Discord members who can see and join sessions
+// marked open, nothing else (src/server/session.ts has the gates).
+export const userRole = pgEnum("user_role", ["admin", "member", "guest"]);
 
-// Single-group membership: everyone signs in with Google, lands as
-// `pending`, and an admin approves or rejects them.
+// Everyone signs in with Google or Discord and lands `pending` — unless an
+// invite link or a configured Discord server admits them as an approved
+// guest. Pending people can apply for membership (membership_applications).
 export const userStatus = pgEnum("user_status", ["pending", "approved", "rejected"]);
 
 export const user = pgTable("user", {
@@ -22,6 +26,9 @@ export const user = pgTable("user", {
 	// App-owned (NOT a Better Auth additionalField — auth ignores it): when
 	// the member finished/skipped the welcome tour (issue #13). Null = show it.
 	tutorialSeenAt: timestamp("tutorial_seen_at", { withTimezone: true }),
+	// App-owned: bumping it rotates this person's calendar-feed URL (the
+	// feed token is an HMAC over user id + version — src/lib/ical.ts).
+	calendarFeedVersion: smallint("calendar_feed_version").notNull().default(0),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
