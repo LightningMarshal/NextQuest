@@ -169,6 +169,8 @@ src/
 
 ## Gotchas
 
+- Use npm 11+ (`npx npm@11 install` if your Node ships npm 10). npm 10.9
+  crashes or calls the lockfile out of sync; CI pins `npm@11.21.1`.
 - `wrangler.jsonc` must keep `nodejs_compat` and `"keep_names": false` —
   esbuild's `__name` helper breaks next-themes' inline anti-flash script
   ("__name is not defined" on every page).

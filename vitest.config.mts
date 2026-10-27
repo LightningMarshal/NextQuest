@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // no DB, no network — external fetches are stubbed per test.
 export default defineConfig({
 	resolve: {
-		alias: { "@": path.resolve(__dirname, "src") },
+		alias: { "@": path.resolve(import.meta.dirname, "src") },
 	},
 	test: {
 		include: ["src/**/*.test.ts"],

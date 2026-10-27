@@ -12,6 +12,18 @@ updates:
         update-types:
           - minor
           - patch
+    # Majors the toolchain can't take yet — drop a rule once its blocker clears.
+    ignore:
+      # TS 7 is the native compiler; its package has no classic compiler API,
+      # which Next's build typecheck and typescript-eslint (<6.1) still require.
+      - dependency-name: typescript
+        versions: [">=7"]
+      # eslint-config-next's react/import/jsx-a11y plugins cap their eslint peer at ^9.
+      - dependency-name: eslint
+        versions: [">=10"]
+      # Track the Node version CI and tooling run on (node-version: 22).
+      - dependency-name: "@types/node"
+        versions: [">=23"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
