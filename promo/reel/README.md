@@ -4,7 +4,7 @@ A 15-second motion-graphics spot for NextQuest, built to sit at the top of the
 repo README and to go on YouTube: the app's own dark "Nova" palette, true 3D
 perspective UI, kinetic typography, and every cut landing on a 120 BPM beat.
 
-- **Watch:** [`../videos/nextquest-reel-1080p60.mp4`](../videos/nextquest-reel-1080p60.mp4) (1080p60, sound on)
+- **Watch:** [`../videos/nextquest-reel-1080p60.mp4`](../videos/nextquest-reel-1080p60.mp4) (1080p60, silent)
 - **Play in a browser:** `dist/nextquest-reel.html` (single self-contained file)
 - **README preview:** `dist/nextquest-reel-preview.webp` (silent, looping, 960×540)
 
@@ -45,11 +45,17 @@ render.mjs          screenshot every frame with Playwright → ffmpeg → MP4
 
 ```bash
 node build.mjs
-FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
+SILENT=1 FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
 ```
 
+**Audio is paused.** The published MP4 is silent. `src/reel-audio.js` holds
+the latest experiment (take 4, French electro), which the browser player still
+plays; drop `SILENT=1` to render it in. The history of the four takes and the
+brief for a fifth are in
+[docs/plans/promo-future-work.md](../../docs/plans/promo-future-work.md).
+
 The panels are hand-built in HTML to look like the app, so they need updating
-when the UI changes. The longer [walkthrough](../walkthrough) avoids that by
+when the UI changes. The parked [walkthrough](../walkthrough) avoids that by
 filming the real app.
 
 The games (*Starfall Salvage*, *Gloomkeep*) and people are fictional, so the

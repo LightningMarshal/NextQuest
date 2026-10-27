@@ -1,25 +1,19 @@
 # NextQuest videos
 
 Upload-ready masters for YouTube (or anywhere else), with metadata you can paste
-straight into the upload form. The sources that generate each video live in
-[`../reel`](../reel) (motion reel) and [`../walkthrough`](../walkthrough)
-(narrated walkthrough filmed from the real app).
+straight into the upload form. The reel's source lives in [`../reel`](../reel).
 
 | File | What it is | Spec |
 | --- | --- | --- |
-| `nextquest-reel-1080p60.mp4` | 15-second motion-graphics reel | 1920×1080, 60 fps, H.264 High, AAC 320 kbps / 48 kHz |
+| `nextquest-reel-1080p60.mp4` | 15-second motion-graphics reel, silent | 1920×1080, 60 fps, H.264 High, no audio track |
 | `nextquest-reel-thumbnail.jpg` | Thumbnail for the reel | 1280×720 JPEG |
-| `nextquest-walkthrough-1080p.mp4` | 70-second narrated walkthrough | 1920×1080, 30 fps, H.264 High, AAC 320 kbps / 48 kHz |
-| `nextquest-walkthrough-thumbnail.jpg` | Thumbnail for the walkthrough | 1280×720 JPEG |
-| `nextquest-walkthrough.en.srt` | English captions for the walkthrough | SubRip |
 
-> The walkthrough files land here once the voiceover is in; see
-> [`../walkthrough`](../walkthrough). Its games and art are fictional.
-
-The masters meet YouTube's recommended upload settings for SDR 1080p
-(progressive, `yuv420p`, `+faststart`, 48 kHz stereo AAC). The hand-drawn
-tour that used to live here showed the pre-2026 design and was retired; git
-history keeps it.
+The reel is published without sound for now: four soundtrack attempts
+didn't land, so audio is paused. A 70-second narrated walkthrough is built
+but parked too. What exists and how to pick either back up is in
+[docs/plans/promo-future-work.md](../../docs/plans/promo-future-work.md).
+The hand-drawn tour that used to live here showed the pre-2026 design and
+was retired; git history keeps it.
 
 ---
 
@@ -49,7 +43,7 @@ more games with more people: video games, tabletop RPGs and board games.
 Play more games with more people.
 
 Source: https://github.com/LightningMarshal/NextQuest
-Animation and music were generated in code (HTML/CSS 3D + Web Audio).
+Animated in code (HTML/CSS 3D), rendered frame by frame.
 ```
 
 **Tags:** `NextQuest, gaming group, game night, Discord, LFG, looking for group, board games, TTRPG, D&D group, open source, self-hosted`
@@ -58,59 +52,9 @@ Animation and music were generated in code (HTML/CSS 3D + Web Audio).
 
 ---
 
-## 2. NextQuest — walkthrough (70 s)
-
-**Title**
-
-```
-NextQuest walkthrough: post a game night in three taps, Discord keeps up, friends hop in
-```
-
-**Description**
-
-```
-Every gaming group has the same problem: 99 messages and still nobody knows
-who's on tonight.
-
-NextQuest is a free, open-source web app that helps a gaming group play more
-games with more people. This walkthrough is filmed from the real app:
-
-• Post a session in three taps: pick the game, tap a time, choose who can
-  join (just the group, or the whole circle).
-• Discord gets one live card per session, edited in place as friends join,
-  with reminders a day and an hour before.
-• Friends-of-friends come in with an invite link or Discord sign-in, see
-  your open sessions, tap I'm in, and add it to their calendar.
-• Afterwards, a ten-second wrap-up: who came, how it went, same time next week?
-• Plus a game library with "I'd play this", find-a-time polls, and stats.
-
-0:00 The group chat problem
-0:10 Post a session in three taps
-0:22 Discord keeps up
-0:34 Friends hop in
-0:48 Wrap up in ten seconds
-1:00 Library, polls and stats
-
-Source: https://github.com/LightningMarshal/NextQuest
-Composited and scored in code from screenshots of the running app (demo
-data; the games and their art are fictional).
-```
-
-The chapter list satisfies YouTube's rules (starts at 0:00, at least three
-chapters, each at least 10 seconds). Upload `nextquest-walkthrough.en.srt`
-under **Subtitles → Upload file → With timing**.
-
-**Tags:** `NextQuest, gaming group, game night, Discord, LFG, looking for group, co-op, multiplayer, open source, self-hosted`
-
-**Category:** Gaming
-
----
-
 ### Regenerating
 
 ```bash
-# walkthrough (from promo/walkthrough; seed and capture first, see its README)
-FFMPEG=ffmpeg node build.mjs && FFMPEG=ffmpeg node render.mjs ../videos/nextquest-walkthrough-1080p.mp4
 # reel (from promo/reel)
-node build.mjs && FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
+node build.mjs && SILENT=1 FFMPEG=ffmpeg node render.mjs ../videos/nextquest-reel-1080p60.mp4 60
 ```

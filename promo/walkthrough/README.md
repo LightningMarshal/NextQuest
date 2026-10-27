@@ -1,5 +1,10 @@
 # NextQuest walkthrough
 
+> **Parked (2026-10).** Built and working, but not published: it waits on
+> a voiceover and a music direction. See
+> [docs/plans/promo-future-work.md](../../docs/plans/promo-future-work.md)
+> for where it stands and how to resume.
+
 A 70-second narrated walkthrough of NextQuest, filmed from the **real app**:
 every phone and desktop screen is a screenshot of the running app on seeded
 demo data, and every Discord card is built by the app's own embed builder

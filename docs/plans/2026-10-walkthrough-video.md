@@ -1,7 +1,8 @@
 # Plan: replace the hand-drawn tour with a real-app walkthrough
 
-Status: **built** (2026-10); the pipeline lives in `promo/walkthrough/`.
-The final master waits on the owner's voiceover (see "Decisions" at the end).
+Status: **parked** (2026-10). The pipeline is built in `promo/walkthrough/`
+but not published; current state and next steps are in
+[promo-future-work.md](promo-future-work.md).
 
 ## Why the hand-drawn tour has to go
 
