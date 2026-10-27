@@ -32,8 +32,9 @@
 	const ready = (async () => {
 		await Promise.all([
 			document.fonts.load("800 100px 'Unbounded'"),
-			document.fonts.load("600 20px 'Geist'"),
-			document.fonts.load("500 20px 'Geist Mono'"),
+			document.fonts.load("600 20px 'Space Grotesk'"),
+			document.fonts.load("600 20px 'Hanken Grotesk'"),
+			document.fonts.load("500 20px 'JetBrains Mono'"),
 		]);
 		buildReel();
 		initCanvases();

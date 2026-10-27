@@ -15,7 +15,7 @@ a wider circle of guests can see and join the sessions you mark **open**.
     <img src="promo/reel/dist/nextquest-reel-preview.webp" alt="NextQuest in 15 seconds: post a session, it lands on Discord, friends hop in, and a ten-second wrap-up records who came." width="820">
   </a>
   <br>
-  <sub>▶ <a href="promo/videos/nextquest-reel-1080p60.mp4"><b>Watch the 15-second reel with sound</b></a> (1080p60 MP4) · or the <a href="promo/videos/nextquest-tour-handdrawn-1080p.mp4">47-second hand-drawn tour</a> · both made in code, see <a href="promo/">promo/</a></sub>
+  <sub>▶ <a href="promo/videos/nextquest-reel-1080p60.mp4"><b>Watch the 15-second reel</b></a> (1080p60 MP4) · made in code, see <a href="promo/">promo/</a></sub>
 </p>
 
 ## Feature tour
