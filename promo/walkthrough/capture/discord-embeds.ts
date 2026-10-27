@@ -6,16 +6,17 @@
 //   npx tsx promo/walkthrough/capture/discord-embeds.ts <sessionId> > embed.json
 import "dotenv/config";
 
-import pg from "pg";
+import { neon, neonConfig } from "@neondatabase/serverless";
 
 import { buildSessionEmbed, type AnnouncedSession } from "@/lib/discord-embed";
 
 const sessionId = process.argv[2];
-const target = process.env.SHIM_TARGET ?? "postgresql://postgres@localhost:5433/nextquest?host=/tmp";
+// Same local route as the promo seed: Neon's HTTP driver through the shim.
+neonConfig.fetchEndpoint = process.env.NEON_HTTP_PROXY_ENDPOINT ?? "http://127.0.0.1:4445/sql";
+const sql = neon(process.env.DATABASE_URL ?? "postgresql://postgres@localhost:5433/nextquest");
 
 async function main() {
-	const db = new pg.Pool({ connectionString: target, max: 2 });
-	const { rows } = await db.query(
+	const rows = await sql.query(
 		`select e.id, e.title, e.status, e.visibility, e.scheduled_at, e.duration_minutes, e.location, e.join_url, e.notes,
 		        e.capacity, e.how_it_went, e.recap, g.title as game_title, coalesce(m.header_url, m.cover_url) as art, h.name as host_name
 		   from events e
@@ -26,12 +27,11 @@ async function main() {
 		[sessionId],
 	);
 	const e = rows[0];
-	const roster = await db.query(
+	const roster = await sql.query(
 		`select u.name, a.rsvp, a.attended from event_attendance a join "user" u on u.id = a.user_id
 		  where a.event_id = $1 order by a.responded_at`,
 		[sessionId],
 	);
-	await db.end();
 	const session: AnnouncedSession = {
 		id: e.id,
 		title: e.title,
@@ -46,9 +46,9 @@ async function main() {
 		joinUrl: e.join_url,
 		notes: e.notes,
 		capacity: e.capacity,
-		going: roster.rows.filter((r) => r.rsvp === "yes").map((r) => r.name),
-		maybe: roster.rows.filter((r) => r.rsvp === "maybe").map((r) => r.name),
-		came: roster.rows.filter((r) => r.attended).map((r) => r.name),
+		going: roster.filter((r) => r.rsvp === "yes").map((r) => r.name),
+		maybe: roster.filter((r) => r.rsvp === "maybe").map((r) => r.name),
+		came: roster.filter((r) => r.attended).map((r) => r.name),
 		howItWent: e.how_it_went,
 		recap: e.recap,
 	};
