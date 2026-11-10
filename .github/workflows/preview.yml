@@ -1,0 +1,77 @@
+# PR preview deploys (Phase 22): build with OpenNext and upload the result as
+# a new *version* of the Worker — without sending it any traffic — so a
+# change can be clicked through on the real workerd runtime before merging.
+# The job prints the version's preview URL in its summary.
+#
+# OFF until you opt in (docs/deployment/15-preview-deploys.md):
+#   1. repository secret   CLOUDFLARE_API_TOKEN   ("Edit Cloudflare Workers" template)
+#   2. repository secret   CLOUDFLARE_ACCOUNT_ID
+#   3. repository variable PREVIEW_DEPLOYS = true
+#
+# Read before enabling: a preview version runs with the PRODUCTION secrets,
+# so it talks to the production database and Discord. It is for looking at a
+# change, not for testing destructive ones — and a PR that adds a migration
+# will hit columns that don't exist yet (migrations only run on deploy).
+# Forks never get one: secrets aren't exposed to them, and the job is
+# skipped outright.
+name: Preview
+
+on:
+  pull_request:
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    if: vars.PREVIEW_DEPLOYS == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use npm 11
+        run: npm install -g npm@11.21.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for Workers
+        run: npx opennextjs-cloudflare build
+
+      # `versions upload` creates a version with its own preview URL and
+      # leaves the live deployment untouched.
+      - name: Upload a preview version
+        run: |
+          npx wrangler versions upload \
+            --preview-alias "pr-${{ github.event.pull_request.number }}" \
+            --message "PR #${{ github.event.pull_request.number }}" \
+            2>&1 | tee upload.log
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### Preview version"
+            echo
+            url=$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' upload.log | tail -n 1 || true)
+            if [ -n "$url" ]; then
+              echo "Open: $url"
+            else
+              echo "No preview URL was printed — check the upload step's log (preview URLs must be enabled for the Worker: Settings → Domains & Routes)."
+            fi
+            echo
+            echo "_Runs against production data and secrets. Look, don't break._"
+          } >> "$GITHUB_STEP_SUMMARY"

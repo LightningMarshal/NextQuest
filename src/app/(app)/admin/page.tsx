@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { getDb, schema } from "@/db";
 import { maskWebhookUrl } from "@/lib/webhook-url";
+import { backUpNow } from "@/server/backup-actions";
 import { addBotChannel, deleteBotChannel, setBotChannelEnabled, testBotChannel } from "@/server/bot-channels";
 import { reviewApplication, revokeInvite } from "@/server/circle";
+import { backupsConfigured, listBackups } from "@/server/cron/backup";
 import { appBaseUrl, discordBotConfigured } from "@/server/discord";
 import { backfillGameModes } from "@/server/games";
 import { approveMember, rejectMember, setMemberRole } from "@/server/members";
@@ -65,7 +67,8 @@ export default async function AdminPage() {
 	const db = getDb();
 	const inviter = alias(schema.user, "inviter");
 	const botReady = discordBotConfigured();
-	const [people, applications, redemptions, invites, webhooks, botChannels, settings] = await Promise.all([
+	const backupsOn = backupsConfigured();
+	const [people, applications, redemptions, invites, webhooks, botChannels, settings, backups] = await Promise.all([
 		db
 			.select({
 				id: schema.user.id,
@@ -111,6 +114,8 @@ export default async function AdminPage() {
 		db.select().from(schema.discordWebhooks).orderBy(asc(schema.discordWebhooks.createdAt)),
 		db.select().from(schema.discordBotChannels).orderBy(asc(schema.discordBotChannels.createdAt)),
 		getAppSettings(),
+		// A storage hiccup must not take the whole admin page down.
+		listBackups().catch(() => []),
 	]);
 	const byId = new Map(people.map((person) => [person.id, person]));
 	const invitedBy = new Map(redemptions.map((row) => [row.userId, row.inviterName ?? "someone"]));
@@ -461,6 +466,45 @@ export default async function AdminPage() {
 							</a>
 						</Button>
 					))}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Automatic backups</CardTitle>
+					<CardDescription>
+						{backupsOn
+							? "A full snapshot is saved every Monday and kept for about three months."
+							: "Off. Once a storage bucket is connected, a full snapshot is saved every week — until then, the only backup is the download above."}
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="flex flex-col gap-3">
+					{backupsOn ? (
+						<>
+							{backups.length === 0 ? (
+								<p className="text-muted-foreground text-sm">No snapshots yet — the first runs on Monday, or take one now.</p>
+							) : (
+								<ul className="divide-y text-sm">
+									{backups.slice(0, 5).map((backup) => (
+										<li key={backup.key} className="flex flex-wrap items-center justify-between gap-3 py-2">
+											<LocalTime date={backup.uploaded} />
+											<span className="stat text-muted-foreground text-xs">{Math.max(1, Math.round(backup.size / 1024))} KB</span>
+										</li>
+									))}
+								</ul>
+							)}
+							{backups.length > 5 && <p className="text-muted-foreground text-xs">…and {backups.length - 5} older.</p>}
+							<ActionForm action={backUpNow}>
+								<Button size="sm" variant="outline">
+									Back up now
+								</Button>
+							</ActionForm>
+						</>
+					) : (
+						<p className="text-muted-foreground text-sm">
+							Setup takes two commands — see <code>docs/deployment/14-backups-and-logs.md</code>.
+						</p>
+					)}
 				</CardContent>
 			</Card>
 
