@@ -15,6 +15,11 @@ import pg from "pg";
 
 const PORT = Number(process.env.SHIM_PORT ?? 4445);
 const TARGET = process.env.SHIM_TARGET ?? "postgresql://postgres@localhost:5432/nextquest";
+// SHIM_LOG=1 prints one line per round trip (start offset, duration, SQL
+// head). Each line is one HTTP fetch in production — the way to see how
+// many a page costs and which ones ran one-after-another instead of together.
+const LOG = Boolean(process.env.SHIM_LOG);
+const started = Date.now();
 const pool = new pg.Pool({ connectionString: TARGET, max: 10 });
 // Hand every value back as text; the driver does its own type parsing.
 const rawTypes = { getTypeParser: () => (value) => value };
@@ -34,6 +39,7 @@ http
 	.createServer(async (req, res) => {
 		let body = "";
 		for await (const chunk of req) body += chunk;
+		const began = Date.now();
 		const client = await pool.connect();
 		try {
 			const payload = JSON.parse(body);
@@ -51,6 +57,10 @@ http
 				}
 			} else {
 				out = await run(client, payload);
+			}
+			if (LOG) {
+				const head = (Array.isArray(payload.queries) ? `batch(${payload.queries.length}) ${payload.queries[0]?.query}` : payload.query) ?? "";
+				console.log(`+${began - started}ms ${Date.now() - began}ms ${head.replace(/\s+/g, " ").slice(0, 110)}`);
 			}
 			res.writeHead(200, { "content-type": "application/json" });
 			res.end(JSON.stringify(out));

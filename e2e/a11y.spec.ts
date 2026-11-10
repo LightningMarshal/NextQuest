@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { signInAs } from "./helpers";
+import { pool, signInAs } from "./helpers";
 
 // Accessibility pass (Phase 23): axe across the main pages, in both themes'
 // default (dark) and at phone width for the ones people use at the table.
@@ -101,4 +101,44 @@ test("light theme: home and a session have no axe violations", async ({ page, co
 		await expect(page.locator("html")).toHaveClass(/light/);
 		await expectNoViolations(page, `light ${path}`);
 	}
+});
+
+test.describe("the welcome tour", () => {
+	// Drew hasn't seen it (prepare.mjs marks everyone as having seen it).
+	test.beforeEach(async () => {
+		await pool.query("update \"user\" set tutorial_seen_at = null where id = 'seed-drew'");
+	});
+	test.afterAll(async () => {
+		await pool.query("update \"user\" set tutorial_seen_at = now() where id = 'seed-drew'");
+	});
+
+	test("opens for a first visit with no axe violations, and keeps Tab inside the dialog", async ({ page, context }) => {
+		await signInAs(context, "seed-drew");
+		await page.goto("/");
+		const dialog = page.getByRole("dialog");
+		await expect(dialog).toBeVisible();
+		await expectNoViolations(page, "welcome tour");
+
+		// More Tab presses than the dialog has controls: focus must still be inside.
+		for (let i = 0; i < 8; i++) {
+			await page.keyboard.press("Tab");
+			expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+		}
+		await page.keyboard.press("Shift+Tab");
+		expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+	});
+
+	test("Escape dismisses it for good", async ({ page, context }) => {
+		await signInAs(context, "seed-drew");
+		await page.goto("/");
+		await expect(page.getByRole("dialog")).toBeVisible();
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await expect
+			.poll(async () => (await pool.query("select tutorial_seen_at from \"user\" where id = 'seed-drew'")).rows[0].tutorial_seen_at)
+			.not.toBeNull();
+		await page.reload();
+		await expect(page.getByRole("heading", { name: "This week" })).toBeVisible();
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+	});
 });

@@ -41,7 +41,10 @@ function visibilityFilter(viewer: SessionUser): SQL | undefined {
 	return canSeeSession("members", viewer) ? undefined : eq(schema.events.visibility, "open");
 }
 
-async function selectSessions(viewer: SessionUser, where: SQL | undefined, order: SQL[], limit: number) {
+type SessionQuery = { where: SQL | undefined; order: SQL[]; limit: number };
+
+/** One list of sessions, visibility-filtered, WITHOUT rosters yet. */
+async function selectSessionRows(viewer: SessionUser, { where, order, limit }: SessionQuery) {
 	const db = getDb();
 	const rows = await db
 		.select({
@@ -76,7 +79,23 @@ async function selectSessions(viewer: SessionUser, where: SQL | undefined, order
 		.where(and(visibilityFilter(viewer), where))
 		.orderBy(...order)
 		.limit(limit);
-	return withRosters(rows);
+	return rows;
+}
+
+/**
+ * Several lists for one page. The lists are fetched side by side, then ONE
+ * roster query covers all of them — on the Neon HTTP driver every query is
+ * a fetch, so a roster query per list (as it used to be) cost the home page
+ * two extra round trips for nothing.
+ */
+async function selectSessionLists<const Q extends readonly (SessionQuery | null)[]>(
+	viewer: SessionUser,
+	queries: Q
+): Promise<{ [K in keyof Q]: SessionCardData[] }> {
+	const lists = await Promise.all(queries.map((query) => (query ? selectSessionRows(viewer, query) : Promise.resolve([]))));
+	const withRoster = await withRosters(lists.flat());
+	const byId = new Map(withRoster.map((session) => [session.id, session]));
+	return lists.map((list) => list.map((row) => byId.get(row.id)!)) as { [K in keyof Q]: SessionCardData[] };
 }
 
 async function withRosters<
@@ -128,22 +147,20 @@ export type HomeData = {
 
 export async function getHomeData(viewer: SessionUser, now: Date): Promise<HomeData> {
 	const isMember = canSeeSession("members", viewer);
-	const [upcoming, ended, recent] = await Promise.all([
-		selectSessions(
-			viewer,
-			and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} > ${now}`),
-			[asc(schema.events.scheduledAt)],
-			24
-		),
+	const [upcoming, ended, recent] = await selectSessionLists(viewer, [
+		{
+			where: and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} > ${now}`),
+			order: [asc(schema.events.scheduledAt)],
+			limit: 24,
+		},
 		isMember
-			? selectSessions(
-					viewer,
-					and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} <= ${now}`),
-					[desc(schema.events.scheduledAt)],
-					10
-				)
-			: Promise.resolve([]),
-		selectSessions(viewer, eq(schema.events.status, "completed"), [desc(schema.events.scheduledAt)], 4),
+			? {
+					where: and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} <= ${now}`),
+					order: [desc(schema.events.scheduledAt)],
+					limit: 10,
+				}
+			: null,
+		{ where: eq(schema.events.status, "completed"), order: [desc(schema.events.scheduledAt)], limit: 4 },
 	]);
 	// Wrap-up prompts go to whoever can act: host, admin, or someone who was in.
 	const needsWrapUp = ended.filter(
@@ -164,22 +181,20 @@ export type SessionsPage = {
 const PAST_PAGE_SIZE = 20;
 
 export async function getSessionsPage(viewer: SessionUser, now: Date, page: number): Promise<SessionsPage> {
-	const [upcoming, past] = await Promise.all([
-		selectSessions(
-			viewer,
-			and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} > ${now}`),
-			[asc(schema.events.scheduledAt)],
-			100
-		),
-		selectSessions(
-			viewer,
-			or(
+	const [upcoming, past] = await selectSessionLists(viewer, [
+		{
+			where: and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} > ${now}`),
+			order: [asc(schema.events.scheduledAt)],
+			limit: 100,
+		},
+		{
+			where: or(
 				inArray(schema.events.status, ["completed", "cancelled"]),
 				and(eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} <= ${now}`)
 			),
-			[desc(schema.events.scheduledAt)],
-			PAST_PAGE_SIZE * (page + 1) + 1
-		),
+			order: [desc(schema.events.scheduledAt)],
+			limit: PAST_PAGE_SIZE * (page + 1) + 1,
+		},
 	]);
 	const start = PAST_PAGE_SIZE * page;
 	return {

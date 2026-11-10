@@ -18,6 +18,8 @@ export type SessionUser = {
 	image?: string | null;
 	role: UserRole;
 	status: UserStatus;
+	/** When they finished/skipped the welcome tour; null = show it. */
+	tutorialSeenAt: Date | null;
 };
 
 // Server-only session helpers (not server actions) used by layouts, pages,
@@ -40,7 +42,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 	const requestHeaders = await headers();
 	const session = await getAuth().api.getSession({ headers: requestHeaders });
 	if (!session) return null;
-	const { id, name, email, image, role, status } = session.user;
+	const { id, name, email, image, role, status, tutorialSeenAt } = session.user;
 	return {
 		id,
 		name,
@@ -48,6 +50,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 		image,
 		role: (["admin", "member", "guest"].includes(role) ? role : "guest") as UserRole,
 		status: (["pending", "approved", "rejected"].includes(status) ? status : "pending") as UserStatus,
+		tutorialSeenAt: tutorialSeenAt ? new Date(tutorialSeenAt) : null,
 	};
 });
 

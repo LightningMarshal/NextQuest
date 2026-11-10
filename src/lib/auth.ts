@@ -130,6 +130,14 @@ export function getAuth() {
 					defaultValue: "pending",
 					input: false,
 				},
+				// App-owned (markTutorialSeen writes it); declared here only so
+				// the session lookup — which already selects the whole user row
+				// — hands it back, instead of every page paying a second query.
+				tutorialSeenAt: {
+					type: "date",
+					required: false,
+					input: false,
+				},
 			},
 		},
 		databaseHooks: {
