@@ -3,7 +3,7 @@ import { GameArt } from "@/components/game-art";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { ArrowLeftIcon, CalendarIcon, CalendarPlusIcon } from "lucide-react";
 
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getDb, schema } from "@/db";
+import { deleteBlocker } from "@/lib/game-hygiene";
 import { isUuid } from "@/lib/ids";
 import { transitionGameStatus } from "@/server/games";
 import { requireMember } from "@/server/session";
@@ -25,6 +26,7 @@ import {
 	type GameStatus,
 } from "../game-display";
 import { KeenButton } from "../keen-button";
+import { AdminGameTools } from "./admin-game-tools";
 import { ManageGame } from "./manage-game";
 import { StatTiles, videoStatTiles } from "../stat-tiles";
 import { DiscussionCard, RatingsCard } from "./player-voice";
@@ -74,7 +76,8 @@ export default async function GameDetailPage({
 
 	const { game, metadata, tabletop, gmName, proposerName } = row;
 	const db = getDb();
-	const [taggings, keenRows, linkedEvents, ratings, comments, allTags] = await Promise.all([
+	const isAdmin = viewer.role === "admin";
+	const [taggings, keenRows, linkedEvents, ratings, comments, allTags, otherGames] = await Promise.all([
 		db
 			.select({ id: schema.tags.id, name: schema.tags.name })
 			.from(schema.gameTags)
@@ -133,6 +136,14 @@ export default async function GameDetailPage({
 			.where(eq(schema.gameComments.gameId, gameId))
 			.orderBy(asc(schema.gameComments.createdAt)),
 		db.select({ name: schema.tags.name }).from(schema.tags).orderBy(asc(schema.tags.name)),
+		// Merge targets for the admin clean-up tools — admins only.
+		isAdmin
+			? db
+					.select({ id: schema.games.id, title: schema.games.title, status: schema.games.status })
+					.from(schema.games)
+					.where(ne(schema.games.id, gameId))
+					.orderBy(asc(schema.games.title))
+			: Promise.resolve([]),
 	]);
 	const iAmKeen = keenRows.some((row) => row.userId === viewer.id);
 
@@ -328,6 +339,15 @@ export default async function GameDetailPage({
 				coverUrl={metadata?.coverUrl ?? null}
 				headerUrl={metadata?.headerUrl ?? null}
 			/>
+
+			{isAdmin && (
+				<AdminGameTools
+					gameId={game.id}
+					title={game.title}
+					deleteBlocker={deleteBlocker(game, linkedEvents.filter((event) => event.status === "completed").length)}
+					otherGames={otherGames}
+				/>
+			)}
 
 			<RatingsCard
 				gameId={game.id}
