@@ -21,7 +21,11 @@
 	--card-foreground: oklch(0.205 0.012 255);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.205 0.012 255);
-	--primary: oklch(0.66 0.10 205);                /* #0E9FB3 cyan (light) */
+	/* Deeper than the dark theme's cyan on purpose: at the prototype's
+	   0.66 lightness it measured 2.8–3.0:1 as text on white and under
+	   white button labels. This holds WCAG AA (4.5:1) both ways, including
+	   on the tinted nav pill. */
+	--primary: oklch(0.47 0.085 215);               /* deep cyan (light) */
 	--primary-foreground: oklch(0.985 0.002 247);
 	--secondary: oklch(0.95 0.004 255);
 	--secondary-foreground: oklch(0.30 0.012 255);
@@ -33,8 +37,8 @@
 	--destructive-foreground: oklch(0.985 0.002 247);
 	--border: oklch(0.92 0.005 255);                /* #E1E6EC */
 	--input: oklch(0.92 0.005 255);
-	--ring: oklch(0.66 0.10 205);
-	--success: oklch(0.74 0.14 162);
+	--ring: oklch(0.47 0.085 215);
+	--success: oklch(0.47 0.11 160);                /* AA on white; charts keep the brighter green */
 	--chart-1: oklch(0.66 0.10 205);                /* cyan */
 	--chart-2: oklch(0.62 0.18 292);                /* violet */
 	--chart-3: oklch(0.74 0.14 162);                /* green */

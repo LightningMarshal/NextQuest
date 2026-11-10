@@ -112,22 +112,22 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 					</div>
 
 					<dl className="grid gap-3 text-sm sm:grid-cols-2">
-						<div className="flex items-start gap-2">
-							<CalendarPlusIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-							<div>
-								<dt className="sr-only">When</dt>
-								<dd>
+						<div>
+							<dt className="sr-only">When</dt>
+							<dd className="flex items-start gap-2">
+								<CalendarPlusIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+								<span>
 									<SessionWhen date={session.scheduledAt} endsAt={sessionEndsAt(session)} showRelative={phase === "upcoming" || phase === "live"} />
 									{length && <span className="text-muted-foreground"> · {length}</span>}
-								</dd>
-							</div>
+								</span>
+							</dd>
 						</div>
 						{session.gameTitle && (
-							<div className="flex items-start gap-2">
-								<Gamepad2Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-								<div>
-									<dt className="sr-only">Game</dt>
-									<dd>
+							<div>
+								<dt className="sr-only">Game</dt>
+								<dd className="flex items-start gap-2">
+									<Gamepad2Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+									<span>
 										{member && session.gameId ? (
 											<Link href={`/backlog/${session.gameId}`} className="hover:text-primary font-medium underline-offset-4 hover:underline">
 												{session.gameTitle}
@@ -138,26 +138,26 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 										{session.gameGenres && session.gameGenres.length > 0 && (
 											<span className="text-muted-foreground"> · {session.gameGenres.slice(0, 3).join(", ")}</span>
 										)}
-									</dd>
-								</div>
+									</span>
+								</dd>
 							</div>
 						)}
 						{(session.location || session.venue) && (
-							<div className="flex items-start gap-2">
-								<MapPinIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-								<div>
-									<dt className="sr-only">Where</dt>
-									<dd>{[session.venue ? VENUE_LABELS[session.venue] : null, session.location].filter(Boolean).join(" · ")}</dd>
-								</div>
+							<div>
+								<dt className="sr-only">Where</dt>
+								<dd className="flex items-start gap-2">
+									<MapPinIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+									<span>{[session.venue ? VENUE_LABELS[session.venue] : null, session.location].filter(Boolean).join(" · ")}</span>
+								</dd>
 							</div>
 						)}
 						{session.hostName && (
-							<div className="flex items-start gap-2">
-								<UserIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-								<div>
-									<dt className="sr-only">Host</dt>
-									<dd>Hosted by {session.hostName}</dd>
-								</div>
+							<div>
+								<dt className="sr-only">Host</dt>
+								<dd className="flex items-start gap-2">
+									<UserIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+									<span>Hosted by {session.hostName}</span>
+								</dd>
 							</div>
 						)}
 					</dl>
@@ -216,7 +216,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
 						<CardTitle className="flex flex-wrap items-center gap-2">
 							How it went
 							{session.howItWent !== null && (
-								<span className="text-primary flex items-center" aria-label={`${session.howItWent} of 5`}>
+								<span className="text-primary flex items-center" role="img" aria-label={`Rated ${session.howItWent} of 5`}>
 									{Array.from({ length: 5 }, (_, i) => (
 										<StarIcon key={i} className={i < (session.howItWent ?? 0) ? "size-4 fill-current" : "text-muted-foreground size-4"} />
 									))}

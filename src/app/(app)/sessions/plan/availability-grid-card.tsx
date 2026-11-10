@@ -252,11 +252,15 @@ export function AvailabilityGridCard({
 												<span
 													className={cn(
 														"pointer-events-none absolute top-0 left-1 text-[9px] leading-4",
+														// Contrast (WCAG AA) against each cell background:
+														// the heat tint needs full foreground; hour rows
+														// stay stronger by weight, not by dimming the rest.
 														mine
 															? "text-primary-foreground"
-															: isHour
-																? "text-muted-foreground"
-																: "text-muted-foreground/60"
+															: others.length > 0
+																? "text-foreground"
+																: "text-muted-foreground",
+														isHour && "font-semibold"
 													)}
 												>
 													{timeLabel(date)}
