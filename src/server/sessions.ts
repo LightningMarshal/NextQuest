@@ -6,7 +6,7 @@
 // for edit/cancel, and the session's phase (no RSVPs to a finished night).
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
@@ -14,8 +14,6 @@ import { isUuid } from "@/lib/ids";
 import {
 	bumpTrailingNumber,
 	canManageSession,
-	canRsvp,
-	canSeeSession,
 	canWrapUp,
 	defaultSessionTitle,
 	sessionPhase,
@@ -25,6 +23,7 @@ import {
 } from "@/lib/sessions";
 import { discordTimestamp, md, syncSessionAnnouncement } from "@/server/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
+import { applyRsvp } from "@/server/session-rsvp";
 import { requireCircleUser, requireMember, type SessionUser } from "@/server/session";
 
 const MAX_AHEAD_MS = 366 * 24 * 60 * 60 * 1000;
@@ -204,52 +203,22 @@ export async function cancelSession(eventId: string): Promise<void> {
 	revalidateSessions(eventId);
 }
 
+const RSVP_REFUSALS = {
+	not_found: "Session not found.",
+	closed: "This session is over — RSVPs are closed.",
+	full: "It's full — try Maybe and the host will see you.",
+} as const;
+
 /**
- * I'm in / maybe / out. Guests may RSVP to open sessions only. A capped
- * session admits "in" atomically: the insert only happens while there's a
- * free seat, so two last-second joins can't both take the final spot.
+ * I'm in / maybe / out. Guests may RSVP to open sessions only; the rules
+ * (visibility, phase, atomic seat cap) live in applyRsvp, shared with the
+ * Discord bot's buttons.
  */
 export async function setSessionRsvp(eventId: string, rsvp: Rsvp): Promise<void> {
 	const user = await requireCircleUser(`/s/${eventId}`);
-	if (!isUuid(eventId)) throw new Error("Session not found.");
 	if (rsvp !== "yes" && rsvp !== "maybe" && rsvp !== "no") throw new Error("Invalid RSVP.");
-	const db = getDb();
-	const [session] = await db
-		.select({
-			status: schema.events.status,
-			scheduledAt: schema.events.scheduledAt,
-			durationMinutes: schema.events.durationMinutes,
-			visibility: schema.events.visibility,
-			capacity: schema.events.capacity,
-		})
-		.from(schema.events)
-		.where(eq(schema.events.id, eventId));
-	// Invisible and missing look the same to a guest.
-	if (!session || !canSeeSession(session.visibility, user)) throw new Error("Session not found.");
-	if (!canRsvp(sessionPhase(session, new Date()))) throw new Error("This session is over — RSVPs are closed.");
-
-	if (rsvp === "yes" && session.capacity !== null) {
-		const joined = await db.execute(sql`
-			insert into ${schema.eventAttendance} (event_id, user_id, rsvp, responded_at)
-			select ${eventId}::uuid, ${user.id}::text, 'yes'::rsvp_status, now()
-			where (
-				select count(*) from ${schema.eventAttendance}
-				where event_id = ${eventId}::uuid and rsvp = 'yes' and user_id <> ${user.id}::text
-			) < ${session.capacity}
-			on conflict (event_id, user_id) do update set rsvp = 'yes', responded_at = now()
-			returning user_id
-		`);
-		if (joined.rows.length === 0) throw new Error("It's full — try Maybe and the host will see you.");
-	} else {
-		await db
-			.insert(schema.eventAttendance)
-			.values({ eventId, userId: user.id, rsvp, respondedAt: new Date() })
-			.onConflictDoUpdate({
-				target: [schema.eventAttendance.eventId, schema.eventAttendance.userId],
-				set: { rsvp, respondedAt: new Date() },
-			});
-	}
-
+	const result = await applyRsvp(getDb(), user, eventId, rsvp);
+	if (!result.ok) throw new Error(RSVP_REFUSALS[result.reason]);
 	syncSessionAnnouncement(eventId);
 	revalidateSessions(eventId);
 }

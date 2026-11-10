@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { getDb, schema } from "@/db";
 import { maskWebhookUrl } from "@/lib/webhook-url";
+import { addBotChannel, deleteBotChannel, setBotChannelEnabled, testBotChannel } from "@/server/bot-channels";
 import { reviewApplication, revokeInvite } from "@/server/circle";
+import { appBaseUrl, discordBotConfigured } from "@/server/discord";
 import { backfillGameModes } from "@/server/games";
 import { approveMember, rejectMember, setMemberRole } from "@/server/members";
 import { requireAdmin } from "@/server/session";
@@ -62,7 +64,8 @@ export default async function AdminPage() {
 	const admin = await requireAdmin();
 	const db = getDb();
 	const inviter = alias(schema.user, "inviter");
-	const [people, applications, redemptions, invites, webhooks, settings] = await Promise.all([
+	const botReady = discordBotConfigured();
+	const [people, applications, redemptions, invites, webhooks, botChannels, settings] = await Promise.all([
 		db
 			.select({
 				id: schema.user.id,
@@ -106,6 +109,7 @@ export default async function AdminPage() {
 			.orderBy(desc(schema.invites.createdAt))
 			.limit(50),
 		db.select().from(schema.discordWebhooks).orderBy(asc(schema.discordWebhooks.createdAt)),
+		db.select().from(schema.discordBotChannels).orderBy(asc(schema.discordBotChannels.createdAt)),
 		getAppSettings(),
 	]);
 	const byId = new Map(people.map((person) => [person.id, person]));
@@ -338,6 +342,81 @@ export default async function AdminPage() {
 						</div>
 						<Button>Add webhook</Button>
 					</ActionForm>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Discord bot</CardTitle>
+					<CardDescription>
+						Optional. A bot&apos;s session cards carry buttons — I&apos;m in, Maybe, Out — so people join without
+						leaving Discord. Use a bot channel <em>instead of</em> a webhook for the same channel, or you&apos;ll get
+						two cards.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="flex flex-col gap-4">
+					{!botReady ? (
+						<p className="text-muted-foreground text-sm">
+							Not configured. Set the <code>DISCORD_BOT_TOKEN</code> and <code>DISCORD_PUBLIC_KEY</code> secrets, then
+							point the Discord application&apos;s Interactions Endpoint URL at{" "}
+							<code className="break-all">{appBaseUrl()}/api/discord/interactions</code> — the walkthrough is{" "}
+							<code>docs/deployment/13-discord-bot.md</code>.
+						</p>
+					) : (
+						<>
+							{botChannels.length > 0 && (
+								<div className="divide-y">
+									{botChannels.map((channel) => (
+										<div key={channel.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+											<span className="min-w-0 flex-1">
+												<span className="font-medium">{channel.name}</span>{" "}
+												<span className="stat text-muted-foreground text-xs">channel {channel.channelId}</span>
+											</span>
+											<Badge variant="outline">{channel.audience === "open" ? "open sessions only" : "everything"}</Badge>
+											{!channel.enabled && <Badge variant="destructive">paused</Badge>}
+											<ActionForm action={testBotChannel.bind(null, channel.id)}>
+												<Button size="sm" variant="outline">
+													Test
+												</Button>
+											</ActionForm>
+											<ActionForm action={setBotChannelEnabled.bind(null, channel.id, !channel.enabled)}>
+												<Button size="sm" variant="ghost">
+													{channel.enabled ? "Pause" : "Resume"}
+												</Button>
+											</ActionForm>
+											<ActionForm action={deleteBotChannel.bind(null, channel.id)}>
+												<Button size="sm" variant="ghost">
+													Remove
+												</Button>
+											</ActionForm>
+										</div>
+									))}
+								</div>
+							)}
+							<ActionForm action={addBotChannel} formClassName="grid gap-3 sm:grid-cols-[10rem_1fr_11rem_auto] sm:items-end" block resetOnSuccess>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="bot-name">Name</Label>
+									<Input id="bot-name" name="name" required maxLength={60} placeholder="#sessions" />
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="bot-channel">Channel ID or link</Label>
+									<Input id="bot-channel" name="channel" required placeholder="Right-click the channel → Copy Channel ID" />
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="bot-audience">Posts</Label>
+									<NativeSelect id="bot-audience" name="audience" defaultValue="all">
+										<option value="all">Everything</option>
+										<option value="open">Open sessions only</option>
+									</NativeSelect>
+								</div>
+								<Button>Add channel</Button>
+							</ActionForm>
+							<p className="text-muted-foreground text-xs">
+								Adding posts a hello to the channel first, so you know the bot can reach it. People press a button
+								once, connect their Discord account when asked, and it works from then on.
+							</p>
+						</>
+					)}
 				</CardContent>
 			</Card>
 

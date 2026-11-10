@@ -110,9 +110,13 @@ export function defaultSessionTitle(gameTitle: string | null | undefined): strin
 	return gameTitle?.trim() || "Game night";
 }
 
-/** "Session 12" → 12 — seeds session_number from a typed title. */
+/**
+ * "Session 12" → 12 — seeds session_number from a typed title. Only short
+ * runs count: "Launch 20261110" is a date, not session twenty million, and
+ * a number that large overflowed the integer column and failed the post.
+ */
 export function trailingNumber(title: string): number | undefined {
-	const match = title.match(/(\d+)\s*$/);
+	const match = title.match(/(?:^|\D)(\d{1,4})\s*$/);
 	return match ? Number(match[1]) : undefined;
 }
 

@@ -41,6 +41,14 @@ DISCORD_GUILD_IDS=
 # are added on the /admin page. Leave empty if you only use /admin.
 DISCORD_WEBHOOK_URL=
 
+# Optional: the Discord BOT — session cards with "I'm in" buttons. Same
+# Discord application as sign-in above (Bot → Reset Token; General
+# Information → Public Key). Then set the application's Interactions
+# Endpoint URL to <BETTER_AUTH_URL>/api/discord/interactions and add
+# channels on /admin. See docs/deployment/13-discord-bot.md.
+DISCORD_BOT_TOKEN=
+DISCORD_PUBLIC_KEY=
+
 # Shared secret gating /api/cron (called by the worker's scheduled handler,
 # see custom-worker.ts). Any random string; leave empty to disable cron tasks.
 CRON_SECRET=

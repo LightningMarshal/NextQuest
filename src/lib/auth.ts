@@ -107,6 +107,17 @@ export function getAuth() {
 					}
 				: {}),
 		},
+		account: {
+			accountLinking: {
+				// /connect-discord: someone ALREADY signed in (usually with
+				// Google) attaches their Discord identity so the bot's RSVP
+				// buttons know who they are. Their Discord email is often a
+				// different address; explicit, authenticated linking is safe
+				// to allow across emails. Implicit linking at sign-in is
+				// unchanged (same verified email only).
+				allowDifferentEmails: true,
+			},
+		},
 		user: {
 			additionalFields: {
 				role: {

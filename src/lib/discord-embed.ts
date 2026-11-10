@@ -4,6 +4,7 @@
 // needs to decide "can I join?" is in the embed; the title links to the
 // session page for the one-tap RSVP.
 
+import { sessionComponents, type DiscordActionRow } from "./discord-interactions";
 import { formatDuration, safeJoinUrl, type Visibility } from "./sessions";
 
 export type AnnouncedSession = {
@@ -43,6 +44,8 @@ export type DiscordMessage = {
 	embeds: DiscordEmbed[];
 	/** Always empty: member-typed text must never ping anyone. */
 	allowed_mentions: { parse: [] };
+	/** RSVP buttons — bot-posted cards only (webhooks can't carry them). */
+	components?: DiscordActionRow[];
 };
 
 const COLORS = {
@@ -74,7 +77,12 @@ export function sessionUrl(baseUrl: string, id: string): string {
 	return `${baseUrl.replace(/\/$/, "")}/s/${id}`;
 }
 
-export function buildSessionEmbed(session: AnnouncedSession, baseUrl: string): DiscordEmbed {
+export function buildSessionEmbed(
+	session: AnnouncedSession,
+	baseUrl: string,
+	/** The card carries RSVP buttons (posted by the bot), so say so. */
+	interactive = false
+): DiscordEmbed {
 	const url = sessionUrl(baseUrl, session.id);
 	const length = formatDuration(session.durationMinutes);
 	const when = `${discordTime(session.scheduledAt)} · ${discordTime(session.scheduledAt, "R")}${length ? ` · ${length}` : ""}`;
@@ -133,8 +141,8 @@ export function buildSessionEmbed(session: AnnouncedSession, baseUrl: string): D
 		footer: {
 			text:
 				session.visibility === "open"
-					? "Open session — anyone in the circle can join. Tap the title to hop in."
-					: "Members session — tap the title to RSVP.",
+					? `Open session — anyone in the circle can join. ${interactive ? "Tap a button" : "Tap the title"} to hop in.`
+					: `Members session — ${interactive ? "tap a button" : "tap the title"} to RSVP.`,
 		},
 	};
 }
@@ -142,11 +150,18 @@ export function buildSessionEmbed(session: AnnouncedSession, baseUrl: string): D
 export function buildSessionMessage(
 	session: AnnouncedSession,
 	baseUrl: string,
-	content?: string
+	content?: string,
+	/**
+	 * true for bot-posted cards: adds the RSVP button row while the session
+	 * is scheduled and an explicit empty list once it's closed, so an edit
+	 * strips the buttons. Webhook cards never send `components` at all.
+	 */
+	interactive = false
 ): DiscordMessage {
 	return {
 		...(content ? { content: clip(content, 2000) } : {}),
-		embeds: [buildSessionEmbed(session, baseUrl)],
+		embeds: [buildSessionEmbed(session, baseUrl, interactive)],
 		allowed_mentions: { parse: [] },
+		...(interactive ? { components: sessionComponents(session, sessionUrl(baseUrl, session.id)) } : {}),
 	};
 }

@@ -73,3 +73,19 @@ describe("buildSessionEmbed", () => {
 		expect(message.allowed_mentions).toEqual({ parse: [] });
 	});
 });
+
+describe("interactive (bot) cards", () => {
+	it("adds RSVP buttons while scheduled and says so in the footer", () => {
+		const message = buildSessionMessage(base, "https://x", undefined, true);
+		expect(message.components?.[0].components).toHaveLength(4);
+		expect(message.embeds[0].footer?.text).toContain("Tap a button");
+	});
+
+	it("sends an empty component list for a closed session, so an edit strips the buttons", () => {
+		expect(buildSessionMessage({ ...base, status: "cancelled" }, "https://x", undefined, true).components).toEqual([]);
+	});
+
+	it("never sends components on a webhook card", () => {
+		expect("components" in buildSessionMessage(base, "https://x")).toBe(false);
+	});
+});
