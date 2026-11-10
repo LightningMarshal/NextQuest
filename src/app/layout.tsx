@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 
+import { ServiceWorker } from "@/components/service-worker";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
@@ -34,6 +35,21 @@ export const metadata: Metadata = {
 		template: "%s · NextQuest",
 	},
 	description: "Track and coordinate gaming with friends.",
+	// Installable (Phase 23): the manifest itself is src/app/manifest.ts.
+	applicationName: "NextQuest",
+	appleWebApp: { capable: true, title: "NextQuest", statusBarStyle: "black-translucent" },
+	icons: {
+		icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+		apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+	},
+};
+
+export const viewport: Viewport = {
+	// The browser/OS chrome around an installed app, per theme.
+	themeColor: [
+		{ media: "(prefers-color-scheme: dark)", color: "#0B0D11" },
+		{ media: "(prefers-color-scheme: light)", color: "#F3F5F8" },
+	],
 };
 
 export default function RootLayout({
@@ -47,13 +63,11 @@ export default function RootLayout({
 			suppressHydrationWarning
 			className={`${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable}`}
 		>
-			<head>
-				<link rel="icon" href="/favicon.svg" type="image/svg+xml"></link>
-			</head>
 			<body className="font-sans antialiased">
 				<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
 					{children}
 				</ThemeProvider>
+				<ServiceWorker />
 			</body>
 		</html>
 	);
