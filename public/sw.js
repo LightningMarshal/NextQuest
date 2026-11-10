@@ -13,11 +13,23 @@ const VERSION = "nq-offline-v1";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
 
+// Cloudflare's static assets redirect /offline.html → /offline. A response
+// that followed a redirect can't be used to answer a navigation (browsers
+// reject it), so store a clean copy of the body under the original URL.
+async function precache(cache, url) {
+	const response = await fetch(url, { cache: "reload" });
+	if (!response.ok) throw new Error(`precache ${url}: ${response.status}`);
+	const clean = response.redirected
+		? new Response(await response.blob(), { status: 200, headers: { "content-type": response.headers.get("content-type") ?? "text/html" } })
+		: response;
+	await cache.put(url, clean);
+}
+
 self.addEventListener("install", (event) => {
 	event.waitUntil(
 		caches
 			.open(VERSION)
-			.then((cache) => cache.addAll(PRECACHE))
+			.then((cache) => Promise.all(PRECACHE.map((url) => precache(cache, url))))
 			.then(() => self.skipWaiting())
 	);
 });

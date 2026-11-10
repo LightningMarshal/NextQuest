@@ -9,3 +9,5 @@
   Service-Worker-Allowed: /
 /offline.html
   Cache-Control: no-cache
+/offline
+  Cache-Control: no-cache
