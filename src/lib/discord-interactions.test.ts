@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	DEFERRED_EPHEMERAL,
 	ephemeralReply,
+	followUpPath,
 	interactionUserId,
 	parseChannelId,
 	parseRsvpCustomId,
@@ -91,6 +93,18 @@ describe("interaction helpers", () => {
 	it("replies ephemerally and can never ping", () => {
 		const reply = ephemeralReply("hi @everyone");
 		expect(reply).toEqual({ type: 4, data: { content: "hi @everyone", flags: 64, allowed_mentions: { parse: [] } } });
+	});
+
+	it("defers privately, and only builds a follow-up URL from well-formed parts", () => {
+		expect(DEFERRED_EPHEMERAL).toEqual({ type: 5, data: { flags: 64 } });
+		const token = "aW50ZXJhY3Rpb246MTIzNDU2Nzg5MDEyMzQ1Njc4OTA6YWJj";
+		expect(followUpPath({ application_id: "123456789012345678", token })).toBe(
+			`/webhooks/123456789012345678/${token}/messages/@original`
+		);
+		expect(followUpPath({ application_id: "123456789012345678", token: "../../channels/1/messages" })).toBeNull();
+		expect(followUpPath({ application_id: "12/../3", token })).toBeNull();
+		expect(followUpPath({ token })).toBeNull();
+		expect(followUpPath({ application_id: "123456789012345678" })).toBeNull();
 	});
 
 	it("words every outcome", () => {

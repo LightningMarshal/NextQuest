@@ -8,6 +8,8 @@ import { FAKE_DISCORD_PORT } from "./env.mjs";
 
 /** channelId → [{ id, deleted, edits, ...body }] */
 const channels = new Map();
+/** Deferred interaction replies, by interaction token. */
+const followUps = new Map();
 let nextId = 1000;
 
 function json(res, status, body) {
@@ -21,9 +23,18 @@ http
 		for await (const chunk of req) raw += chunk;
 		const url = new URL(req.url, "http://fake");
 		if (url.pathname === "/__state") return json(res, 200, Object.fromEntries(channels));
+		if (url.pathname === "/__followups") return json(res, 200, Object.fromEntries(followUps));
 		if (url.pathname === "/__reset") {
 			channels.clear();
+			followUps.clear();
 			return json(res, 200, {});
+		}
+		// Completing a deferred reply needs no bot token — the interaction
+		// token in the URL is the credential.
+		const followUp = url.pathname.match(/^\/webhooks\/(\d+)\/([\w.-]+)\/messages\/@original$/);
+		if (followUp && req.method === "PATCH") {
+			followUps.set(followUp[2], JSON.parse(raw));
+			return json(res, 200, { id: "0" });
 		}
 		const match = url.pathname.match(/^\/channels\/(\d+)\/messages(?:\/(\d+))?$/);
 		if (!match) return json(res, 404, { message: "Unknown route" });

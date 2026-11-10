@@ -19,6 +19,11 @@ Discord does two jobs for NextQuest, each optional:
 2. **Discord sign-in** for your wider circle: people in the Discord servers
    you choose can sign in with Discord and join **open** sessions as guests.
 
+> [!NOTE]
+> Want **I'm in / Maybe / Out buttons** on the cards themselves? That needs
+> a bot rather than a webhook — set this chapter up first, then see
+> [chapter 13](13-discord-bot.md).
+
 You can connect **several** servers. Each webhook is either *Everything*
 (your group's own server) or *Open sessions only* (a wider server that should
 only see sessions you mark open).

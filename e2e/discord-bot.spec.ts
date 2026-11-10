@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { BOT_CHANNEL_ID, DISCORD_IDS } from "./env.mjs";
-import { pool, pressButton, sessionCard, signInAs } from "./helpers";
+import { followUpContent, pool, pressButton, sessionCard, signInAs } from "./helpers";
 
 // The Discord bot's buttons, driven the way Discord drives them: signed
 // POSTs to /api/discord/interactions. Uses the seeded sessions.
@@ -71,4 +71,27 @@ test("a full session refuses one more", async ({ request }) => {
 	} finally {
 		await pool.query("update events set capacity = 6 where id = $1", [OPEN_SESSION]);
 	}
+});
+
+test("a slow database gets a deferred reply, then the real answer as a follow-up", async ({ request }) => {
+	// Hold a lock the RSVP write needs, longer than Discord's patience — the
+	// same shape as a Neon database waking from idle. No test hook in the app.
+	const token = `e2e-slow-token-${Date.now()}`;
+	const client = await pool.connect();
+	try {
+		await client.query("begin");
+		await client.query("lock table event_attendance in access exclusive mode");
+		const pressed = pressButton(request, DISCORD_IDS["seed-casey"], `nq:rsvp:${MEMBERS_SESSION}:maybe`, { token });
+		const response = await pressed;
+		expect(response.status()).toBe(200);
+		// "Thinking…", privately — sent inside Discord's 3-second window.
+		expect(await response.json()).toEqual({ type: 5, data: { flags: 64 } });
+		expect(await followUpContent(token)).toBeUndefined();
+	} finally {
+		await client.query("commit");
+		client.release();
+	}
+	await expect.poll(() => followUpContent(token)).toContain("Marked as maybe for **Strahd — Session 12**");
+	const { rows } = await pool.query("select rsvp from event_attendance where event_id = $1 and user_id = 'seed-casey'", [MEMBERS_SESSION]);
+	expect(rows[0]?.rsvp).toBe("maybe");
 });

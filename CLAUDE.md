@@ -11,13 +11,16 @@ a 10-second wrap-up so every past session shows who came and how it went.
 
 Around it: a rich game **library** (genres, descriptions, time-to-beat,
 reception, "I'd play this"), **find-a-time polls** for nights that need
-planning, and **stats**. One deployment = one group.
+planning, and **stats**. One deployment = one group. An optional **Discord
+bot** puts I'm in / Maybe / Out buttons on the session card.
 
 - Design history and the 2026-09 redesign rationale: `docs/DECISIONS.md`
 - Data model and data flow: `docs/ARCHITECTURE.md`
 - Roadmap: `docs/ROADMAP.md`
 - Deploy walkthrough for non-developers: `docs/deployment/` (the redesign's
-  live-data migration runbook is `docs/deployment/12-redesign-migration.md`)
+  live-data migration runbook is `12-redesign-migration.md`; the Discord bot
+  is `13`, backups and logs `14`, PR previews `15`)
+- Local dev without Neon, and the E2E suite: `docs/local-dev.md`
 
 ## Stack
 
@@ -40,15 +43,18 @@ planning, and **stats**. One deployment = one group.
 | `npm run dev` | Next dev server (Node — not workerd) |
 | `npm run build` | Next production build |
 | `npm run lint` / `npm run typecheck` / `npm test` | ESLint / `tsc --noEmit` / Vitest |
+| `npm run e2e` | Playwright against `next dev` + local Postgres + the shim + a fake Discord (smoke flow, bot buttons, admin hygiene, PWA, axe). Stop `npm run dev` first |
 | `npm run preview` | OpenNext build + `wrangler dev` — run before shipping; catches workerd-only breakage |
 | `npm run deploy` | **Runs `db:migrate` against `.env`'s DATABASE_URL**, then builds + deploys |
 | `npm run seed [-- --reset]` | Demo group (members, a guest, open + members sessions, keen, polls) |
-| `npm run db:shim` | Local Neon-HTTP shim over plain Postgres (`scripts/neon-http-shim.mjs`) |
+| `npm run db:shim` | Local Neon-HTTP shim over plain Postgres (`scripts/neon-http-shim.mjs`); `SHIM_LOG=1` prints one line per DB round trip |
 | `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations |
 | `npm run cf-typegen` | Regenerate `cloudflare-env.d.ts` from `wrangler.jsonc` |
 
-Local dev without Neon: run Postgres, `SHIM_TARGET=<pg url> npm run db:shim`,
-and set `NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`.
+Local dev without Neon: run Postgres (`docker compose -f
+docker-compose.dev.yml up -d`), `SHIM_TARGET=<pg url> npm run db:shim`, and
+set `NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`
+(`docs/local-dev.md`).
 
 ## Environment variables
 
@@ -59,7 +65,12 @@ and set `NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`.
   `DISCORD_CLIENT_SECRET` (Discord sign-in) + `DISCORD_GUILD_IDS`
   (comma-separated servers whose members come in as guests), optional
   `DISCORD_WEBHOOK_URL` (legacy single webhook; more are added on /admin),
-  `CRON_SECRET`, `BGG_API_TOKEN`, `RAWG_API_KEY`.
+  optional `DISCORD_BOT_TOKEN` + `DISCORD_PUBLIC_KEY` (the bot; channels are
+  added on /admin), `CRON_SECRET`, `BGG_API_TOKEN`, `RAWG_API_KEY`, optional
+  `BACKUP_RETENTION_DAYS` (default 90). Local/E2E only, never in production:
+  `NEON_HTTP_PROXY_ENDPOINT`, `DISCORD_API_BASE`.
+- **Bindings** (`wrangler.jsonc`): optional R2 bucket `BACKUPS` — commented
+  out by default (a deploy fails if the bucket doesn't exist).
 - **`.env`** — Node tooling only (drizzle-kit, seed): `DATABASE_URL`.
 
 Production secrets: `wrangler secret put <NAME>`. Never commit either file.
@@ -95,6 +106,10 @@ Gates live in `src/server/session.ts` — there is no middleware/proxy:
   pages.
 - A read helper must NOT live in a `"use server"` file (that makes it a
   public POST endpoint): use `*-read.ts` server-only modules.
+- `/api/discord/interactions` has no browser session at all. Its gate is
+  the Ed25519 signature check (must stay first), then the Discord id →
+  account lookup; it creates no accounts and goes through `applyRsvp`, the
+  same rule set as the web RSVP action.
 
 ## Architecture map
 
@@ -102,26 +117,38 @@ Gates live in `src/server/session.ts` — there is no middleware/proxy:
 src/
 ├── app/
 │   ├── (circle)/        # guest-visible, self-gating pages: / (This week),
-│   │                    #   /sessions, /s/[id]
+│   │                    #   /sessions, /s/[id], /connect-discord
 │   ├── (app)/           # members: /sessions/new, /s/[id]/edit, /sessions/plan
 │   │                    #   (polls), /backlog (Library) + /backlog/[id],
 │   │                    #   /stats, /review, /members/[id], /invites, /admin;
 │   │                    #   /events, /pick, /vote are redirects
 │   ├── (auth)/          # public: /sign-in (?next=), /apply, /invite/[token]
+│   ├── manifest.ts      # PWA manifest (public)
 │   └── api/             # auth, cron (secret), calendar (token),
-│                        #   sessions/[id]/ics (session), export (admin)
+│                        #   sessions/[id]/ics (session), export (admin),
+│                        #   discord/interactions (Discord's signature)
 ├── components/          # app-shell, site-nav, sessions/*, ui/* (vendored shadcn)
 ├── db/schema/           # auth, events, circle (invites, applications,
-│                        #   discord_webhooks), interest (keen), games, …
-├── lib/                 # pure + tested: sessions, discord-embed, when-label,
-│                        #   safe-redirect, ids, ical, points (frozen), metadata/*
+│                        #   discord_webhooks, discord_bot_channels),
+│                        #   interest (keen), games, …
+├── lib/                 # pure + tested: sessions, discord-embed,
+│                        #   discord-interactions, backup, game-hygiene,
+│                        #   when-label, safe-redirect, ids, ical,
+│                        #   points (frozen), metadata/*
 └── server/              # actions ("use server") + *-read.ts helpers
     ├── session.ts       # the gates
     ├── sessions.ts | sessions-read.ts   # the heart of the app
-    ├── discord.ts       # multi-webhook delivery, edit-in-place announcements
+    ├── session-rsvp.ts  # applyRsvp — the ONE RSVP rule set (web + bot)
+    ├── discord.ts       # webhook + bot delivery, edit-in-place announcements
+    ├── bot-channels.ts  # admin actions for the bot's channels
     ├── circle.ts        # invites + applications
     ├── game-status.ts   # the ONLY games.status writer (atomic CTE + history)
-    └── cron/            # reminders, wrap-up nudge, auto-close, metadata refresh
+    ├── game-admin.ts    # admin delete / merge of games (never writes status)
+    ├── export-read.ts   # the snapshot — shared by /api/export and backups
+    └── cron/            # reminders, wrap-up nudge, auto-close, metadata
+                         #   refresh, weekly R2 backup
+e2e/                     # Playwright suite + fake Discord + stack prep
+public/sw.js             # service worker: offline page only, caches NO pages
 ```
 
 ## Conventions & invariants
@@ -133,13 +160,17 @@ src/
 2. **Discord text is member-typed input.** Always send
    `allowed_mentions: { parse: [] }` and escape markdown (`md()` /
    `escapeMarkdown`) — `src/server/discord.ts` does this for you; don't POST
-   to webhooks directly. Session announcements are edited in place via
-   `syncSessionAnnouncement(eventId)`; call it after any change a reader
-   would care about.
+   to webhooks or the bot API directly. Session announcements are edited in
+   place via `syncSessionAnnouncement(eventId)`; call it after any change a
+   reader would care about. Bot replies are ephemeral and built by
+   `ephemeralReply` (mentions disabled there too).
 3. **All game status changes go through `applyStatusTransition`**
    (`src/server/game-status.ts`), which updates and appends
    `game_status_history` in one statement. Never update `games.status`
    directly — history powers burn-rate and the activity feed.
+   The admin delete/merge tools (`game-admin.ts`) remove or re-point rows
+   but never write `games.status`; a merge keeps the surviving game's
+   history as is (don't "combine" histories — it double-counts completions).
 4. **Effort points are frozen history.** Since the 2026-09 redesign nothing
    writes `games.points`/`points_override` and the picker/voting UIs are
    gone; the columns, `votes`, and the retired `app_settings` columns are
@@ -165,7 +196,16 @@ src/
    with a primitive snapshot — returning a fresh object is the infinite
    render loop that once crashed the events page). Never `format()` a date
    server-side for display: Workers run in UTC.
-10. Path alias `@/*` → `src/*`. Tabs. Match the surrounding comment density.
+10. **Round trips:** every query is an HTTP fetch. Run independent queries
+    with `Promise.all`, reach dependent rows with a join rather than a
+    second wave, and check a page with `SHIM_LOG=1` before and after.
+11. **The service worker never caches pages or API responses** — every page
+    is per-viewer (guests see less). Keep `public/sw.js` to the offline
+    fallback.
+12. **Accessibility is in CI:** `e2e/a11y.spec.ts` runs axe (WCAG 2.1 AA) on
+    every main page in both themes. New pages go in its list; contrast
+    comes from the theme tokens, so don't dim text with `/60`-style opacity.
+13. Path alias `@/*` → `src/*`. Tabs. Match the surrounding comment density.
 
 ## Gotchas
 
@@ -179,5 +219,14 @@ src/
   with `next.config.ts`); use `<GameArt>` so pasted URLs render unoptimized
   instead of turning `/_next/image` into an open proxy.
 - Recharts components need `"use client"`.
+- `next dev` keeps simulated-binding state in `node_modules/.cache/`
+  (`next.config.ts`): in `.wrangler/state` the local R2 bucket's SQLite
+  writes look like source edits and every page reloads in a loop.
+- `next dev` rewrites `AGENTS.md` on start (git-ignored), and allows one dev
+  server per checkout — `npm run e2e` starts its own, so stop yours first.
+- Cloudflare static assets redirect `/x.html` → `/x`; a service worker must
+  not cache a redirected response for navigations (see `public/sw.js`).
+- `@playwright/test` and `playwright-core` are pinned to the same exact
+  version (axe's peer dep otherwise pulls a second, type-incompatible core).
 - The shadcn registry may be unreachable in sandboxes; `src/components/ui/*`
   is hand-vendored.

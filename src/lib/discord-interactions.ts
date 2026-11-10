@@ -99,6 +99,9 @@ export const InteractionType = { PING: 1, APPLICATION_COMMAND: 2, MESSAGE_COMPON
 
 export type DiscordInteraction = {
 	type?: number;
+	/** The bot's application id and this interaction's follow-up token. */
+	application_id?: unknown;
+	token?: unknown;
 	data?: { custom_id?: unknown };
 	/** Present in servers. */
 	member?: { user?: { id?: unknown } };
@@ -123,6 +126,31 @@ export function ephemeralReply(content: string): InteractionReply {
 }
 
 export const PONG = { type: 1 } as const;
+
+/**
+ * Discord allows 3 seconds to answer a button press. Past this budget the
+ * endpoint answers "thinking…" instead (DEFERRED) and delivers the real
+ * line as a follow-up — a Neon database waking from idle can take longer
+ * than Discord will wait, and "This interaction failed" on the first press
+ * of the evening is exactly when it would happen.
+ */
+export const REPLY_BUDGET_MS = 2_000;
+
+/** "Thinking…", visible only to the presser; completed by a follow-up. */
+export const DEFERRED_EPHEMERAL = { type: 5, data: { flags: 64 } } as const;
+
+/**
+ * Where a deferred reply is completed: PATCH the original response. Built
+ * only from a numeric application id and a token of URL-safe characters —
+ * both arrive in the (signed) interaction, but nothing unvalidated is ever
+ * interpolated into a URL. Returns null if either looks wrong.
+ */
+export function followUpPath(interaction: DiscordInteraction): string | null {
+	const { application_id: applicationId, token } = interaction;
+	if (typeof applicationId !== "string" || !/^\d{5,25}$/.test(applicationId)) return null;
+	if (typeof token !== "string" || !/^[\w.-]{20,400}$/.test(token)) return null;
+	return `/webhooks/${applicationId}/${token}/messages/@original`;
+}
 
 /** Every outcome of pressing an RSVP button, as the line the presser reads. */
 export type RsvpOutcome =

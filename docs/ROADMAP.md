@@ -370,54 +370,82 @@ and wants more people. Audit + rebuild on `claude/nextquest-redesign-audit-d8y1j
 Superseded by this phase: Phases 3 (voting), 8 and 10 (the picker), and the
 effort-editing parts of 2 and 9 — their data remains, their UI is gone.
 
-## Phase 22 (in progress) — Production confidence
+## Phase 22 — Production confidence ✅ (done, 2026-11)
 
-The app now has CI, tests, and error pages — but production is still a
-black box: a crashed cron logs to a console nobody retains, and the only
-backup is an admin remembering to click "Everything (JSON)".
+The app had CI, tests, and error pages — but production was a black box: a
+crashed cron logged to a console nobody retained, and the only backup was
+an admin remembering to click "Everything (JSON)".
 
-- Error visibility: ✅ cron task failures now post to Discord
-  (`src/app/api/cron/route.ts` → `notifyDiscord`: `DISCORD_WEBHOOK_URL` plus
-  "all"-audience webhooks from /admin, no-op when none); shipping Worker
-  logs somewhere durable (Workers Logs / Logpush or a lightweight Sentry via
-  `@sentry/cloudflare`) is still open — needs a new external account this repo can't provision unattended
-- Automated backups: a weekly cron task that writes the /api/export
-  snapshot to an R2 bucket with a retention window — the export route
-  already builds the payload; this schedules it. Document Neon PITR
-  alongside as the point-in-time layer
-- E2E smoke suite in CI: `npm run seed` + local Postgres + the Neon-HTTP
-  shim + Playwright against `next dev` — sign in via a test-only session
-  seam, walk post a session → join → wrap-up. The shim is ✅ committed
-  (`scripts/neon-http-shim.mjs`, `npm run db:shim`, Phase 24); the
-  Playwright suite and CI wiring are still open
-- Migration check in CI: ✅ a `migration-check` job in `ci.yml` spins up a
-  disposable `postgres:17` service container and runs `npm run db:migrate`
-  (`drizzle-kit migrate`) against it from empty on every push/PR
-- PR preview deploys via `wrangler versions upload` — review a change on
-  a real workerd runtime instead of trusting `npm run dev`
+- Error visibility: ✅ cron task failures post to Discord
+  (`src/app/api/cron/route.ts` → `notifyDiscord`); ✅ Workers Logs are
+  configured explicitly in `wrangler.jsonc` (every invocation, persisted,
+  searchable in the dashboard for 3–7 days) and documented in
+  deployment/14. Sentry (`@sentry/cloudflare`) stays unbuilt on purpose: it
+  needs an external account, and logs + the Discord alert cover a friend
+  group
+- Automated backups: ✅ a weekly cron task (`src/server/cron/backup.ts`)
+  writes the export snapshot to an R2 bucket and prunes past 90 days (never
+  below the newest four); /admin lists snapshots and has "Back up now".
+  Opt-in — the `BACKUPS` binding ships commented out because a deploy fails
+  if the bucket doesn't exist; deployment/14 is the two-command setup and
+  documents Neon PITR as the point-in-time layer
+- E2E smoke suite in CI: ✅ `npm run e2e` — Playwright against `next dev` +
+  local Postgres + the Neon-HTTP shim + a fake Discord: post a session → the
+  bot's card → a guest joins → wrap-up, the bot's buttons, admin
+  delete/merge, the PWA offline page, and an axe scan. Sign-in is a minted
+  session cookie; the app has no test-only seam
+- Migration check in CI: ✅ a `migration-check` job applies `drizzle/` from
+  empty against a disposable `postgres:17` on every push/PR
+- PR preview deploys: ✅ `.github/workflows/preview.yml` uploads a
+  traffic-less Worker version per PR (`wrangler versions upload`). Inert
+  until the repo opts in (`PREVIEW_DEPLOYS` + two secrets, deployment/15) —
+  previews run against production data, so it's a deliberate choice
 
-## Phase 23 (proposed) — Comfort at scale
+## Phase 23 — Comfort at scale ✅ (done, 2026-11)
 
-Nothing here is broken today at 13 games and 5 members; all of it starts
-to hurt at 100 games and year three.
+Nothing here was broken at 13 games and 5 members; all of it starts to hurt
+at 100 games and year three.
 
 - ~~Backlog text search~~ — shipped in Phase 24
-- Admin data hygiene: hard-delete for spam/typo proposals and a merge
-  tool for duplicates (today the only exit is `rejected`, which keeps the
-  row forever; merge must reconcile votes, tags, history, and events)
-- ~~Local dev without a Neon account~~ — the shim shipped in Phase 24
-  (`npm run db:shim`); a Postgres-in-Docker doc is still open
-- PWA/installability: manifest + icons + a home-screen-worthy offline
-  shell for the events page — promoted from future ideas now that the
-  mobile nav works and the app gets used at the table
-- Accessibility pass: focus management in the mobile nav and propose
-  dropdown shipped, but nothing has audited the vote steppers, chart
-  alt-surfaces, dialog focus traps, or contrast tokens end to end —
-  run axe across the six main pages and fix what it finds
-- Query consolidation for Neon HTTP: the events page issues ~6 sequential
-  round-trips (each query is an HTTP fetch on this driver); batch the
-  independent ones with `Promise.all` where not already, and collapse the
-  rest into fewer statements — measurable TTFB win on Workers
+- Admin data hygiene: ✅ on the game page, admins can hard-delete a
+  never-played entry (spam, typos) and merge a duplicate into the entry
+  that survives — sessions, polls, comments, and (where not already there)
+  "I'd play this" marks, ratings and tags move over in one transaction; the
+  survivor keeps its own status and history (`src/server/game-admin.ts`,
+  rules in `src/lib/game-hygiene.ts`)
+- Local dev without a Neon account: ✅ the shim (Phase 24) plus
+  `docker-compose.dev.yml` and `docs/local-dev.md`
+- PWA/installability: ✅ manifest, icons (any / maskable / apple touch), and
+  a service worker that swaps the browser's offline error for a branded
+  page. It caches no pages — every page is per-person (DECISIONS 2026-11-10)
+- Accessibility pass: ✅ axe (WCAG 2.1 A/AA) over every main page, phone
+  width, the open mobile menu, the welcome tour, and the light theme — in
+  CI. Fixed: definition-list structure, role-less aria-labels on star
+  ratings, a link name that hid its visible text, contrast in both themes
+  (the light theme's cyan and green are deeper now), the mobile menu hiding
+  the page from assistive tech, and a tour dialog that didn't trap focus
+- Query consolidation for Neon HTTP: ✅ measured with the shim's
+  `SHIM_LOG=1`. Home 12 → 9 round trips, Sessions 9 → 7, find-a-time five
+  sequential waves → two, and one fewer on every page (the tour marker
+  rides on the session). Still open: Better Auth's session lookup is two
+  sequential queries; its experimental join mode would make it one
+
+## Phase 25 — The Discord bot ✅ (done, 2026-11)
+
+Promoted from "future ideas": session cards with **I'm in / Maybe / Out**
+buttons, so joining doesn't need a trip to the website.
+
+- A bot posts the same edit-in-place card as a webhook, into channels added
+  on /admin (`discord_bot_channels`, migration 0022 + tested rollback), with
+  a button row while the session is open
+- `/api/discord/interactions`: Ed25519-verified; maps the Discord user to an
+  account through Better Auth's `account` table, then applies the same RSVP
+  rules as the website (one shared `applyRsvp`: guest visibility, phase,
+  atomic seat cap). Replies are ephemeral
+- `/connect-discord`: someone who signed in with Google links their Discord
+  identity once
+- Optional end to end: no `DISCORD_BOT_TOKEN` / `DISCORD_PUBLIC_KEY`, no
+  bot; webhooks are untouched. Setup: deployment/13
 
 ## Future ideas (unscheduled)
 
@@ -437,6 +465,11 @@ to hurt at 100 games and year three.
   webhook already exist; /review already assembles the content)
 - Notification opt-outs per member (would trigger the user_preferences
   table above)
-- A Discord bot (interactions endpoint) for one-tap "I'm in" buttons on the
-  session card — webhooks can't carry interactive components
+- ~~A Discord bot for one-tap "I'm in" buttons~~ — shipped as Phase 25
+- Slash commands for the bot (`/sessions`, `/post`) — needs command
+  registration; the buttons cover the common case
+- Better Auth join mode for the session lookup (one query instead of two on
+  every request) once it leaves experimental
+- A restore tool for the R2 snapshots (today they're a record, not a
+  one-click restore; Neon PITR is the restore path)
 - Group chat / comments on a session page

@@ -36,6 +36,9 @@ earlier ones.
 | [10 — Updating the app](10-updating-the-app.md) | What to do when the code changes later. |
 | [11 — Troubleshooting](11-troubleshooting.md) | Every common failure: what you see, why it happened, how to fix it. |
 | [12 — Upgrading to the 2026-09 redesign](12-redesign-migration.md) | For groups already running NextQuest: rehearse on a Neon branch, migrate without data loss, roll back if needed. |
+| [13 — The Discord bot](13-discord-bot.md) | *Optional.* "I'm in" buttons right on the session cards in Discord. |
+| [14 — Backups and logs](14-backups-and-logs.md) | Turn on weekly automatic backups; where to look when something goes wrong. |
+| [15 — Preview deploys](15-preview-deploys.md) | *Optional, for people changing the code.* Try a pull request on Cloudflare before it goes live. |
 
 ## Accounts you will create (and why)
 

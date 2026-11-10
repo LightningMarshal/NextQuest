@@ -62,9 +62,15 @@ export async function pressButton(
 	request: APIRequestContext,
 	discordUserId: string,
 	customId: string,
-	options: { tamper?: boolean } = {}
+	options: { tamper?: boolean; token?: string } = {}
 ) {
-	const body = JSON.stringify({ type: 3, data: { custom_id: customId }, member: { user: { id: discordUserId } } });
+	const body = JSON.stringify({
+		type: 3,
+		application_id: "700000000000000001",
+		token: options.token ?? `e2e-interaction-token-${crypto.randomBytes(8).toString("hex")}`,
+		data: { custom_id: customId },
+		member: { user: { id: discordUserId } },
+	});
 	const timestamp = String(Math.floor(Date.now() / 1000));
 	const key = crypto.createPrivateKey(fs.readFileSync(`${STATE_DIR}discord-private-key.pem`));
 	let signature = crypto.sign(null, Buffer.from(timestamp + body), key).toString("hex");
@@ -73,4 +79,10 @@ export async function pressButton(
 		headers: { "x-signature-ed25519": signature, "x-signature-timestamp": timestamp, "content-type": "application/json" },
 		data: body,
 	});
+}
+
+/** A deferred reply's eventual content, as the fake Discord received it. */
+export async function followUpContent(token: string): Promise<string | undefined> {
+	const all = (await (await fetch(`${FAKE_DISCORD_URL}/__followups`)).json()) as Record<string, { content: string }>;
+	return all[token]?.content;
 }
