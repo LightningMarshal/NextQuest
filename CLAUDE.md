@@ -12,7 +12,8 @@ a 10-second wrap-up so every past session shows who came and how it went.
 Around it: a rich game **library** (genres, descriptions, time-to-beat,
 reception, "I'd play this"), **find-a-time polls** for nights that need
 planning, and **stats**. One deployment = one group. An optional **Discord
-bot** puts I'm in / Maybe / Out buttons on the session card.
+bot** puts I'm in / Maybe / Out buttons on the session card and answers
+`/sessions` and `/post`.
 
 - Design history and the 2026-09 redesign rationale: `docs/DECISIONS.md`
 - Data model and data flow: `docs/ARCHITECTURE.md`
@@ -109,7 +110,11 @@ Gates live in `src/server/session.ts` — there is no middleware/proxy:
 - `/api/discord/interactions` has no browser session at all. Its gate is
   the Ed25519 signature check (must stay first), then the Discord id →
   account lookup; it creates no accounts and goes through `applyRsvp`, the
-  same rule set as the web RSVP action.
+  same rule set as the web RSVP action. Slash commands follow the same
+  tiers (`src/server/discord-commands.ts`): guests list open sessions only
+  and can't `/post`; library titles are suggested to members only. Every
+  reply is ephemeral — `/sessions` differs per viewer, so a public reply
+  would leak members-only sessions into the channel.
 
 ## Architecture map
 
@@ -132,15 +137,18 @@ src/
 │                        #   discord_webhooks, discord_bot_channels),
 │                        #   interest (keen), games, …
 ├── lib/                 # pure + tested: sessions, discord-embed,
-│                        #   discord-interactions, backup, game-hygiene,
+│                        #   discord-interactions, discord-commands,
+│                        #   backup, game-hygiene,
 │                        #   when-label, safe-redirect, ids, ical,
 │                        #   points (frozen), metadata/*
 └── server/              # actions ("use server") + *-read.ts helpers
     ├── session.ts       # the gates
     ├── sessions.ts | sessions-read.ts   # the heart of the app
     ├── session-rsvp.ts  # applyRsvp — the ONE RSVP rule set (web + bot)
+    ├── session-create.ts # insertSession — the ONE session insert (web + /post)
+    ├── discord-commands.ts # /sessions, /post, game autocomplete (DB half)
     ├── discord.ts       # webhook + bot delivery, edit-in-place announcements
-    ├── bot-channels.ts  # admin actions for the bot's channels
+    ├── bot-channels.ts  # admin actions: bot channels, command registration
     ├── circle.ts        # invites + applications
     ├── game-status.ts   # the ONLY games.status writer (atomic CTE + history)
     ├── game-admin.ts    # admin delete / merge of games (never writes status)
@@ -224,6 +232,10 @@ public/sw.js             # service worker: offline page only, caches NO pages
   writes look like source edits and every page reloads in a loop.
 - `next dev` rewrites `AGENTS.md` on start (git-ignored), and allows one dev
   server per checkout — `npm run e2e` starts its own, so stop yours first.
+- Changing `COMMANDS` (`src/lib/discord-commands.ts`) does nothing in
+  Discord until an admin presses **Set up slash commands** on /admin again.
+  Discord has no date-time option and gives no timezone — don't add clock
+  times to `/post` without a timezone source (DECISIONS 2026-11-11).
 - Cloudflare static assets redirect `/x.html` → `/x`; a service worker must
   not cache a redirected response for navigations (see `public/sw.js`).
 - `@playwright/test` and `playwright-core` are pinned to the same exact

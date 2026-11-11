@@ -99,7 +99,8 @@ Discord tests the address on the spot. If it saves, you're connected.
 ## 5. Invite the bot to your server
 
 1. In the developer portal, open **OAuth2** → **URL Generator**.
-2. Under **Scopes**, tick **bot**.
+2. Under **Scopes**, tick **bot** and **applications.commands** (the
+   second one is for the slash commands in step 8).
 3. Under **Bot Permissions**, tick **View Channels**, **Send Messages**,
    and **Embed Links**. (Add **Send Messages in Threads** if you want cards
    in a thread.)
@@ -136,6 +137,36 @@ Post a session. The card appears with buttons. Press **I'm in**:
   **Connect Discord**. Follow it, click the button, approve — then press
   **I'm in** again. That's a one-time step per person.
 
+## 8. Slash commands (optional)
+
+Two commands people can type in any channel the bot can see:
+
+- **`/sessions`** — what's coming up, with links. Only the person who typed
+  it sees the answer, and it's *their* list: guests see open sessions only.
+- **`/post`** — a member posts a session without opening the website: pick
+  the game (it suggests titles from your library as you type), when it
+  starts, and optionally whether it's open to guests, a seat limit, and a
+  note. The card appears in your channels like any other session.
+
+To switch them on: **Admin → Discord bot → Set up slash commands**. Press it
+once. Discord can take a few minutes to show them; restarting the Discord
+app usually makes them appear at once. Press it again after you update
+NextQuest, in case the commands changed.
+
+> [!NOTE]
+> **Why `/post` only offers "Now", "In 30 minutes", "In 1 hour"…** Discord
+> doesn't tell a bot what timezone you're in, so "8pm" typed into Discord
+> would be a guess — and a session at the wrong hour is worse than none.
+> "In an hour" means the same thing for everyone. For a specific day and
+> time, post on the website; the bot's reply also links straight to the
+> new session's edit page.
+
+> [!IMPORTANT]
+> If the commands never show up, the bot was probably invited without
+> permission to add them. Repeat [step 5](#5-invite-the-bot-to-your-server),
+> ticking **applications.commands** as well as **bot** under Scopes, and
+> authorize again — you don't need to remove the bot first.
+
 ## If something's off
 
 | What you see | Why | Fix |
@@ -146,6 +177,8 @@ Post a session. The card appears with buttons. Press **I'm in**:
 | "That session isn't available to you" | A guest pressed a button on a members-only session | Working as intended |
 | Everyone gets "connect your Discord" every time | Discord sign-in isn't configured, so connecting can't complete | Set `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` (chapter 06) |
 | Two cards per session | A webhook and the bot both post to that channel | Remove the webhook |
+| `/sessions` and `/post` don't appear when typing `/` | Not switched on yet, Discord hasn't refreshed, or the bot lacks the commands permission | Admin → **Set up slash commands**; restart Discord; see the note in step 8 |
+| "Posting sessions is for group members" | A guest ran `/post` | Working as intended |
 
 To turn the bot off entirely, remove its channels in Admin (or delete the
 `DISCORD_BOT_TOKEN` secret). Webhooks keep working either way.

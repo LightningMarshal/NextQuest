@@ -506,3 +506,29 @@ text on white and under white button labels, and the success green at
 light pair now uses a deeper cyan and green that pass in every place they
 appear. Chart colours keep the brighter values (they aren't text).
 
+## 2026-11-11 — Slash commands: offsets not clock times, ephemeral lists, registration from /admin
+
+`/sessions` and `/post` ride the same interactions endpoint as the buttons
+and the same identity path (signature → linked account).
+
+- **`/post` takes "Now / in 30 minutes / in 1–3 hours", not a time.**
+  Discord has no date-time option and tells a bot nothing about the user's
+  timezone; the Worker runs in UTC. Parsing "8pm" would need either a
+  group-wide timezone setting (wrong for anyone travelling or remote) or a
+  guess. An offset is unambiguous everywhere, and it fits what the command
+  is for — "I'm hopping on, who's in?". Planned nights stay on the
+  composer; the reply links to the new session's edit page.
+- **`/sessions` replies ephemerally.** Not for tidiness: the list differs
+  by viewer (guests see open sessions only), so a public reply from a
+  member would put members-only sessions into a channel guests can read.
+- **Autocomplete is members-only.** The library is; typing into `/post`
+  must not become a way for a guest or a stranger to enumerate it.
+- **`/post` goes through the composer's insert** (`insertSession`) and the
+  composer's game matching (`resolveOrCreateGame`), so a session posted
+  from Discord is indistinguishable from one posted on the site.
+- **Registration is a button on /admin**, not a script or a deploy step:
+  the people running this app don't have a terminal habit, and the bot
+  token already on the Worker is all Discord needs (the application id is
+  read from `/applications/@me`). It's a full replace, so pressing it again
+  after an update is safe.
+

@@ -95,14 +95,15 @@ export function sessionComponents(session: { id: string; status: SessionStatus }
 
 // --- Interactions ------------------------------------------------------------
 
-export const InteractionType = { PING: 1, APPLICATION_COMMAND: 2, MESSAGE_COMPONENT: 3 } as const;
+export const InteractionType = { PING: 1, APPLICATION_COMMAND: 2, MESSAGE_COMPONENT: 3, AUTOCOMPLETE: 4 } as const;
 
 export type DiscordInteraction = {
 	type?: number;
 	/** The bot's application id and this interaction's follow-up token. */
 	application_id?: unknown;
 	token?: unknown;
-	data?: { custom_id?: unknown };
+	/** Buttons carry custom_id; commands carry name + options. */
+	data?: { custom_id?: unknown; name?: unknown; options?: unknown };
 	/** Present in servers. */
 	member?: { user?: { id?: unknown } };
 	/** Present in DMs. */

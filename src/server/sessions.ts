@@ -23,6 +23,7 @@ import {
 } from "@/lib/sessions";
 import { discordTimestamp, md, syncSessionAnnouncement } from "@/server/discord";
 import { resolveOrCreateGame } from "@/server/game-linking";
+import { insertSession } from "@/server/session-create";
 import { applyRsvp } from "@/server/session-rsvp";
 import { requireCircleUser, requireMember, type SessionUser } from "@/server/session";
 
@@ -114,30 +115,7 @@ export async function createSession(formData: FormData): Promise<{ id: string }>
 	const input = readSessionForm(formData);
 	const db = getDb();
 	const game = await resolveGame(db, user, input);
-	const title = input.title ?? defaultSessionTitle(game.title);
-
-	const id = crypto.randomUUID();
-	// Atomic: a session never exists without its host's RSVP.
-	await db.batch([
-		db.insert(schema.events).values({
-			id,
-			title,
-			gameId: game.id,
-			scheduledAt: input.startsAt,
-			durationMinutes: input.durationMinutes,
-			visibility: input.visibility,
-			capacity: input.capacity,
-			location: input.location,
-			joinUrl: input.joinUrl,
-			notes: input.notes,
-			venue: input.venue,
-			sessionNumber: trailingNumber(title),
-			createdBy: user.id,
-		}),
-		db.insert(schema.eventAttendance).values({ eventId: id, userId: user.id, rsvp: "yes" }),
-	]);
-
-	syncSessionAnnouncement(id);
+	const { id } = await insertSession(db, user.id, { ...input, game });
 	revalidateSessions(id);
 	return { id };
 }

@@ -247,6 +247,20 @@ Discord waits 3 seconds for an answer. The route races the work against a
 (Neon waking from idle), it replies "thinking…" (deferred, ephemeral) and
 PATCHes the real line in as a follow-up on `waitUntil`.
 
+**Slash commands** arrive at the same route (interaction type 2, and type
+4 for autocomplete) and resolve the same way to one ephemeral line:
+
+- `/sessions` → `getUpcomingSummaries` (`sessions-read.ts`, the standard
+  visibility filter) → `sessionsListText`.
+- `/post` → `parsePostCommand` (re-validates every option) → members only →
+  `resolveOrCreateGame` → `insertSession` (`src/server/session-create.ts`,
+  the same insert the composer uses) → card sync.
+- typing in `/post`'s `game` → `suggestGames` (members only, ≤ 25 titles).
+
+Definitions, parsing and reply text are pure (`src/lib/discord-commands.ts`);
+the DB half is `src/server/discord-commands.ts`. `registerBotCommands`
+(admin action) PUTs the definitions to Discord.
+
 `applyRsvp` is also what the web action calls, so both doors enforce the
 same rules. An unrecognised presser is pointed at `/connect-discord`
 (explicit Better Auth `linkSocial`); no account is created from Discord.

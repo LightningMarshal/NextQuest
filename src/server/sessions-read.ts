@@ -37,7 +37,7 @@ export type SessionCardData = {
 
 const host = alias(schema.user, "host_user");
 
-function visibilityFilter(viewer: SessionUser): SQL | undefined {
+function visibilityFilter(viewer: Pick<SessionUser, "role">): SQL | undefined {
 	return canSeeSession("members", viewer) ? undefined : eq(schema.events.visibility, "open");
 }
 
@@ -312,3 +312,33 @@ export async function getOpenPolls(): Promise<{ id: string; title: string; close
 }
 
 
+
+/**
+ * Upcoming and live sessions as plain rows, for the Discord bot's
+ * /sessions. Same visibility filter as every page: a guest's list only
+ * ever contains open sessions.
+ */
+export async function getUpcomingSummaries(
+	viewer: Pick<SessionUser, "role">,
+	now: Date,
+	limit: number
+): Promise<
+	{ id: string; title: string; scheduledAt: Date; visibility: "members" | "open"; capacity: number | null; going: number }[]
+> {
+	return getDb()
+		.select({
+			id: schema.events.id,
+			title: schema.events.title,
+			scheduledAt: schema.events.scheduledAt,
+			visibility: schema.events.visibility,
+			capacity: schema.events.capacity,
+			going: sql<number>`(
+				select count(*)::int from "event_attendance"
+				where "event_attendance"."event_id" = "events"."id" and "event_attendance"."rsvp" = 'yes'
+			)`,
+		})
+		.from(schema.events)
+		.where(and(visibilityFilter(viewer), eq(schema.events.status, "scheduled"), sql`${LIVE_WINDOW} > ${now}`))
+		.orderBy(asc(schema.events.scheduledAt))
+		.limit(limit);
+}
