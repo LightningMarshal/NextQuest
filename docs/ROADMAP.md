@@ -446,6 +446,13 @@ buttons, so joining doesn't need a trip to the website.
   identity once
 - Optional end to end: no `DISCORD_BOT_TOKEN` / `DISCORD_PUBLIC_KEY`, no
   bot; webhooks are untouched. Setup: deployment/13
+- **Slash commands** ✅ (2026-11): `/sessions` lists what's coming up for
+  the person asking (guests get open sessions only; the reply is
+  ephemeral so a members-only night never lands in a public channel), and
+  `/post` lets a member post a session starting within the next few hours —
+  game with library autocomplete, optional open/seats/note. Start times are
+  offsets, not clock times: Discord gives a bot no timezone. An admin
+  registers them from /admin (no script, no extra secret)
 
 ## Future ideas (unscheduled)
 
@@ -466,8 +473,9 @@ buttons, so joining doesn't need a trip to the website.
 - Notification opt-outs per member (would trigger the user_preferences
   table above)
 - ~~A Discord bot for one-tap "I'm in" buttons~~ — shipped as Phase 25
-- Slash commands for the bot (`/sessions`, `/post`) — needs command
-  registration; the buttons cover the common case
+- ~~Slash commands for the bot~~ — shipped with Phase 25
+- A group timezone setting, so `/post` could accept clock times ("tonight
+  8pm") — only worth it if the offsets prove too limiting in real use
 - Better Auth join mode for the session lookup (one query instead of two on
   every request) once it leaves experimental
 - A restore tool for the R2 snapshots (today they're a record, not a

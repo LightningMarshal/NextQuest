@@ -52,7 +52,8 @@ only about open sessions. Reminders go out a day and an hour before, with
 who's in. Mentions are always disabled.
 
 Optionally, a **Discord bot** posts the same card with **I'm in / Maybe /
-Out** buttons, so people join without leaving Discord
+Out** buttons, so people join without leaving Discord — and answers
+`/sessions` (what's on) and `/post` (start a session from the chat)
 ([setup](docs/deployment/13-discord-bot.md)).
 
 ### The circle: guests, invites, applications

@@ -23,6 +23,7 @@ import { requireAdmin } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 import { addWebhook, deleteWebhook, setWebhookEnabled, testWebhook } from "@/server/webhooks";
 
+import { RegisterCommandsButton } from "./register-commands-button";
 import { SettingsForm } from "./settings-form";
 
 export const metadata: Metadata = { title: "Admin" };
@@ -420,6 +421,15 @@ export default async function AdminPage() {
 								Adding posts a hello to the channel first, so you know the bot can reach it. People press a button
 								once, connect their Discord account when asked, and it works from then on.
 							</p>
+							<div className="flex flex-col gap-1.5 border-t pt-4">
+								<p className="text-sm font-medium">Slash commands</p>
+								<p className="text-muted-foreground text-xs">
+									<code>/sessions</code> shows what&apos;s coming up (each person sees only what they&apos;re allowed
+									to); <code>/post</code> lets a member post a session starting within the next few hours. Press once
+									to switch them on, and again after updating NextQuest.
+								</p>
+								<RegisterCommandsButton />
+							</div>
 						</>
 					)}
 				</CardContent>

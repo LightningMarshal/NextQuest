@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/db";
+import { COMMANDS } from "@/lib/discord-commands";
 import { parseChannelId } from "@/lib/discord-interactions";
 import { discordApiBase } from "@/server/discord";
 import { requireAdmin } from "@/server/session";
@@ -93,4 +94,34 @@ export async function testBotChannel(id: string): Promise<void> {
 		.where(eq(schema.discordBotChannels.id, id));
 	if (!channel) throw new Error("Channel not found.");
 	await botPost(channel.channelId, "👋 Test from NextQuest — the bot can post here.");
+}
+
+/**
+ * Tell Discord about /sessions and /post (a full replace of the bot's
+ * global commands, so it's safe to press again after an update). Returns
+ * the names Discord now has, for the admin to see. Discord can take a few
+ * minutes to show new commands in its clients.
+ */
+export async function registerBotCommands(): Promise<{ commands: string[] }> {
+	await requireAdmin();
+	const headers = { "Content-Type": "application/json", Authorization: `Bot ${botToken()}` };
+	const base = discordApiBase();
+
+	// The application id isn't a setting of ours: ask Discord whose token this is.
+	const me = await fetch(`${base}/applications/@me`, { headers, signal: AbortSignal.timeout(5_000) }).catch(() => null);
+	if (!me?.ok) {
+		throw new Error(me?.status === 401 ? "Discord rejected the bot token." : `Couldn't reach Discord${me ? ` (HTTP ${me.status})` : ""} — try again.`);
+	}
+	const application = (await me.json().catch(() => null)) as { id?: unknown } | null;
+	if (typeof application?.id !== "string" || !/^\d{5,25}$/.test(application.id)) throw new Error("Discord didn't say which application this bot belongs to.");
+
+	const res = await fetch(`${base}/applications/${application.id}/commands`, {
+		method: "PUT",
+		headers,
+		body: JSON.stringify(COMMANDS),
+		signal: AbortSignal.timeout(5_000),
+	}).catch(() => null);
+	if (!res?.ok) throw new Error(`Discord didn't accept the commands${res ? ` (HTTP ${res.status})` : ""}.`);
+	const registered = (await res.json().catch(() => [])) as { name?: unknown }[];
+	return { commands: Array.isArray(registered) ? registered.map((command) => String(command.name)) : [] };
 }

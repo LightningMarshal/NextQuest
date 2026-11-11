@@ -55,20 +55,19 @@ export async function sessionCard(channelId: string, sessionId: string): Promise
 }
 
 /**
- * Press an RSVP button the way Discord delivers it: a signed POST to the
+ * Deliver an interaction the way Discord does: a signed POST to the
  * interactions endpoint. `tamper` corrupts the signature.
  */
-export async function pressButton(
+export async function sendInteraction(
 	request: APIRequestContext,
 	discordUserId: string,
-	customId: string,
+	payload: { type: number; data: unknown },
 	options: { tamper?: boolean; token?: string } = {}
 ) {
 	const body = JSON.stringify({
-		type: 3,
+		...payload,
 		application_id: "700000000000000001",
 		token: options.token ?? `e2e-interaction-token-${crypto.randomBytes(8).toString("hex")}`,
-		data: { custom_id: customId },
 		member: { user: { id: discordUserId } },
 	});
 	const timestamp = String(Math.floor(Date.now() / 1000));
@@ -78,6 +77,37 @@ export async function pressButton(
 	return request.post("/api/discord/interactions", {
 		headers: { "x-signature-ed25519": signature, "x-signature-timestamp": timestamp, "content-type": "application/json" },
 		data: body,
+	});
+}
+
+/** Press an RSVP button on a session card. */
+export function pressButton(
+	request: APIRequestContext,
+	discordUserId: string,
+	customId: string,
+	options: { tamper?: boolean; token?: string } = {}
+) {
+	return sendInteraction(request, discordUserId, { type: 3, data: { custom_id: customId } }, options);
+}
+
+/** Run a slash command with the given option values. */
+export function runCommand(
+	request: APIRequestContext,
+	discordUserId: string,
+	name: string,
+	options: Record<string, string | number | boolean> = {}
+) {
+	return sendInteraction(request, discordUserId, {
+		type: 2,
+		data: { name, options: Object.entries(options).map(([key, value]) => ({ name: key, value })) },
+	});
+}
+
+/** Type into an autocompleting option of a command. */
+export function typeInto(request: APIRequestContext, discordUserId: string, name: string, option: string, typed: string) {
+	return sendInteraction(request, discordUserId, {
+		type: 4,
+		data: { name, options: [{ name: option, value: typed, focused: true }] },
 	});
 }
 
