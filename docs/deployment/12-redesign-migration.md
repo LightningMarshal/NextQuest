@@ -89,4 +89,4 @@ cleanly later.
 
 ---
 
-[← 11 — Troubleshooting](11-troubleshooting.md) · [Index](README.md)
+[← 11 — Troubleshooting](11-troubleshooting.md) · [Index](README.md) · [13 — The Discord bot →](13-discord-bot.md)

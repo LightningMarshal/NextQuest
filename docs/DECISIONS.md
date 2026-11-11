@@ -418,3 +418,91 @@ Drew would play this", Home says "Games people want to play", and the sort is
 "Most wanted". "Want to play" was avoided as the button label because it's
 already the Library section for not-yet-started games. The code, table
 (`game_interest`), and these docs keep "keen" as the internal name.
+
+## 2026-11-10 — A Discord bot, as an optional sibling of webhooks
+
+The 2026-09 redesign ruled interactive "Join" buttons out of scope: webhooks
+can't carry components. Adoption is the whole point of the redesign and the
+RSVP is the one action everyone takes, so the bot is now built — but as an
+addition, not a replacement. Webhooks stay (zero setup beyond pasting a
+URL); the bot is a second kind of target that shares the same claim /
+edit-in-place / audience logic and only differs in transport and in
+carrying a button row.
+
+- **Interactions endpoint, not a gateway bot.** Workers can't hold a
+  websocket open; an HTTP interactions endpoint needs nothing running.
+- **Identity = signature + linked account.** The Ed25519 check proves the
+  request is Discord's, which makes the Discord user id in it trustworthy;
+  that id maps to a NextQuest account via Better Auth's `account` table. No
+  account is ever created from a button press — an unknown presser gets a
+  private link to `/connect-discord`. The access model is unchanged.
+- **One RSVP rule set.** The web action and the bot both call `applyRsvp`
+  (`src/server/session-rsvp.ts`), so a guest still can't touch a members
+  session and the seat cap is still atomic, whichever door they came in by.
+- **Explicit linking across emails is allowed** (`allowDifferentEmails`):
+  it only applies to `linkSocial` by someone already signed in, and most
+  people's Discord email differs from their Google one. Implicit linking at
+  sign-in is unchanged.
+- **Ephemeral replies, card edited separately.** The presser gets a private
+  confirmation or refusal; the card updates through the normal sync, so all
+  channels stay consistent.
+- **Defer only when slow.** Discord allows 3 seconds. Always deferring
+  would show "thinking…" on every press; never deferring fails the first
+  press after Neon has gone idle. The endpoint answers directly when the
+  work finishes inside 2 seconds and defers + follows up when it doesn't.
+- `DISCORD_API_BASE` exists only so the E2E suite can point the bot at a
+  fake Discord — the same idea as `NEON_HTTP_PROXY_ENDPOINT`.
+
+## 2026-11-10 — Backups are opt-in, and a record rather than a restore
+
+The weekly R2 snapshot reuses the admin export (one builder,
+`src/server/export-read.ts`, so they can't drift). The `BACKUPS` binding
+ships commented out in `wrangler.jsonc`: a deploy naming a bucket that
+doesn't exist fails, and this app is deployed by non-developers following a
+guide — an optional feature must not be able to break `npm run deploy`.
+Retention is 90 days but never below the newest four snapshots, so a cron
+that stopped for months can't prune its way to zero. Restore stays manual:
+Neon PITR is the "undo" layer; the snapshot is the layer that survives
+losing Neon. Credentials (auth sessions, webhook URLs, invite hashes) are
+never in a snapshot, and votes leave as totals only, as in the export.
+
+## 2026-11-10 — E2E signs in with a minted cookie; the app has no test seam
+
+The roadmap proposed "a test-only session seam". Instead the suite inserts a
+Better Auth session row and sets the signed cookie itself (the promo
+walkthrough already did this). The app ships no code path that exists only
+for tests, so there is nothing to forget to disable in production. The
+stack is the real one — the real Neon driver through the shim, real
+migrations from empty — with only Discord faked.
+
+## 2026-11-10 — The service worker caches no pages
+
+Installability wanted a service worker; "an offline shell for the events
+page" (the roadmap's wording) would have meant caching HTML. Every page here
+is behind sign-in and differs by viewer — guests see fewer sessions than
+members — so a cached page could show one person's view to another on a
+shared device, or a stale roster as if current. The worker therefore
+precaches exactly three static files and answers only failed navigations,
+with a branded offline page that reloads itself when the connection
+returns. It registers in production builds only.
+
+## 2026-11-10 — Hard delete only for what was never played; merges keep the survivor's history
+
+`rejected` was the only exit for a bad entry, and it keeps the row forever.
+Admins can now delete — but only games never played: status history feeds
+burn-rate and the activity feed, and played sessions point at the game.
+Duplicates are merged instead. A merge deliberately does **not** combine
+status history: two entries for one game each have a plausible lifecycle,
+and merging them would double-count a completion. The target's status and
+history stand; so the played entry must be the survivor, and the action
+refuses the other direction. Legacy vote rows move only into a backlog
+target (votes exist nowhere else) and are never read — anonymity holds.
+
+## 2026-11-10 — The light theme's primary is deeper than the prototype's
+
+The accessibility pass measured the light theme's cyan at 2.8–3.0:1 both as
+text on white and under white button labels, and the success green at
+2.2:1 — WCAG AA needs 4.5:1. Dark is the flagship and was already fine; the
+light pair now uses a deeper cyan and green that pass in every place they
+appear. Chart colours keep the brighter values (they aren't text).
+

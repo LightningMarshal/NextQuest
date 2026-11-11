@@ -111,7 +111,7 @@ export function PastSessionCard({ session, now }: { session: SessionCardData; no
 				{phase === "cancelled" && <Badge variant="destructive">cancelled</Badge>}
 				{phase === "ended" && <Badge variant="outline">needs wrap-up</Badge>}
 				{session.howItWent !== null && (
-					<span className="text-primary flex items-center gap-0.5 text-xs" aria-label={`Rated ${session.howItWent} of 5`}>
+					<span className="text-primary flex items-center gap-0.5 text-xs" role="img" aria-label={`Rated ${session.howItWent} of 5`}>
 						{Array.from({ length: session.howItWent }, (_, i) => (
 							<StarIcon key={i} className="size-3 fill-current" />
 						))}

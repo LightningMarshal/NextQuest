@@ -110,6 +110,11 @@ describe("titles and formatting", () => {
 	it("handles trailing session numbers", () => {
 		expect(trailingNumber("Strahd — Session 12")).toBe(12);
 		expect(trailingNumber("Rust")).toBeUndefined();
+		expect(trailingNumber("12")).toBe(12);
+		// A long digit run is a date or an id, not a session ordinal — and
+		// it used to overflow the integer column, failing the whole post.
+		expect(trailingNumber("Launch night 20261110")).toBeUndefined();
+		expect(trailingNumber("Run 1794276458975")).toBeUndefined();
 		expect(bumpTrailingNumber("Strahd — Session 12")).toBe("Strahd — Session 13");
 		expect(bumpTrailingNumber("Rust")).toBe("Rust");
 	});

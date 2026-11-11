@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { timingSafeEqual } from "@/lib/ids";
 import { notifyDiscord } from "@/server/discord";
+import { runBackup } from "@/server/cron/backup";
 import { sendEventReminders } from "@/server/cron/event-reminders";
 import { refreshStaleMetadata } from "@/server/cron/metadata-refresh";
 
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 const TASKS: Record<string, () => Promise<Record<string, number>>> = {
 	"refresh-metadata": refreshStaleMetadata,
 	"event-reminders": sendEventReminders,
+	backup: runBackup,
 };
 
 export async function GET(request: Request): Promise<Response> {

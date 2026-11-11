@@ -13,10 +13,20 @@
 	// handler — see custom-worker.ts.
 	"main": "custom-worker.ts",
 	"triggers": {
-		// Hourly → event reminders; daily 06:00 UTC → metadata refresh.
+		// Hourly → event reminders; daily 06:00 UTC → metadata refresh;
+		// Mondays 04:30 UTC → backup to R2 (no-op until BACKUPS is bound below).
 		// Dispatch on event.cron in custom-worker.ts.
-		"crons": ["0 * * * *", "0 6 * * *"]
+		"crons": ["0 * * * *", "0 6 * * *", "30 4 * * 1"]
 	},
+	// Automated backups (optional): a weekly JSON snapshot of the group's
+	// data, kept 90 days. To turn it on, create the bucket ONCE —
+	//   npx wrangler r2 bucket create next-quest-backups
+	// — then uncomment this block and deploy. Left commented by default
+	// because a deploy fails if the bucket doesn't exist yet.
+	// See docs/deployment/14-backups-and-logs.md.
+	// "r2_buckets": [
+	// 	{ "binding": "BACKUPS", "bucket_name": "next-quest-backups" }
+	// ],
 	"compatibility_date": "2026-06-10",
 	"compatibility_flags": [
 		"nodejs_compat",
@@ -46,8 +56,17 @@
 			"service": "next-quest"
 		}
 	],
+	// Workers Logs: every request, cron run, console.warn and uncaught
+	// error is kept (7 days on the paid plan, 3 on free) and searchable in
+	// the dashboard — Workers & Pages → next-quest → Observability. No extra
+	// account needed; docs/deployment/14-backups-and-logs.md shows where to look.
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		"head_sampling_rate": 1,
+		"logs": {
+			"enabled": true,
+			"invocation_logs": true
+		}
 	},
 	"upload_source_maps": true
 	/**

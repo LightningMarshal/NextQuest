@@ -79,3 +79,53 @@ jobs:
 
       - name: Apply drizzle/ from empty
         run: npm run db:migrate
+
+  # E2E smoke suite: the real app (next dev) on a throwaway Postgres through
+  # the Neon-HTTP shim, with a fake Discord — post a session → the bot's card
+  # → a guest joins → wrap-up, the bot's buttons, and an axe pass. Everything
+  # is local and fake (e2e/prepare.mjs writes the env); no secrets.
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nextquest
+          POSTGRES_PASSWORD: nextquest
+          POSTGRES_DB: nextquest_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      E2E_DATABASE_URL: postgresql://nextquest:nextquest@localhost:5432/nextquest_e2e
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use npm 11
+        run: npm install -g npm@11.21.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the E2E suite
+        run: npm run e2e
+
+      - name: Keep failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: test-results
+          retention-days: 7

@@ -11,7 +11,11 @@ Browser ──► Cloudflare Worker (Next.js via @opennextjs/cloudflare)
                  ├──► BGG XML API2 (BoardGameGeek + RPGGeek; bearer token, optional)
                  ├──► RAWG API (supplemental video metadata; api key, optional)
                  ├──► Discord webhooks (session cards, edited in place; optional)
-                 └──► Discord OAuth + /users/@me/guilds (guest admission; optional)
+                 ├──► Discord bot REST (the same cards, with RSVP buttons; optional)
+                 ├──► Discord OAuth + /users/@me/guilds (guest admission; optional)
+                 └──► R2 bucket BACKUPS (weekly export snapshot; optional)
+
+Discord ──► POST /api/discord/interactions (button presses, Ed25519-signed)
 ```
 
 Single-tenant: one deployment is one gaming group. There is no `groups`
@@ -46,6 +50,9 @@ plus membership fields on `user`: `role` (`admin`/`member`/`guest`) and
   (`pending`/`approved`/`declined`), reviewer + time.
 - **`discord_webhooks`** — admin-managed targets with an `audience`
   (`all` = group server, `open` = wider server, open sessions only).
+- **`discord_bot_channels`** — the bot's targets: a channel id (not a
+  credential) with the same `audience`. `event_discord_messages.webhook_key`
+  holds a webhook id, a bot-channel id, or `env`.
 - **`game_interest`** — "keen" in code, **"I'd play this"** in the UI: PK `(game_id, user_id)`, public within the
   group.
 
@@ -217,6 +224,55 @@ one embed per eligible webhook (`src/lib/discord-embed.ts`, pure + tested),
 deletes it from `open` webhooks if a session stops being open, and can add
 a short notice line. `notifyDiscord` sends group news to `all` webhooks only.
 All sends run on `waitUntil` and never fail the triggering action.
+
+**The bot** (optional: `DISCORD_BOT_TOKEN` + `DISCORD_PUBLIC_KEY`) is a
+second kind of target. Delivery is the same code path — claim, post, edit
+in place, delete on audience change — with a different transport
+(`POST/PATCH /channels/{id}/messages`, `Authorization: Bot …`) and
+`buildSessionMessage(…, interactive = true)`, which adds a button row while
+the session is scheduled and an empty `components` list once it's closed.
+
+Button presses arrive at `src/app/api/discord/interactions/route.ts`:
+
+```
+Discord ─ POST (signed) ─► verifyDiscordRequest (Ed25519, ±5 min)   src/lib/discord-interactions.ts
+                           ─► account(provider=discord, account_id) → user
+                           ─► applyRsvp(user, session, rsvp)          src/server/session-rsvp.ts
+                           ─► syncSessionAnnouncement + revalidate
+                           ◄─ ephemeral reply (saved / full / closed / connect link)
+```
+
+Discord waits 3 seconds for an answer. The route races the work against a
+2-second budget: normally it replies directly; if the database is slow
+(Neon waking from idle), it replies "thinking…" (deferred, ephemeral) and
+PATCHes the real line in as a follow-up on `waitUntil`.
+
+`applyRsvp` is also what the web action calls, so both doors enforce the
+same rules. An unrecognised presser is pointed at `/connect-discord`
+(explicit Better Auth `linkSocial`); no account is created from Discord.
+
+## Backups & logs
+
+`src/server/cron/backup.ts` (weekly cron `30 4 * * 1`, and "Back up now" on
+/admin): `buildSnapshot()` (`src/server/export-read.ts`, shared with
+`/api/export`) → `BACKUPS.put("backups/nextquest-<stamp>.json")` → prune
+(`src/lib/backup.ts`: older than 90 days, but never below the newest four).
+No binding → no-op. Workers Logs (`observability` in `wrangler.jsonc`) keep
+every invocation and `console.*` line for 3–7 days.
+
+## Admin data hygiene
+
+`src/server/game-admin.ts` (admin-only, rules in `src/lib/game-hygiene.ts`):
+`deleteGame` for never-played entries; `mergeGame` re-points sessions,
+polls and comments, copies marks/ratings/tags where absent, then deletes
+the duplicate — one `db.batch`. Neither writes `games.status`.
+
+## Installability
+
+`src/app/manifest.ts`, `public/icons/*` (from `scripts/make-icons.mjs`),
+`public/sw.js` + `public/offline.html`. The worker caches no pages (see
+DECISIONS 2026-11-10) and is registered by `src/components/service-worker.tsx`
+in production builds only.
 
 ## Effort & burn rate (legacy, frozen)
 

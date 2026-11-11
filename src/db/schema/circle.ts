@@ -79,3 +79,18 @@ export const discordWebhooks = pgTable("discord_webhooks", {
 	createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Channels the Discord BOT posts session cards into (optional — needs
+// DISCORD_BOT_TOKEN + DISCORD_PUBLIC_KEY). Same audiences as webhooks, but a
+// bot message can carry buttons: "I'm in" / "Maybe" / "Out" right on the
+// card (webhooks can't). event_discord_messages.webhook_key = this row's id.
+export const discordBotChannels = pgTable("discord_bot_channels", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	name: text("name").notNull(),
+	/** Discord channel (or thread) snowflake — an id, not a credential. */
+	channelId: text("channel_id").notNull().unique(),
+	audience: webhookAudience("audience").notNull().default("all"),
+	enabled: boolean("enabled").notNull().default(true),
+	createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

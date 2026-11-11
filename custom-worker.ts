@@ -18,6 +18,8 @@ import handler from "./.open-next/worker.js";
 const CRON_TASKS: Record<string, string> = {
 	"0 6 * * *": "refresh-metadata",
 	"0 * * * *": "event-reminders",
+	// Weekly snapshot to R2 — a no-op until the BACKUPS bucket is bound.
+	"30 4 * * 1": "backup",
 };
 
 export default {

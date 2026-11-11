@@ -49,7 +49,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 				<span className="font-medium">{item.eventTitle}</span>{" "}
 				<span className="text-muted-foreground">for</span>{" "}
 				<LocalTime date={item.scheduledAt} withWeekday />
-				<span className="stat text-muted-foreground/70 block text-xs">
+				<span className="stat text-muted-foreground block text-xs">
 					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 				</span>
 			</li>
@@ -74,7 +74,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 				{item.howItWent !== null && (
 					<span className="stat text-primary"> · {item.howItWent}/5</span>
 				)}
-				<span className="stat text-muted-foreground/70 block text-xs">
+				<span className="stat text-muted-foreground block text-xs">
 					{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 				</span>
 			</li>
@@ -87,7 +87,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 			<span className="text-muted-foreground">{verb.before}</span>{" "}
 			<span className="font-medium">{item.gameTitle}</span>
 			{verb.after && <span className="text-muted-foreground"> {verb.after}</span>}
-			<span className="stat text-muted-foreground/70 block text-xs">
+			<span className="stat text-muted-foreground block text-xs">
 				{formatDistanceToNowStrict(item.at, { addSuffix: true })}
 			</span>
 		</li>

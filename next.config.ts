@@ -32,4 +32,8 @@ export default nextConfig;
 // Enable calling `getCloudflareContext()` in `next dev`.
 // See https://opennext.js.org/cloudflare/bindings#local-access-to-bindings.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+// Simulated bindings (the optional BACKUPS R2 bucket) persist to SQLite
+// files that change constantly. Left at the default (.wrangler/state, inside
+// the project) `next dev` sees those writes as source edits and reloads
+// every page in a loop — so keep them where the dev watcher doesn't look.
+initOpenNextCloudflareForDev({ persist: { path: "node_modules/.cache/wrangler-state" } });

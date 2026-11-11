@@ -179,6 +179,9 @@ the webhook was deleted in Discord's settings; or the URL was pasted with
 a typo. Discord failures are deliberately silent — they never break the
 app.
 
+(Using the bot instead of a webhook? See the table at the end of
+[chapter 13](13-discord-bot.md#if-somethings-off).)
+
 **Fix**: re-copy the webhook URL from Discord (channel → Edit Channel →
 Integrations → Webhooks) or create a new webhook, then set it locally in
 `.dev.vars` and/or in production via
@@ -220,6 +223,10 @@ The deployed app logs every request and error. Cloudflare dashboard →
 then reproduce the problem in another tab and watch what appears. Error
 lines usually name the failing piece (database, auth, a specific page) —
 which maps to a chapter of this guide.
+
+Missed it live? The same page keeps the last few days of logs, searchable —
+[chapter 14](14-backups-and-logs.md#logs-seeing-what-the-app-did) lists the
+searches worth knowing.
 
 Still stuck? File an issue on the repository with: what you did, what you
 saw (exact error text), and what the live log showed. Never paste your

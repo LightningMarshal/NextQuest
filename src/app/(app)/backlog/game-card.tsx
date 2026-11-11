@@ -33,7 +33,10 @@ export function GameCard({ game, viewerId }: { game: LibraryGame; viewerId: stri
 
 	return (
 		<Card className="flex h-full flex-col gap-0 overflow-hidden py-0">
-			<Link href={detailHref} aria-label={`View ${game.title}`} className="relative block h-[140px] w-full shrink-0">
+			{/* No aria-label: it would hide the visible badge text from the
+			    link's name (WCAG 2.5.3). The name is badges + title instead. */}
+			<Link href={detailHref} className="relative block h-[140px] w-full shrink-0">
+				<span className="sr-only">{game.title}</span>
 				{game.art ? (
 					<GameArt src={game.art} alt="" fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 340px" />
 				) : (

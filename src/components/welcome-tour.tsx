@@ -124,12 +124,38 @@ export function WelcomeTour({
 
 	useEffect(() => {
 		if (!open) return;
-		panelRef.current?.focus();
+		const panel = panelRef.current;
+		// A modal dialog owns the keyboard while it's up: focus moves in,
+		// Tab cycles inside it (it used to wander off into the page behind
+		// the backdrop), Escape closes, and focus returns where it was.
+		const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		panel?.focus();
 		function onKeyDown(event: KeyboardEvent) {
-			if (event.key === "Escape") close();
+			if (event.key === "Escape") {
+				close();
+				return;
+			}
+			if (event.key !== "Tab" || !panel) return;
+			const focusable = [...panel.querySelectorAll<HTMLElement>("a[href], button:not([disabled])")].filter(
+				(element) => element.tabIndex !== -1
+			);
+			if (focusable.length === 0) return;
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			const active = document.activeElement;
+			if (event.shiftKey && (active === first || active === panel || !panel.contains(active))) {
+				event.preventDefault();
+				last.focus();
+			} else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+				event.preventDefault();
+				first.focus();
+			}
 		}
 		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			previouslyFocused?.focus();
+		};
 	}, [open, close]);
 
 	if (!open) return null;

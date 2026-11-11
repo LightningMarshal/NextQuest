@@ -57,7 +57,10 @@ export type NavUser = {
  * bar otherwise overflows on phones, where a session app actually lives. */
 function MobileNav({ pathname, links }: { pathname: string; links: NavLink[] }) {
 	return (
-		<DropdownMenu>
+		// Non-modal: a modal Radix menu marks the rest of the page aria-hidden
+		// while leaving its links focusable, which screen readers trip over
+		// (axe: aria-hidden-focus). A nav menu has no reason to trap the page.
+		<DropdownMenu modal={false}>
 			<DropdownMenuTrigger asChild>
 				<Button variant="ghost" size="icon" className="sm:hidden" aria-label="Open navigation">
 					<MenuIcon />

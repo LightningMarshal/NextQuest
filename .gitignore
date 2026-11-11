@@ -50,3 +50,11 @@ next-env.d.ts
 
 
 !.dev.vars.example
+
+# next dev writes this on start (Next 16 agent notes); generated, not ours
+/AGENTS.md
+
+# E2E run state (generated signing key) and Playwright output
+/e2e/.state
+/test-results
+/playwright-report

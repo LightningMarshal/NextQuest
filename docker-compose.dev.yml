@@ -1,0 +1,29 @@
+# Local development database — plain Postgres, no Neon account needed.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# The app reaches it through the Neon-HTTP shim (`npm run db:shim`), so the
+# real @neondatabase/serverless driver runs unmodified. Full walkthrough:
+# docs/local-dev.md. The password is a local-only placeholder, not a secret.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nextquest
+    ports:
+      # Loopback only: never expose a dev database to the network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - nextquest-pg:/var/lib/postgresql/data
+      # Also creates the throwaway database the E2E suite wipes on each run.
+      - ./scripts/dev-init.sql:/docker-entrypoint-initdb.d/10-e2e.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nextquest"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  nextquest-pg:

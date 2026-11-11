@@ -42,40 +42,46 @@ function selectVisiblePolls<T extends { status: "open" | "closed"; closedAt: Dat
 export default async function PlanPage() {
 	const user = await requireMember("/sessions/plan");
 	const db = getDb();
-	const [members, candidateGames] = await Promise.all([
+	// Two waves of round trips, not five (each query is an HTTP fetch on the
+	// Neon driver): everything that needs no input first, then everything
+	// keyed by the visible polls — responses reach their poll through a join
+	// rather than waiting for the option ids.
+	// GAC polls: all open ones plus recently closed for context.
+	const pollCreator = schema.user;
+	const pollGame = alias(schema.games, "poll_game");
+	const [members, candidateGames, pollRows] = await Promise.all([
 		db
 			.select({ id: schema.user.id })
 			.from(schema.user)
 			.where(eq(schema.user.status, "approved")),
 		getPickableGames(),
+		db
+			.select({
+				id: schema.availabilityPolls.id,
+				title: schema.availabilityPolls.title,
+				kind: schema.availabilityPolls.kind,
+				gridSessionMinutes: schema.availabilityPolls.gridSessionMinutes,
+				status: schema.availabilityPolls.status,
+				createdAt: schema.availabilityPolls.createdAt,
+				closedAt: schema.availabilityPolls.closedAt,
+				createdBy: schema.availabilityPolls.createdBy,
+				gameTitle: pollGame.title,
+				creatorName: pollCreator.name,
+			})
+			.from(schema.availabilityPolls)
+			.leftJoin(pollCreator, eq(schema.availabilityPolls.createdBy, pollCreator.id))
+			.leftJoin(pollGame, eq(schema.availabilityPolls.gameId, pollGame.id))
+			.orderBy(asc(schema.availabilityPolls.status), desc(schema.availabilityPolls.createdAt)),
 	]);
-
-	// GAC polls: all open ones plus recently closed for context.
-	const pollCreator = schema.user;
-	const pollGame = alias(schema.games, "poll_game");
-	const pollRows = await db
-		.select({
-			id: schema.availabilityPolls.id,
-			title: schema.availabilityPolls.title,
-			kind: schema.availabilityPolls.kind,
-			gridSessionMinutes: schema.availabilityPolls.gridSessionMinutes,
-			status: schema.availabilityPolls.status,
-			createdAt: schema.availabilityPolls.createdAt,
-			closedAt: schema.availabilityPolls.closedAt,
-			createdBy: schema.availabilityPolls.createdBy,
-			gameTitle: pollGame.title,
-			creatorName: pollCreator.name,
-		})
-		.from(schema.availabilityPolls)
-		.leftJoin(pollCreator, eq(schema.availabilityPolls.createdBy, pollCreator.id))
-		.leftJoin(pollGame, eq(schema.availabilityPolls.gameId, pollGame.id))
-		.orderBy(asc(schema.availabilityPolls.status), desc(schema.availabilityPolls.createdAt));
 	const canDeletePoll = (poll: { createdBy: string | null }) =>
 		poll.createdBy === user.id || user.role === "admin";
 	const visiblePolls = selectVisiblePolls(pollRows);
 
 	const pollIds = visiblePolls.map((poll) => poll.id);
-	const [optionRows, scheduledFromPoll] = await Promise.all([
+	// Grid polls (issue #33): painted marks with names, for the heatmap and
+	// the server-computed best-window suggestions. Availability is public.
+	const gridPollIds = visiblePolls.filter((poll) => poll.kind === "grid").map((poll) => poll.id);
+	const [optionRows, scheduledFromPoll, responseRows, markRows] = await Promise.all([
 		pollIds.length === 0
 			? Promise.resolve([])
 			: db
@@ -93,18 +99,10 @@ export default async function PlanPage() {
 			: db
 					.select({ pollId: schema.events.availabilityPollId })
 					.from(schema.events)
-					.where(
-						inArray(
-							schema.events.availabilityPollId,
-							pollIds
-						)
-					),
-	]);
-
-	const responseRows =
-		optionRows.length === 0
-			? []
-			: await db
+					.where(inArray(schema.events.availabilityPollId, pollIds)),
+		pollIds.length === 0
+			? Promise.resolve([])
+			: db
 					.select({
 						optionId: schema.availabilityResponses.optionId,
 						userId: schema.availabilityResponses.userId,
@@ -112,21 +110,12 @@ export default async function PlanPage() {
 						name: schema.user.name,
 					})
 					.from(schema.availabilityResponses)
+					.innerJoin(schema.availabilityOptions, eq(schema.availabilityResponses.optionId, schema.availabilityOptions.id))
 					.innerJoin(schema.user, eq(schema.availabilityResponses.userId, schema.user.id))
-					.where(
-						inArray(
-							schema.availabilityResponses.optionId,
-							optionRows.map((option) => option.id)
-						)
-					);
-
-	// Grid polls (issue #33): painted marks with names, for the heatmap and
-	// the server-computed best-window suggestions. Availability is public.
-	const gridPollIds = visiblePolls.filter((poll) => poll.kind === "grid").map((poll) => poll.id);
-	const markRows =
+					.where(inArray(schema.availabilityOptions.pollId, pollIds)),
 		gridPollIds.length === 0
-			? []
-			: await db
+			? Promise.resolve([])
+			: db
 					.select({
 						pollId: schema.availabilityMarks.pollId,
 						userId: schema.availabilityMarks.userId,
@@ -136,7 +125,8 @@ export default async function PlanPage() {
 					})
 					.from(schema.availabilityMarks)
 					.innerJoin(schema.user, eq(schema.availabilityMarks.userId, schema.user.id))
-					.where(inArray(schema.availabilityMarks.pollId, gridPollIds));
+					.where(inArray(schema.availabilityMarks.pollId, gridPollIds)),
+	]);
 
 	const scheduledPollIds = new Set(scheduledFromPoll.map((row) => row.pollId));
 	const polls: PollWithSlots[] = visiblePolls

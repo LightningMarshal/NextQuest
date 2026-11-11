@@ -107,6 +107,17 @@ export function getAuth() {
 					}
 				: {}),
 		},
+		account: {
+			accountLinking: {
+				// /connect-discord: someone ALREADY signed in (usually with
+				// Google) attaches their Discord identity so the bot's RSVP
+				// buttons know who they are. Their Discord email is often a
+				// different address; explicit, authenticated linking is safe
+				// to allow across emails. Implicit linking at sign-in is
+				// unchanged (same verified email only).
+				allowDifferentEmails: true,
+			},
+		},
 		user: {
 			additionalFields: {
 				role: {
@@ -117,6 +128,14 @@ export function getAuth() {
 				status: {
 					type: "string",
 					defaultValue: "pending",
+					input: false,
+				},
+				// App-owned (markTutorialSeen writes it); declared here only so
+				// the session lookup — which already selects the whole user row
+				// — hands it back, instead of every page paying a second query.
+				tutorialSeenAt: {
+					type: "date",
+					required: false,
 					input: false,
 				},
 			},

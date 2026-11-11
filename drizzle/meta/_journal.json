@@ -155,6 +155,13 @@
       "when": 1790456388408,
       "tag": "0021_wrapped_up_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794275895921,
+      "tag": "0022_discord_bot_channels",
+      "breakpoints": true
     }
   ]
 }

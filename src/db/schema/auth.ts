@@ -23,8 +23,9 @@ export const user = pgTable("user", {
 	image: text("image"),
 	role: userRole("role").notNull().default("member"),
 	status: userStatus("status").notNull().default("pending"),
-	// App-owned (NOT a Better Auth additionalField — auth ignores it): when
-	// the member finished/skipped the welcome tour (issue #13). Null = show it.
+	// App-owned: when the member finished/skipped the welcome tour (issue
+	// #13). Null = show it. Declared as a read-only Better Auth
+	// additionalField (input: false) so it arrives with the session.
 	tutorialSeenAt: timestamp("tutorial_seen_at", { withTimezone: true }),
 	// App-owned: bumping it rotates this person's calendar-feed URL (the
 	// feed token is an HMAC over user id + version — src/lib/ical.ts).

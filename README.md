@@ -51,6 +51,10 @@ the group's own server hears everything; a wider server can be set to hear
 only about open sessions. Reminders go out a day and an hour before, with
 who's in. Mentions are always disabled.
 
+Optionally, a **Discord bot** posts the same card with **I'm in / Maybe /
+Out** buttons, so people join without leaving Discord
+([setup](docs/deployment/13-discord-bot.md)).
+
 ### The circle: guests, invites, applications
 
 - **Invite links**: any member can make one (limited uses, expiry,
@@ -85,8 +89,14 @@ effort burn-down from before the 2026 redesign.
 ### Admin
 
 Applications, waiting sign-ins, members and guests, live invite links,
-Discord webhooks (with a test button), group settings, and a full data
-export.
+Discord webhooks and bot channels (with a test button), group settings, a
+full data export, and optional weekly automatic backups. On a game's page,
+admins can delete a typo entry or merge a duplicate into the real one.
+
+### On your phone
+
+NextQuest is installable: "Add to Home Screen" gives it an icon and its own
+window.
 
 ## How it works
 
@@ -154,15 +164,18 @@ npm run dev          # Next dev server → http://localhost:3000
 npm run seed         # optional: a demo group to click around
 ```
 
-No Neon account for local work? Run a local Postgres and
-`SHIM_TARGET=postgresql://… npm run db:shim`, then set
-`NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars`.
+No Neon account for local work? `docker compose -f docker-compose.dev.yml up -d`,
+then `SHIM_TARGET=postgresql://… npm run db:shim` and set
+`NEON_HTTP_PROXY_ENDPOINT=http://127.0.0.1:4445/sql` in `.dev.vars` — the
+full walkthrough is [docs/local-dev.md](docs/local-dev.md).
 
 ## Useful commands
 
 ```bash
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
+npm test             # unit tests (Vitest)
+npm run e2e          # end-to-end suite: real app + local Postgres + fake Discord (docs/local-dev.md)
 npm run preview      # build + run under workerd (wrangler dev) — do this before deploying
 npm run deploy       # MIGRATES the .env database, then builds + deploys
 npm run db:generate  # generate a migration after editing src/db/schema/
@@ -173,6 +186,7 @@ npm run cf-typegen   # regenerate cloudflare-env.d.ts after wrangler.jsonc chang
 ## Docs
 
 - [Deployment guide](docs/deployment/README.md) — zero-to-deployed walkthrough, no experience assumed
+- [Local development](docs/local-dev.md) — Postgres in Docker, the Neon shim, the E2E suite
 - [Roadmap](docs/ROADMAP.md) — what's built and what's next, phase by phase
 - [Architecture](docs/ARCHITECTURE.md) — data model, metadata pipeline, deployment shape
 - [Decisions](docs/DECISIONS.md) — why things work the way they do, including the 2026-09 redesign

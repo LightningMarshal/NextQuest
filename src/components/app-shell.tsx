@@ -1,8 +1,5 @@
-import { eq } from "drizzle-orm";
-
 import { SiteNav } from "@/components/site-nav";
 import { TOUR_VERSION_DATE, WelcomeTour } from "@/components/welcome-tour";
-import { getDb, schema } from "@/db";
 import type { SessionUser } from "@/server/session";
 import { getAppSettings } from "@/server/settings";
 
@@ -11,17 +8,10 @@ import { getAppSettings } from "@/server/settings";
  * and the guest-visible (circle) group. Role decides the nav and the tour.
  */
 export async function AppShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
-	const [settings, [tourRow]] = await Promise.all([
-		getAppSettings(),
-		// tutorial_seen_at is app-owned, not a Better Auth field, so it isn't
-		// on the session — one PK lookup per request is fine at group scale.
-		getDb()
-			.select({ tutorialSeenAt: schema.user.tutorialSeenAt })
-			.from(schema.user)
-			.where(eq(schema.user.id, user.id)),
-	]);
+	// The tour marker rides on the session user (see auth.ts) — no query here.
+	const settings = await getAppSettings();
 	const isGuest = user.role === "guest";
-	const seen = tourRow?.tutorialSeenAt;
+	const seen = user.tutorialSeenAt;
 
 	return (
 		<>
